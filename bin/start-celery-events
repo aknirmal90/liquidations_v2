@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+rm -f './celerybeat.pid'
+
+doppler run --command "celery -A controlpanel worker --concurrency 16 -Ofair --loglevel info -E -Q events -n events"
