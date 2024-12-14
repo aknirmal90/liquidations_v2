@@ -1,11 +1,7 @@
-from typing import Dict
-
 from django.core.cache import cache
 from django.core.serializers import deserialize, serialize
 from django.db import models
-from eth_utils import keccak
 
-from utils.encoding import get_signature
 from utils.files import get_clazz_object, parse_json, parse_yaml
 from utils.tokens import EvmTokenRetriever
 
@@ -27,24 +23,18 @@ class Protocol(models.Model):
 
     @property
     def evm_abi(self):
-        abi_path = f"{self.name}/evm_abi.json"
+        abi_path = f"{self.name}/abi.json"
         return parse_json(abi_path)
 
-    def get_evm_event_abi(self, name: str, topic0: Dict = None):
+    def get_evm_event_abi(self, name: str):
         if not name:
             return
 
         for item in self.evm_abi:
             if item.get("type") == "event" and item.get("name") == name:
-                if topic0:
-                    signature = get_signature(item)
-                    topic = "0x" + keccak(text=signature).hex()
-                    if topic0 == topic:
-                        return item
-                else:
-                    return item
+                return item
 
-        raise ValueError(f"ABI not found for Name: {name} Topic: {topic0}")
+        raise ValueError(f"ABI not found for Name: {name}")
 
     @property
     def transaction_adapter(self):
@@ -70,7 +60,7 @@ class Network(models.Model):
         return f"network-{network_name}"
 
     @classmethod
-    def get_network_from_networkId(cls, network_name: str):
+    def get_network(cls, network_name: str):
         if network_name is None:
             return
 
@@ -108,7 +98,7 @@ class Event(models.Model):
     def transaction_adapter(self):
         protocol = self.protocol
         adapter_path = f"{protocol.name}.adapter.TransactionAdapter"
-        return get_clazz_object(adapter_path)(protocol_id=protocol.name)
+        return get_clazz_object(adapter_path)
 
     @property
     def blocks_to_sync(self):

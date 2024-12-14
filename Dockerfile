@@ -25,6 +25,10 @@ COPY ./bin/start-webserver /start-webserver
 RUN sed -i 's/\r$//g' /start-webserver
 RUN chmod +x /start-webserver
 
+COPY ./bin/start-webserver-local /start-webserver-local
+RUN sed -i 's/\r$//g' /start-webserver-local
+RUN chmod +x /start-webserver-local
+
 COPY ./bin/start-celery-beat /start-celery-beat
 RUN sed -i 's/\r$//g' /start-celery-beat
 RUN chmod +x /start-celery-beat

@@ -1,0 +1,12 @@
+events:
+
+  - name: "BridgeRelayed"
+    index: "args.transactionId"
+    direction: "receive"
+
+  - name: "BridgeRequested"
+    index: "args.transactionId"
+    direction: "send"
+
+networks:
+  - network: "ethereum"

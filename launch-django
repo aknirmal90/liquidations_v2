@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Find the container ID of a running container whose name contains 'django'
+CONTAINER_ID=$(docker ps --filter "name=django" --format "{{.ID}}")
+
+# Check if the container ID was found
+if [ -z "$CONTAINER_ID" ]; then
+  echo "No container with 'django' in the name is running. Please run ./start-local spin up the local services"
+  exit 1
+fi
+
+# Execute bash in the found container
+echo "Running bash in container: $CONTAINER_ID"
+docker exec -it "$CONTAINER_ID" doppler run --command "python manage.py shell"

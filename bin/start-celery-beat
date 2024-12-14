@@ -6,4 +6,4 @@ set -o nounset
 
 rm -f './celerybeat.pid'
 
-doppler run --command "celery -A controlpanel beat --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+doppler run --command "celery -A liquidations_v2 beat --scheduler django_celery_beat.schedulers:DatabaseScheduler"

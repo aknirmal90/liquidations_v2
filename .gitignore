@@ -1,0 +1,9 @@
+*.pyc
+__pycache__/*
+bridges/*/samples/*
+dump.rdb
+*.log
+.DS_Store
+liquidations_v2/staticfiles/*
+.vscode/*
+*.sqlite3
