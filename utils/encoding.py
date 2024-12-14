@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 def get_signature(event_abi: Dict[str, Any]) -> str:

@@ -1,4 +1,5 @@
 import json
+
 from django.utils.safestring import mark_safe
 
 

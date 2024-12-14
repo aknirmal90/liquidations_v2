@@ -1,11 +1,13 @@
 from typing import Dict
+
+from django.core.cache import cache
+from django.core.serializers import deserialize, serialize
 from django.db import models
 from eth_utils import keccak
-from django.core.cache import cache
+
 from utils.encoding import get_signature
-from utils.tokens import EvmTokenRetriever
-from django.core.serializers import deserialize, serialize
 from utils.files import get_clazz_object, parse_json, parse_yaml
+from utils.tokens import EvmTokenRetriever
 
 
 class Protocol(models.Model):
