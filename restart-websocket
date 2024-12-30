@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+# Fetch the Doppler token for the current environment
+export DOPPLER_TOKEN=$(doppler configs tokens create ephemeral-token --plain --max-age "12h")
+
+if [ -z "$DOPPLER_TOKEN" ]; then
+  echo "Doppler token could not be retrieved"
+  exit 1
+fi
+
+# Start docker-compose with the environment variable passed implicitly
+docker-compose stop websocket-polygon
+docker-compose up -d --build websocket-polygon

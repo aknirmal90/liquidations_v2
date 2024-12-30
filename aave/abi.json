@@ -1,0 +1,310 @@
+[
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "ltv",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "liquidationThreshold",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "liquidationBonus",
+                "type": "uint256"
+            }
+        ],
+        "name": "CollateralConfigurationChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "name": "aToken",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "stableDebtToken",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "variableDebtToken",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "interestRateStrategyAddress",
+                "type": "address"
+            }
+        ],
+        "name": "ReserveInitialized",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "name": "source",
+                "type": "address"
+            }
+        ],
+        "name": "AssetSourceUpdated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "borrowable",
+                "type": "bool"
+            }
+        ],
+        "name": "BorrowableInIsolationChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "oldCategoryId",
+                "type": "uint8"
+            },
+            {
+                "indexed": false,
+                "name": "newCategoryId",
+                "type": "uint8"
+            }
+        ],
+        "name": "EModeAssetCategoryChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "paused",
+                "type": "bool"
+            }
+        ],
+        "name": "ReservePaused",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "oldReserveFactor",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "newReserveFactor",
+                "type": "uint256"
+            }
+        ],
+        "name": "ReserveFactorChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "enabled",
+                "type": "bool"
+            }
+        ],
+        "name": "ReserveFlashLoaning",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "enabled",
+                "type": "bool"
+            }
+        ],
+        "name": "ReserveBorrowing",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "frozen",
+                "type": "bool"
+            }
+        ],
+        "name": "ReserveFrozen",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "oldStrategy",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "newStrategy",
+                "type": "address"
+            }
+        ],
+        "name": "ReserveInterestRateStrategyChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "categoryId",
+                "type": "uint8"
+            },
+            {
+                "indexed": false,
+                "name": "collateral",
+                "type": "bool"
+            }
+        ],
+        "name": "AssetCollateralInEModeChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "categoryId",
+                "type": "uint8"
+            },
+            {
+                "indexed": false,
+                "name": "borrowable",
+                "type": "bool"
+            }
+        ],
+        "name": "AssetBorrowableInEModeChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "categoryId",
+                "type": "uint8"
+            },
+            {
+                "indexed": false,
+                "name": "ltv",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "liquidationThreshold",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "liquidationBonus",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "oracle",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "label",
+                "type": "string"
+            }
+        ],
+        "name": "EModeCategoryAdded",
+        "type": "event"
+    }
+]

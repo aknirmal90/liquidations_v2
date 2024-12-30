@@ -1,12 +1,46 @@
 events:
 
-  - name: "BridgeRelayed"
-    index: "args.transactionId"
-    direction: "receive"
+  - name: "CollateralConfigurationChanged"
+    model_class: "aave.models.Asset"
 
-  - name: "BridgeRequested"
-    index: "args.transactionId"
-    direction: "send"
+  - name: "ReserveInitialized"
+    model_class: "aave.models.Asset"
+
+  - name: "AssetSourceUpdated"
+    model_class: "aave.models.Asset"
+
+  - name: "BorrowableInIsolationChanged"
+    model_class: "aave.models.Asset"
+
+  - name: "EModeAssetCategoryChanged"
+    model_class: "aave.models.Asset"
+
+  - name: "ReserveFactorChanged"
+    model_class: "aave.models.Asset"
+
+  - name: "ReserveFlashLoaning"
+    model_class: "aave.models.Asset"
+
+  - name: "ReserveBorrowing"
+    model_class: "aave.models.Asset"
+
+  - name: "ReserveFrozen"
+    model_class: "aave.models.Asset"
+
+  - name: "ReserveInterestRateStrategyChanged"
+    model_class: "aave.models.Asset"
+
+  - name: "AssetCollateralInEModeChanged"
+    model_class: "aave.models.Asset"
+
+  - name: "AssetBorrowableInEModeChanged"
+    model_class: "aave.models.Asset"
+
+  - name: "EModeCategoryAdded"
+    model_class: "aave.models.Asset"
 
 networks:
-  - network: "ethereum"
+  - network: "arbitrum"
+    contract_addresses:
+      - "0x8145edddf43f50276641b55bd3ad95944510021e"
+      - "0xb56c2F0B653B2e0b10C9b928C8580Ac5Df02C7C7"

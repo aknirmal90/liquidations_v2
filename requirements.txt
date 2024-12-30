@@ -17,3 +17,5 @@ crispy-bootstrap4==2024.10
 humanize==4.11.0
 ipdb==0.13.13
 eth-utils==5.1.0
+web3==7.6.0
+django-choices==2.0.0

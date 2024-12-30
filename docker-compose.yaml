@@ -9,7 +9,7 @@ services:
         environment:
             POSTGRES_PASSWORD: postgres  # Make sure to set this
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U postgres -d postgres2"]
+            test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
             retries: 15
             start_period: 2s
         volumes:
@@ -64,6 +64,29 @@ services:
                     memory: 500M
         stdin_open: true
         tty: true
+
+    websocket-polygon:
+        restart: always
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                - DOPPLER_TOKEN=$DOPPLER_TOKEN
+        command: /start-websocket-polygon-transactions
+        environment:
+            DOPPLER_TOKEN: $DOPPLER_TOKEN
+        depends_on:
+            redis:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+        volumes:
+            - .:/code
+        deploy:
+            resources:
+                limits:
+                    cpus: '0.5'
+                    memory: 500M
 
     celeryworker-default:
         build:

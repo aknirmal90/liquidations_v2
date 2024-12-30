@@ -1,4 +1,8 @@
-from typing import Any, Dict
+from typing import Any, Dict, Union
+
+from eth_utils import keccak
+from hexbytes import HexBytes
+from web3.datastructures import AttributeDict
 
 
 def get_signature(event_abi: Dict[str, Any]) -> str:
@@ -33,3 +37,71 @@ def get_signature(event_abi: Dict[str, Any]) -> str:
 
     # Construct the function signature
     return f"{function_name}({','.join(input_types)})"
+
+
+def get_keccak_hash(signature):
+    return "0x" + keccak(text=signature).hex()
+
+
+def get_topic_0(abi: Dict[str, Any]) -> str:
+    return get_keccak_hash(signature=get_signature(abi))
+
+
+def get_method_id(abi: Dict[str, Any]) -> str:
+    return get_keccak_hash(signature=get_signature(abi))[:10]
+
+
+def decode_hex(value: Union[bytes, HexBytes, str]) -> str:
+    """
+    Decode the given value.
+    Hexadecimal fields in evm rpc responses are either returned as bytes or HexBytes objects,
+    the decoder converts this into string objects with `0x` prefix
+
+    Args:
+        value (Union[bytes, HexBytes, any]): The value to decode.
+
+    Returns:
+        Union[str, any]: Decoded value in hexadecimal format if bytes, otherwise returns the value as is.
+    """
+    if isinstance(value, (bytes, HexBytes)):
+        ret = value.hex().lower()
+        if ret[:2] != "0x":
+            ret = "0x" + ret
+        return ret
+    elif isinstance(value, str):
+        if value[:2] == "0x":
+            return value.lower()
+        else:
+            return value
+    else:
+        return value
+
+
+def decode_any(data: Any) -> AttributeDict:
+    # If the data is bytes, decode it using decode_hex
+    if isinstance(data, (str, bytes, HexBytes)):
+        return decode_hex(data)
+
+    # If the data is a list, apply decoding recursively to each element
+    elif isinstance(data, list):
+        return AttributeDict({str(i): decode_any(item) for i, item in enumerate(data)})
+
+    # If the data is a dictionary, apply decoding recursively to each value
+    elif isinstance(data, (dict, AttributeDict)):
+        return AttributeDict({key: decode_any(value) for key, value in data.items()})
+
+    # If it's neither bytes nor a list/dict, return the data as is
+    return data
+
+
+def attribute_dict_to_dict(data):
+    # If the data is bytes, decode it using decode_hex
+    if isinstance(data, (str, bytes, HexBytes)):
+        return decode_hex(data)
+
+    # If the input is an AttributeDict, convert it to a dictionary
+    if isinstance(data, AttributeDict):
+        return {key: attribute_dict_to_dict(value) for key, value in data.items()}
+    # Otherwise, return the data as-is
+    else:
+        return data

@@ -1,5 +1,3 @@
-- name: ethereum
-  rpc: https://mainnet.infura.io/v3/462361faca234b7f871c6c4a77ca51d0
-
-- name: polygon
-  rpc: https://mainnet.infura.io/v3/462361faca234b7f871c6c4a77ca51d0
+- name: arbitrum
+  rpc: https://arbitrum-mainnet.infura.io/v3/462361faca234b7f871c6c4a77ca51d0
+  wss: wss://arbitrum-mainnet.infura.io/ws/v3/462361faca234b7f871c6c4a77ca51d0

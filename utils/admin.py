@@ -1,6 +1,10 @@
 import json
 
+from django.templatetags.static import static
+from django.utils.html import format_html
 from django.utils.safestring import mark_safe
+
+from blockchains.models import Network
 
 
 class EnableDisableAdminMixin:
@@ -61,3 +65,44 @@ def style_json_keys_and_values(formatted_json, json_object, highlight_keys):
             styled_line = f'{styled_key}: {styled_value}'
         styled_lines.append(styled_line)
     return '\n'.join(styled_lines)
+
+
+def get_explorer_address_url(network: Network, address_id: str):
+    if not address_id:
+        return ""
+
+    short_id = address_id[:8] + "...." + address_id[-8:]
+
+    copy_icon_url = static('icons/copy_icon.png')
+    copy_button = (
+        f'<button onclick="navigator.clipboard.writeText(\'{address_id}\');'
+        f'this.innerHTML=\'Copied!\';'
+        f'setTimeout(() => this.innerHTML=\'<img src=\\\'{copy_icon_url}\\\' />\', 1000);'
+        f'return false;" '
+        f'style="border:none;background:none;cursor:pointer;padding:0 4px;">'
+        f'<img src=\'{copy_icon_url}\' />'
+        f'</button>'
+    )
+
+    if "ethereum" in network.name:
+        return format_html(
+            f"<a href='https://etherscan.io/address/{address_id}' target='_blank'>{short_id}</a>{copy_button}"
+        )
+    elif "polygon" in network.name:
+        return format_html(
+            f"<a href='https://polygonscan.com/address/{address_id}' target='_blank'>{short_id}</a>{copy_button}"
+        )
+    elif "avalanche" in network.name:
+        return format_html(
+            f"<a href='https://snowtrace.io/address/{address_id}' target='_blank'>{short_id}</a>{copy_button}"
+        )
+    elif "tron" in network.name:
+        return format_html(
+            f"<a href='https://tronscan.org/#/address/{address_id}' target='_blank'>{short_id}</a>{copy_button}"
+        )
+    elif "arbitrum" in network.name:
+        return format_html(
+            f"<a href='https://arbiscan.io/address/{address_id}' target='_blank'>{short_id}</a>{copy_button}"
+        )
+    else:
+        return "Configure explorer URLs"

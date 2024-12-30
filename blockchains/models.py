@@ -3,7 +3,6 @@ from django.core.serializers import deserialize, serialize
 from django.db import models
 
 from utils.files import get_clazz_object, parse_json, parse_yaml
-from utils.tokens import EvmTokenRetriever
 
 
 class Protocol(models.Model):
@@ -36,16 +35,31 @@ class Protocol(models.Model):
 
         raise ValueError(f"ABI not found for Name: {name}")
 
-    @property
-    def transaction_adapter(self):
-        adapter_path = f"{self.name}.adapter.TransactionAdapter"
-        return get_clazz_object(adapter_path)(protocol_id=self.name)
+    @classmethod
+    def get_cache_key(cls, protocol_name: str):
+        return f"protocol-{protocol_name}"
+
+    @classmethod
+    def get_protocol(cls, protocol_name: str):
+        if protocol_name is None:
+            return
+
+        key = cls.get_cache_key(protocol_name=protocol_name)
+        serialized_value = cache.get(key)
+
+        if serialized_value:
+            return next(deserialize("json", serialized_value)).object
+        else:
+            protocol = cls.objects.get(name=protocol_name)
+            deserialized_value = serialize("json", [protocol])
+            cache.set(key, deserialized_value)
+            return protocol
 
 
 class Network(models.Model):
     name = models.CharField(max_length=255, unique=True, null=False, blank=False, db_index=True)
-    rpc = models.URLField()
-    rpc_adapter_path = models.CharField(max_length=255)
+    rpc = models.URLField(null=True, blank=True)
+    wss = models.CharField(max_length=255, null=True, blank=True)
     latest_block = models.BigIntegerField(null=True, blank=True, default=0)
 
     def __str__(self):
@@ -53,7 +67,8 @@ class Network(models.Model):
 
     @property
     def rpc_adapter(self):
-        return get_clazz_object(self.rpc_adapter_path)(self.name)
+        from utils.rpc import Adapters as NetworkAdapters
+        return NetworkAdapters[self.name]
 
     @classmethod
     def get_cache_key(cls, network_name: str):
@@ -70,7 +85,7 @@ class Network(models.Model):
         if serialized_value:
             return next(deserialize("json", serialized_value)).object
         else:
-            network = cls.objects.get(network_name=network_name)
+            network = cls.objects.get(name=network_name)
             deserialized_value = serialize("json", [network])
             cache.set(key, deserialized_value)
             return network
@@ -86,25 +101,29 @@ class Event(models.Model):
     last_synced_block = models.IntegerField(default=0)
     is_enabled = models.BooleanField(default=False)
 
-    event_name = models.CharField(max_length=256, null=False)
-    event_signature = models.CharField(max_length=1024, null=False)
-    event_abi = models.JSONField(null=False)
-    event_topic_0 = models.CharField(max_length=256, null=False)
+    name = models.CharField(max_length=256, null=False)
+    signature = models.CharField(max_length=1024, null=False)
+    abi = models.JSONField(null=False)
+    topic_0 = models.CharField(max_length=256, null=False)
+
+    model_class = models.CharField(max_length=256, null=True)
+    contract_addresses = models.JSONField(null=True)
 
     def __str__(self):
-        return f"{self.event_name} - {self.network}"
-
-    @property
-    def transaction_adapter(self):
-        protocol = self.protocol
-        adapter_path = f"{protocol.name}.adapter.TransactionAdapter"
-        return get_clazz_object(adapter_path)
+        return f"{self.name} - {self.network}"
 
     @property
     def blocks_to_sync(self):
         if self.network.latest_block is None or self.last_synced_block is None:
             return None
         return self.network.latest_block - self.last_synced_block
+
+    def get_model_class(self):
+        return get_clazz_object(self.model_class)
+
+    def get_adapter(self):
+        from utils.protocols import Adapters as ProtocolAdapters
+        return ProtocolAdapters[self.protocol.name]
 
 
 class Contract(models.Model):
@@ -168,57 +187,3 @@ class Contract(models.Model):
                 serialized_value = serialize("json", [contract_instance])
                 cache.set(key, serialized_value)
                 return contract_instance
-
-
-class Token(models.Model):
-    name = models.CharField(max_length=255, null=True, blank=True)
-    token_address = models.CharField(max_length=255)
-    network = models.ForeignKey(Network, on_delete=models.PROTECT)
-    symbol = models.CharField(max_length=255, null=True, blank=True)
-    decimals = models.IntegerField(null=True, blank=True)
-    is_enabled = models.BooleanField(default=False)
-
-    class Meta:
-        unique_together = ('token_address', 'network')
-        app_label = 'blockchains'
-
-    def __str__(self):
-        if self.symbol:
-            return f"{self.symbol} on {self.network.name}"
-        else:
-            return f"{self.token_address} on {self.network.name}"
-
-    @classmethod
-    def get_cache_key(cls, network_name: str, token_address: str):
-        return f"token-{network_name}-{token_address}"
-
-    @classmethod
-    def get(cls, network_name: str, token_address: str):
-        if network_name is None or token_address is None:
-            return
-
-        key = cls.get_cache_key(network_name=network_name, token_address=token_address)
-        serialized_value = cache.get(key)
-
-        if serialized_value:
-            return next(deserialize("json", serialized_value)).object
-        else:
-            try:
-                token = cls.objects.get(token_address__iexact=token_address, network_name=network_name)
-                deserialized_value = serialize("json", [token])
-                cache.set(key, deserialized_value)
-                return token
-            except cls.DoesNotExist:
-                token_retriever = EvmTokenRetriever(network_name=network_name, token_address=token_address)
-                token_instance, is_created = Token.objects.get_or_create(
-                    token_address=token_retriever.token_address,
-                    network=token_retriever.network
-                )
-                token_instance.name = token_retriever.name
-                token_instance.symbol = token_retriever.symbol
-                token_instance.decimals = token_retriever.decimals
-                token_instance.save()
-
-                serialized_value = serialize("json", [token_instance])
-                cache.set(key, serialized_value)
-                return token_instance
