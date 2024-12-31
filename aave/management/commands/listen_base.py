@@ -31,38 +31,51 @@ class WebsocketCommand:
         self.network_name = self.network.name
         wss = self.network.wss
 
+        # Pre-compute subscribe message once
+        subscribe_message = await sync_to_async(
+            self.get_subscribe_message, thread_sensitive=True
+        )()
+        subscribe_message_json = json.dumps(subscribe_message)
+        logger.info(subscribe_message_json)
+
         # Reconnection loop
         while True:
             try:
-                # Attempt to connect
-                async with websockets.connect(wss) as websocket:
-                    subscribe_message = await sync_to_async(
-                        self.get_subscribe_message, thread_sensitive=True
-                    )()
-                    await websocket.send(
-                        json.dumps(subscribe_message)
-                    )
-                    logger.info(json.dumps(subscribe_message))
+                # Attempt to connect with optimized settings
+                async with websockets.connect(
+                    wss,
+                    ping_interval=None,  # Disable ping/pong
+                    max_size=2**24,  # Increase max message size
+                    compression=None,  # Disable compression
+                ) as websocket:
+                    await websocket.send(subscribe_message_json)
 
+                    # Process messages as fast as possible
                     while True:
-                        response = await websocket.recv()
-                        msg = json.loads(response)
-
+                        msg = json.loads(await websocket.recv())
                         if "params" not in msg:
-                            logger.info(msg)
                             continue
 
-                        await self.process(msg)
+                        # Process message without awaiting to reduce latency
+                        asyncio.create_task(self.process(msg))
+
             except websockets.exceptions.ConnectionClosed as e:
                 logger.warning(f"Connection closed with error: {e}. Reconnecting...")
-                await asyncio.sleep(1)  # Wait a bit before trying to reconnect
+                await asyncio.sleep(0.1)  # Reduced reconnection delay
             except Exception as e:
                 logger.error(f"Error in connection: {e}")
-                break  # Break out of the loop if an unexpected error occurs
+                break
 
     def handle(self, *args, **options):
-
         self.network_id = options["network"]
+
+        # Use uvloop if available for better performance
+        try:
+            import uvloop
+            asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        except ImportError:
+            pass
+
         asyncio.run(self.listen())
 
     def get_subscribe_message(self):

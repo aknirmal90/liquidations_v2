@@ -188,8 +188,9 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
     get_rpc_latency_ms.short_description = "RPC Latency (ms)"
 
     def get_db_latency_ms(self, obj):
-        delta = obj.db_created_at - obj.onchain_received_at
-        return int(delta.total_seconds() * 1000)
+        if obj.onchain_received_at:
+            delta = obj.db_created_at - obj.onchain_received_at
+            return int(delta.total_seconds() * 1000)
     get_db_latency_ms.short_description = "DB Latency (ms)"
 
     readonly_fields = (
