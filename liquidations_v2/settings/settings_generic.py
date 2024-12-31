@@ -150,6 +150,18 @@ CACHES = {
     }
 }
 
+# CSRF Configuration
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
+
 if config('SERVER_ENV', default='dev') == 'prod':
-    # Add or update CSRF settings
+    # Production security settings
+    CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_HTTPONLY = True
+    CSRF_USE_SESSIONS = True
     CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', cast=Csv(), default=[])
+else:
+    # Development settings - still maintain basic CSRF protection
+    CSRF_COOKIE_SECURE = False
+    CSRF_COOKIE_HTTPONLY = True
+    CSRF_USE_SESSIONS = True
