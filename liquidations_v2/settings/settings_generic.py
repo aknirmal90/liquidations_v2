@@ -148,3 +148,9 @@ CACHES = {
         },
     }
 }
+
+if config('SERVER_ENV', default='dev') == 'prod':
+    # Add or update CSRF settings
+    CSRF_TRUSTED_ORIGINS = [
+        config('CSRF_TRUSTED_ORIGINS', cast=Csv()),
+    ]
