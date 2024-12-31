@@ -41,9 +41,9 @@ COPY ./bin/start-celery-events /start-celery-events
 RUN sed -i 's/\r$//g' /start-celery-events
 RUN chmod +x /start-celery-events
 
-COPY ./bin/start-websocket-polygon-transactions /start-websocket-polygon-transactions
-RUN sed -i 's/\r$//g' /start-websocket-polygon-transactions
-RUN chmod +x /start-websocket-polygon-transactions
+COPY ./bin/start-websocket-transactions /start-websocket-transactions
+RUN sed -i 's/\r$//g' /start-websocket-transactions
+RUN chmod +x /start-websocket-transactions
 
 WORKDIR /code/
 

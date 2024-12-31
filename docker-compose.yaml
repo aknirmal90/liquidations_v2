@@ -65,14 +65,14 @@ services:
         stdin_open: true
         tty: true
 
-    websocket-polygon:
+    websocket-transactions:
         restart: always
         build:
             context: .
             dockerfile: Dockerfile
             args:
                 - DOPPLER_TOKEN=$DOPPLER_TOKEN
-        command: /start-websocket-polygon-transactions
+        command: /start-websocket-transactions
         environment:
             DOPPLER_TOKEN: $DOPPLER_TOKEN
         depends_on:

@@ -13,5 +13,5 @@ if [ -z "$DOPPLER_TOKEN" ]; then
 fi
 
 # Start docker-compose with the environment variable passed implicitly
-docker-compose stop websocket-polygon
-docker-compose up -d --build websocket-polygon
+docker-compose stop websocket-transactions
+docker-compose up -d --build websocket-transactions
