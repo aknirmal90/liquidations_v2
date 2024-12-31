@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from aave.models import Asset
+from aave.models import Asset, AssetPriceLog
 from utils.admin import EnableDisableAdminMixin, get_explorer_address_url
 
 
@@ -157,3 +157,51 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
     def get_pricesource_link(self, obj):
         return get_explorer_address_url(obj.network, obj.pricesource)
     get_pricesource_link.short_description = "Price Source"
+
+
+@admin.register(AssetPriceLog)
+class AssetPriceLogAdmin(admin.ModelAdmin):
+    list_display = (
+        'get_aggregator_address_link',
+        'network',
+        'price',
+        'onchain_created_at',
+        'db_created_at'
+    )
+    list_filter = ('network', 'onchain_created_at', 'db_created_at')
+    search_fields = ('aggregator_address',)
+    ordering = ('-db_created_at',)
+
+    def get_aggregator_address_link(self, obj):
+        return get_explorer_address_url(obj.network, obj.aggregator_address)
+    get_aggregator_address_link.short_description = "Asset Address"
+
+    readonly_fields = (
+        'db_created_at',
+        'get_aggregator_address_link',
+        'aggregator_address',
+        'network',
+        'price',
+        'onchain_created_at'
+    )
+
+    fieldsets = (
+        ('Asset Information', {
+            'fields': (
+                'aggregator_address',
+                'get_aggregator_address_link',
+                'network'
+            )
+        }),
+        ('Price Information', {
+            'fields': (
+                'price',
+            )
+        }),
+        ('Timestamps', {
+            'fields': (
+                'onchain_created_at',
+                'db_created_at'
+            )
+        })
+    )

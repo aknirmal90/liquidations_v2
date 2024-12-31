@@ -155,6 +155,10 @@ CSRF_COOKIE_SECURE = False
 
 SECURE_SSL_REDIRECT = False
 
+CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOW_HEADERS = default_headers + ("access-control-allow-origin",)
+
 if config("SERVER_ENV") == "prod":
 
     SECURE_SSL_REDIRECT = True
@@ -165,13 +169,11 @@ if config("SERVER_ENV") == "prod":
 
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-CORS_ALLOW_ALL_ORIGINS = config(
-    "CORS_ALLOW_ALL_ORIGINS", default=False, cast=bool
-)
+    CORS_ALLOW_ALL_ORIGINS = config(
+        "CORS_ALLOW_ALL_ORIGINS", default=False, cast=bool
+    )
 
-CORS_ALLOWED_ORIGINS = config(
-    "CORS_ALLOWED_ORIGINS",
-    cast=Csv(),
-)
-
-CORS_ALLOW_HEADERS = default_headers + ("access-control-allow-origin",)
+    CORS_ALLOWED_ORIGINS = config(
+        "CORS_ALLOWED_ORIGINS",
+        cast=Csv(),
+    )

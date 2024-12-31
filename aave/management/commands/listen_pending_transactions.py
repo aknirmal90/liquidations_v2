@@ -4,7 +4,7 @@ from asgiref.sync import sync_to_async
 from django.core.management.base import BaseCommand
 
 from aave.management.commands.listen_base import WebsocketCommand
-from aave.models import Asset
+from aave.models import Asset, AssetPriceLog
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +73,10 @@ class Command(WebsocketCommand, BaseCommand):
             contract=parsed_log["asset"],
             new_price=parsed_log["new_price"],
             block_height=parsed_log["block_height"],
+            onchain_created_at=parsed_log["updated_at"]
         )
 
-    def update_asset_price(self, contract, new_price, block_height):
+    def update_asset_price(self, contract, new_price, block_height, onchain_created_at):
         logger.debug(f"Updating price for contract {contract} to {new_price} at block {block_height}")
 
         self.network.refresh_from_db()
@@ -103,3 +104,10 @@ class Command(WebsocketCommand, BaseCommand):
             logger.info(f"Asset {contract} Price updated for {new_price} on ContractB")
         else:
             logger.error(f"Asset {contract} not found on ContractB. Price not updated.")
+
+        AssetPriceLog.objects.create(
+            aggregator_address=contract,
+            network=self.network,
+            price=new_price,
+            onchain_created_at=onchain_created_at
+        )
