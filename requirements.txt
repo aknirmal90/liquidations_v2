@@ -21,3 +21,4 @@ web3==7.6.0
 django-choices==2.0.0
 django-cors-headers==4.1.0
 uvloop==0.21.0
+orjson==3.10.13

@@ -1,7 +1,7 @@
 import asyncio
-import json
 import logging
 
+import orjson as json
 import websockets
 from asgiref.sync import sync_to_async
 
