@@ -187,10 +187,10 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         return None
     get_rpc_latency_ms.short_description = "RPC Latency (ms)"
 
-    def get_total_timedelta_ms(self, obj):
-        delta = obj.db_created_at - obj.onchain_created_at
+    def get_db_latency_ms(self, obj):
+        delta = obj.db_created_at - obj.onchain_received_at
         return int(delta.total_seconds() * 1000)
-    get_total_timedelta_ms.short_description = "Processing Time (ms)"
+    get_db_latency_ms.short_description = "DB Latency (ms)"
 
     readonly_fields = (
         'db_created_at',
@@ -202,7 +202,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         'onchain_created_at',
         'onchain_received_at',
         'get_rpc_latency_ms',
-        'get_total_timedelta_ms',
+        'get_db_latency_ms',
         'id'
     )
 
@@ -226,7 +226,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
                 'db_created_at',
                 'onchain_received_at',
                 'get_rpc_latency_ms',
-                'get_total_timedelta_ms'
+                'get_db_latency_ms'
             )
         })
     )

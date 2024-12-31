@@ -68,6 +68,8 @@ class Command(WebsocketCommand, BaseCommand):
         if not ("params" in msg and "result" in msg["params"]):
             return
 
+        onchain_received_at = datetime.now(timezone.utc)
+
         log = msg["params"]["result"]
         parsed_log = self.parse_log(log)
 
@@ -90,5 +92,5 @@ class Command(WebsocketCommand, BaseCommand):
             block_height=parsed_log['block_height'],
             onchain_created_at=parsed_log['updated_at'],
             round_id=parsed_log['roundId'],
-            onchain_received_at=datetime.now(timezone.utc)
+            onchain_received_at=onchain_received_at
         )
