@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 import os
 from pathlib import Path
 
+from corsheaders.defaults import default_headers
 from decouple import Csv, config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -150,18 +151,27 @@ CACHES = {
     }
 }
 
-# CSRF Configuration
-CSRF_COOKIE_NAME = 'csrftoken'
-CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
+CSRF_COOKIE_SECURE = False
 
-if config('SERVER_ENV', default='dev') == 'prod':
-    # Production security settings
+SECURE_SSL_REDIRECT = False
+
+if config("SERVER_ENV") == "prod":
+
+    SECURE_SSL_REDIRECT = True
+
     CSRF_COOKIE_SECURE = True
-    CSRF_COOKIE_HTTPONLY = True
-    CSRF_USE_SESSIONS = True
-    CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', cast=Csv(), default=[])
-else:
-    # Development settings - still maintain basic CSRF protection
-    CSRF_COOKIE_SECURE = False
-    CSRF_COOKIE_HTTPONLY = True
-    CSRF_USE_SESSIONS = True
+
+    USE_X_FORWARDED_HOST = True
+
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+CORS_ALLOW_ALL_ORIGINS = config(
+    "CORS_ALLOW_ALL_ORIGINS", default=False, cast=bool
+)
+
+CORS_ALLOWED_ORIGINS = config(
+    "CORS_ALLOWED_ORIGINS",
+    cast=Csv(),
+)
+
+CORS_ALLOW_HEADERS = default_headers + ("access-control-allow-origin",)
