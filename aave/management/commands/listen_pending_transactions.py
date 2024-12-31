@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 
 from asgiref.sync import sync_to_async
 from django.core.management.base import BaseCommand
@@ -109,5 +110,5 @@ class Command(WebsocketCommand, BaseCommand):
             aggregator_address=contract,
             network=self.network,
             price=new_price,
-            onchain_created_at=onchain_created_at
+            onchain_created_at=datetime.fromtimestamp(onchain_created_at, tz=timezone.utc)
         )
