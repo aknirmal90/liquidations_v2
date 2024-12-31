@@ -39,6 +39,12 @@ events:
   - name: "EModeCategoryAdded"
     model_class: "aave.models.Asset"
 
+  - name: "PriceCapUpdated"
+    model_class: "aave.models.Asset"
+
+  - name: "CapParametersUpdated"
+    model_class: "aave.models.Asset"
+
 networks:
   - network: "arbitrum"
     contract_addresses:

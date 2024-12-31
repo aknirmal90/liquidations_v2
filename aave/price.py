@@ -103,10 +103,10 @@ class PriceConfigurer:
             'price_type': Asset.PriceType.CONSTANT,
             'contractA': None,
             'contractB': None,
-            'numerator': Decimal(10 ** decimals),
-            'denominator': Decimal('1.00'),
+            'decimals_price': Decimal(10 ** decimals),
+            'max_cap': None,
             'price': constant_price,
-            'price_in_usdt': None
+            'price_in_usdt': constant_price / Decimal(10 ** decimals)
         }
 
     def handle_aggregator(self):
@@ -117,8 +117,8 @@ class PriceConfigurer:
             'price_type': Asset.PriceType.AGGREGATOR,
             'contractA': contractA,
             'contractB': None,
-            'numerator': Decimal(10 ** decimals),
-            'denominator': Decimal('1.00'),
+            'decimals_price': Decimal(10 ** decimals),
+            'max_cap': None,
             'price': None,
             'price_in_usdt': None
         }
@@ -132,8 +132,8 @@ class PriceConfigurer:
             'price_type': Asset.PriceType.MAX_CAPPED,
             'contractA': contractA,
             'contractB': None,
-            'numerator': Decimal(10 ** decimals),
-            'denominator': Decimal('1.00'),
+            'decimals_price': Decimal(10 ** decimals),
+            'max_cap': None,
             'price': None,
             'price_in_usdt': None
         }
@@ -151,8 +151,8 @@ class PriceConfigurer:
             'price_type': Asset.PriceType.RATIO,
             'contractA': contractA,
             'contractB': contractB,
-            'numerator': Decimal(10 ** decimals),
-            'denominator': Decimal(10 ** ratio_decimals),
+            'decimals_price': Decimal(10 ** decimals) * Decimal(10 ** ratio_decimals),
+            'max_cap': None,
             'price': None,
             'price_in_usdt': None
         }

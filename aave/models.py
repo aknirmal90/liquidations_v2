@@ -71,19 +71,19 @@ class Asset(models.Model):
         max_digits=72, decimal_places=0, null=True, blank=True
     )
 
-    numerator = models.DecimalField(
-        max_digits=36, decimal_places=0, null=True, blank=True
+    decimals_price = models.DecimalField(
+        max_digits=72, decimal_places=0, null=True, blank=True
     )
 
-    denominator = models.DecimalField(
-        max_digits=36, decimal_places=0, null=True, blank=True
+    max_cap = models.DecimalField(
+        max_digits=72, decimal_places=0, null=True, blank=True
     )
 
     price = models.DecimalField(
-        max_digits=72, decimal_places=36, null=True, blank=True
+        max_digits=72, decimal_places=10, null=True, blank=True
     )
     price_in_usdt = models.DecimalField(
-        max_digits=72, decimal_places=36, null=True, blank=True
+        max_digits=72, decimal_places=2, null=True, blank=True
     )
 
     updated_at_block_heightA = models.PositiveIntegerField(default=0)
@@ -157,6 +157,33 @@ class Asset(models.Model):
                 serialized_value = serialize("json", [asset_instance])
                 cache.set(key, serialized_value)
                 return asset_instance
+
+    def get_price(self):
+        if self.price_type in (Asset.PriceType.CONSTANT, Asset.PriceType.AGGREGATOR):
+            price = self.priceA
+            price_in_usdt = price / self.decimals_price
+            # normalize by decimal places to get USDT price on ARB
+            return price, price_in_usdt
+
+        elif self.price_type == Asset.PriceType.MAX_CAPPED:
+            price = self.priceA
+            if price > self.priceB:
+                price = self.priceB
+            price_in_usdt = price / self.decimals_price
+            # Max Cap is stored in max_cap
+            return price, price_in_usdt
+
+        elif self.price_type == Asset.PriceType.RATIO:
+            price = self.priceA
+            ratio = self.priceB
+            if ratio > self.max_cap:
+                ratio = self.max_cap
+            # current value of ratio is stored in priceB, and max
+            # cap for ratio is stored in max_cap
+
+            price = price * ratio
+            price_in_usdt = price / self.decimals_price
+            return price, price_in_usdt
 
 
 class AssetPriceLog(models.Model):

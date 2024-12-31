@@ -11,6 +11,7 @@ from web3 import Web3
 from web3._utils.events import get_event_data
 from web3.exceptions import Web3RPCError
 
+from aave.models import Asset
 from aave.tasks import ResetAssetsTask
 from blockchains.models import Event, Network, Protocol
 from liquidations_v2.celery_app import app
@@ -223,6 +224,9 @@ class BaseSynchronizeTask(Task):
     def get_queryset(self, event_ids: List[int]):
         raise NotImplementedError
 
+    def get_aave_pricesources(self, network: Network):
+        return Asset.objects.filter(network=network).values_list('pricesource', flat=True)
+
     def sync_events_for_network(self, network: Network, network_events: List[Event]):
         rpc_adapter = network.rpc_adapter
         global_to_block = rpc_adapter.block_height
@@ -239,7 +243,7 @@ class BaseSynchronizeTask(Task):
             Web3.to_checksum_address(address)
             for event in network_events
             for address in event.contract_addresses
-        ))
+        )) + [Web3.to_checksum_address(address) for address in self.get_aave_pricesources(network)]
 
         EVENTS_ARRAY_THRESHOLD_SIZE = 5000
 

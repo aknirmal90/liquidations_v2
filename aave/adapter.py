@@ -358,3 +358,29 @@ class aaveAdapter:
                 emode_liquidation_threshold=Decimal(log.args.liquidationThreshold),
                 emode_liquidation_bonus=Decimal(log.args.liquidationBonus)
             )
+
+    @classmethod
+    def parse_PriceCapUpdated(cls, event: Event, logs: List[Dict]):
+        model_class = event.get_model_class()
+
+        for log in logs:
+            model_class.objects.filter(
+                network=event.network,
+                protocol=event.protocol,
+                pricesource=log.address
+            ).update(
+                max_cap=Decimal(log.args.priceCap),
+            )
+
+    @classmethod
+    def parse_CapParametersUpdated(cls, event: Event, logs: List[Dict]):
+        model_class = event.get_model_class()
+
+        for log in logs:
+            model_class.objects.filter(
+                network=event.network,
+                protocol=event.protocol,
+                pricesource=log.address
+            ).update(
+                max_cap=Decimal(log.args.snapshotRatio),
+            )

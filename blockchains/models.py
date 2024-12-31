@@ -64,6 +64,7 @@ class Network(models.Model):
     wss_alchemy = models.CharField(max_length=255, null=True, blank=True)
     wss_quicknode = models.CharField(max_length=255, null=True, blank=True)
     wss_nodereal = models.CharField(max_length=255, null=True, blank=True)
+    wss_tenderly = models.CharField(max_length=255, null=True, blank=True)
 
     latest_block = models.BigIntegerField(null=True, blank=True, default=0)
 

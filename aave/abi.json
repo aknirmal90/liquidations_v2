@@ -306,5 +306,44 @@
         ],
         "name": "EModeCategoryAdded",
         "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "name": "priceCap",
+                "type": "int256"
+            }
+        ],
+        "name": "PriceCapUpdated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "name": "snapshotRatio",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "snapshotTimestamp",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "maxRatioGrowthPerSecond",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "maxYearlyRatioGrowthPercent",
+                "type": "uint16"
+            }
+        ],
+        "name": "CapParametersUpdated",
+        "type": "event"
     }
 ]

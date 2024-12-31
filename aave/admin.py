@@ -37,6 +37,7 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         'reserve_is_flash_loan_enabled',
         'emode_is_collateral',
         'emode_is_borrowable',
+        'price_type',
     )
 
     fieldsets = (
@@ -68,8 +69,8 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
             'fields': (
                 ('price', 'price_in_usdt'),
                 ('get_pricesource_link', 'price_type'),
-                ('get_contractA_link', 'priceA', 'numerator', 'updated_at_block_heightA'),
-                ('get_contractB_link', 'priceB', 'denominator', 'updated_at_block_heightB')
+                ('get_contractA_link', 'priceA', 'decimals_price', 'updated_at_block_heightA'),
+                ('get_contractB_link', 'priceB', 'max_cap', 'updated_at_block_heightB')
             )
         }),
         ('Risk Parameters', {
@@ -109,8 +110,8 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         'get_contractB_link',
         'priceA',
         'priceB',
-        'numerator',
-        'denominator',
+        'decimals_price',
+        'max_cap',
         'price',
         'price_in_usdt',
         'updated_at_block_heightA',
