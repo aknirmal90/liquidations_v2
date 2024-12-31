@@ -170,7 +170,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         'onchain_created_at',
         'db_created_at',
         'get_rpc_latency_ms',
-        'get_total_timedelta_ms'
+        'get_db_latency_ms'
     )
     list_filter = ('network', 'onchain_created_at', 'db_created_at')
     search_fields = ('aggregator_address',)
