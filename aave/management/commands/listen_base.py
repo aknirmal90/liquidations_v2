@@ -28,6 +28,7 @@ class WebsocketCommand:
 
     async def listen(self):
         self.network = await self.get_network(self.network_id)
+        self.network_name = self.network.name
         wss = self.network.wss
 
         # Reconnection loop

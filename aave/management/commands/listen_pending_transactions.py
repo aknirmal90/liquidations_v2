@@ -1,8 +1,12 @@
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from asgiref.sync import sync_to_async
+from django.core.cache import cache
 from django.core.management.base import BaseCommand
+from django.db import models
+from django.db.models import Case, F, Q, Value, When
 
 from aave.management.commands.listen_base import WebsocketCommand
 from aave.models import Asset, AssetPriceLog
@@ -70,6 +74,17 @@ class Command(WebsocketCommand, BaseCommand):
         log = msg["params"]["result"]
         parsed_log = self.parse_log(log)
 
+        # Get cached price from Django cache
+        cache_key = f"price-{self.network_name}-{parsed_log['asset'].lower()}"
+        cached_price = cache.get(cache_key)
+
+        # Skip update if price hasn't changed
+        if cached_price == parsed_log["new_price"]:
+            return
+
+        # Update cache with new price
+        cache.set(cache_key, parsed_log["new_price"])
+
         await sync_to_async(self.update_asset_price, thread_sensitive=True)(
             contract=parsed_log["asset"],
             new_price=parsed_log["new_price"],
@@ -79,22 +94,26 @@ class Command(WebsocketCommand, BaseCommand):
         )
 
     def update_asset_price(self, contract, new_price, block_height, onchain_created_at, round_id):
-        assets = Asset.objects.filter(contractA__iexact=contract)
-
-        if assets.count() > 0:
-            assets.update(
-                priceA=new_price, updated_at_block_heightA=block_height
+        Asset.objects.filter(
+            Q(contractA__iexact=contract) | Q(contractB__iexact=contract)
+        ).update(
+            priceA=Case(
+                When(contractA__iexact=contract, then=Value(Decimal(new_price))),
+                default=F('priceA')
+            ),
+            priceB=Case(
+                When(contractB__iexact=contract, then=Value(Decimal(new_price))),
+                default=F('priceB')
+            ),
+            updated_at_block_heightA=Case(
+                When(contractA__iexact=contract, then=Value(block_height, output_field=models.PositiveIntegerField())),
+                default=F('updated_at_block_heightA')
+            ),
+            updated_at_block_heightB=Case(
+                When(contractB__iexact=contract, then=Value(block_height, output_field=models.PositiveIntegerField())),
+                default=F('updated_at_block_heightB')
             )
-            # for asset in assets:
-            # asset._set_price()
-
-        assets = Asset.objects.filter(contractB__iexact=contract)
-        if assets.count() > 0:
-            assets.update(
-                priceB=new_price, updated_at_block_heightB=block_height
-            )
-            # for asset in assets:
-            # asset._set_price()
+        )
 
         AssetPriceLog.objects.create(
             aggregator_address=contract,
