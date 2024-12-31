@@ -1,15 +1,12 @@
 import logging
 from datetime import datetime, timezone
-from decimal import Decimal
 
-from asgiref.sync import sync_to_async
 from django.core.cache import cache
 from django.core.management.base import BaseCommand
-from django.db import models
-from django.db.models import Case, F, Q, Value, When
 
 from aave.management.commands.listen_base import WebsocketCommand
-from aave.models import Asset, AssetPriceLog
+from aave.models import Asset
+from aave.tasks import UpdateAssetPriceTask
 
 logger = logging.getLogger(__name__)
 
@@ -85,40 +82,13 @@ class Command(WebsocketCommand, BaseCommand):
         # Update cache with new price
         cache.set(cache_key, parsed_log["new_price"])
 
-        await sync_to_async(self.update_asset_price, thread_sensitive=True)(
-            contract=parsed_log["asset"],
-            new_price=parsed_log["new_price"],
-            block_height=parsed_log["block_height"],
-            onchain_created_at=parsed_log["updated_at"],
-            round_id=parsed_log["roundId"]
-        )
-
-    def update_asset_price(self, contract, new_price, block_height, onchain_created_at, round_id):
-        Asset.objects.filter(
-            Q(contractA__iexact=contract) | Q(contractB__iexact=contract)
-        ).update(
-            priceA=Case(
-                When(contractA__iexact=contract, then=Value(Decimal(new_price))),
-                default=F('priceA')
-            ),
-            priceB=Case(
-                When(contractB__iexact=contract, then=Value(Decimal(new_price))),
-                default=F('priceB')
-            ),
-            updated_at_block_heightA=Case(
-                When(contractA__iexact=contract, then=Value(block_height, output_field=models.PositiveIntegerField())),
-                default=F('updated_at_block_heightA')
-            ),
-            updated_at_block_heightB=Case(
-                When(contractB__iexact=contract, then=Value(block_height, output_field=models.PositiveIntegerField())),
-                default=F('updated_at_block_heightB')
-            )
-        )
-
-        AssetPriceLog.objects.create(
-            aggregator_address=contract,
+        # Fire task to update asset price
+        UpdateAssetPriceTask.delay(
             network_id=self.network.id,
-            price=new_price,
-            onchain_created_at=datetime.fromtimestamp(onchain_created_at, tz=timezone.utc),
-            round_id=round_id
+            contract=parsed_log['asset'],
+            new_price=parsed_log['new_price'],
+            block_height=parsed_log['block_height'],
+            onchain_created_at=parsed_log['updated_at'],
+            round_id=parsed_log['roundId'],
+            onchain_received_at=datetime.now(timezone.utc)
         )

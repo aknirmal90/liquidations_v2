@@ -1,9 +1,11 @@
 import logging
 import math
+from datetime import datetime, timezone
+from decimal import Decimal
 
 from celery import Task
 
-from aave.models import Asset
+from aave.models import Asset, AssetPriceLog
 from liquidations_v2.celery_app import app
 from utils.tokens import EvmTokenRetriever
 
@@ -59,3 +61,42 @@ class UpdateAssetMetadataTask(Task):
 
 
 UpdateAssetMetadataTask = app.register_task(UpdateAssetMetadataTask())
+
+
+class UpdateAssetPriceTask(Task):
+    """Task to update asset prices and create price logs."""
+
+    def run(
+        self,
+        network_id,
+        contract,
+        new_price,
+        block_height,
+        onchain_created_at,
+        round_id,
+        onchain_received_at
+    ):
+        # Update assets where contract matches contractA
+        # Update assets where contract matches contractA
+        Asset.objects.filter(contractA__iexact=contract).update(
+            priceA=Decimal(new_price),
+            updated_at_block_heightA=block_height
+        )
+
+        # Update assets where contract matches contractB
+        Asset.objects.filter(contractB__iexact=contract).update(
+            priceB=Decimal(new_price),
+            updated_at_block_heightB=block_height
+        )
+
+        AssetPriceLog.objects.create(
+            aggregator_address=contract,
+            network_id=network_id,
+            price=new_price,
+            onchain_created_at=datetime.fromtimestamp(onchain_created_at, tz=timezone.utc),
+            round_id=round_id,
+            onchain_received_at=onchain_received_at
+        )
+
+
+UpdateAssetPriceTask = app.register_task(UpdateAssetPriceTask())

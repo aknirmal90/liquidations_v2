@@ -169,7 +169,8 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         'round_id',
         'onchain_created_at',
         'db_created_at',
-        'get_timedelta_ms'
+        'get_rpc_latency_ms',
+        'get_total_timedelta_ms'
     )
     list_filter = ('network', 'onchain_created_at', 'db_created_at')
     search_fields = ('aggregator_address',)
@@ -179,10 +180,17 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         return get_explorer_address_url(obj.network, obj.aggregator_address)
     get_aggregator_address_link.short_description = "Asset Address"
 
-    def get_timedelta_ms(self, obj):
+    def get_rpc_latency_ms(self, obj):
+        if obj.onchain_received_at:
+            delta = obj.onchain_received_at - obj.onchain_created_at
+            return int(delta.total_seconds() * 1000)
+        return None
+    get_rpc_latency_ms.short_description = "RPC Latency (ms)"
+
+    def get_total_timedelta_ms(self, obj):
         delta = obj.db_created_at - obj.onchain_created_at
         return int(delta.total_seconds() * 1000)
-    get_timedelta_ms.short_description = "Processing Time (ms)"
+    get_total_timedelta_ms.short_description = "Processing Time (ms)"
 
     readonly_fields = (
         'db_created_at',
@@ -192,7 +200,9 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         'price',
         'round_id',
         'onchain_created_at',
-        'get_timedelta_ms',
+        'onchain_received_at',
+        'get_rpc_latency_ms',
+        'get_total_timedelta_ms',
         'id'
     )
 
@@ -214,7 +224,9 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
             'fields': (
                 'onchain_created_at',
                 'db_created_at',
-                'get_timedelta_ms'
+                'onchain_received_at',
+                'get_rpc_latency_ms',
+                'get_total_timedelta_ms'
             )
         })
     )
