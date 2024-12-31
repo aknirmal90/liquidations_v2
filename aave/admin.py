@@ -162,11 +162,13 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
 @admin.register(AssetPriceLog)
 class AssetPriceLogAdmin(admin.ModelAdmin):
     list_display = (
+        'id',
         'get_aggregator_address_link',
         'network',
         'price',
         'onchain_created_at',
-        'db_created_at'
+        'db_created_at',
+        'get_timedelta_ms'
     )
     list_filter = ('network', 'onchain_created_at', 'db_created_at')
     search_fields = ('aggregator_address',)
@@ -176,13 +178,20 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         return get_explorer_address_url(obj.network, obj.aggregator_address)
     get_aggregator_address_link.short_description = "Asset Address"
 
+    def get_timedelta_ms(self, obj):
+        delta = obj.db_created_at - obj.onchain_created_at
+        return int(delta.total_seconds() * 1000)
+    get_timedelta_ms.short_description = "Processing Time (ms)"
+
     readonly_fields = (
         'db_created_at',
         'get_aggregator_address_link',
         'aggregator_address',
         'network',
         'price',
-        'onchain_created_at'
+        'onchain_created_at',
+        'get_timedelta_ms',
+        'id'
     )
 
     fieldsets = (
@@ -201,7 +210,8 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         ('Timestamps', {
             'fields': (
                 'onchain_created_at',
-                'db_created_at'
+                'db_created_at',
+                'get_timedelta_ms'
             )
         })
     )

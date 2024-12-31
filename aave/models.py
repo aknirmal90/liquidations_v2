@@ -162,7 +162,7 @@ class Asset(models.Model):
 class AssetPriceLog(models.Model):
     aggregator_address = models.CharField(max_length=42)
     network = models.ForeignKey('blockchains.Network', on_delete=models.PROTECT)
-    price = models.DecimalField(max_digits=72, decimal_places=36, null=True, blank=True)
+    price = models.DecimalField(max_digits=72, decimal_places=0, null=True, blank=True)
     onchain_created_at = models.DateTimeField()
     db_created_at = models.DateTimeField(auto_now_add=True)
 
