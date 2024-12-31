@@ -74,7 +74,7 @@ class Command(WebsocketCommand, BaseCommand):
         parsed_log = self.parse_log(log)
 
         # Get cached price from Django cache
-        cache_key = f"price-{self.network_name}-{parsed_log['asset'].lower()}"
+        cache_key = f"price-{self.network_name}-{self.provider}-{parsed_log['asset'].lower()}"
         cached_price = cache.get(cache_key)
 
         # Skip update if price hasn't changed
@@ -92,5 +92,6 @@ class Command(WebsocketCommand, BaseCommand):
             block_height=parsed_log['block_height'],
             onchain_created_at=parsed_log['updated_at'],
             round_id=parsed_log['roundId'],
-            onchain_received_at=onchain_received_at
+            onchain_received_at=onchain_received_at,
+            provider=self.provider
         )

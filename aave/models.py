@@ -167,6 +167,7 @@ class AssetPriceLog(models.Model):
     onchain_received_at = models.DateTimeField(null=True, blank=True)
     db_created_at = models.DateTimeField(auto_now_add=True)
     round_id = models.PositiveIntegerField(null=True, blank=True)
+    provider = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         app_label = 'aave'

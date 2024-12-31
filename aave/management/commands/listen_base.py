@@ -19,6 +19,11 @@ class WebsocketCommand:
             action="store",
             help="Network name as stored on related model instance",
         )
+        parser.add_argument(
+            "--provider",
+            action="store",
+            help="Provider to use for websocket connection (infura, alchemy, quicknode, nodereal)",
+        )
 
     async def get_network(self, network_id):
         instance = await sync_to_async(Network.objects.get, thread_sensitive=True)(
@@ -29,7 +34,8 @@ class WebsocketCommand:
     async def listen(self):
         self.network = await self.get_network(self.network_id)
         self.network_name = self.network.name
-        wss = self.network.wss
+
+        wss = getattr(self.network, f"wss_{self.provider}")
 
         # Pre-compute subscribe message once
         subscribe_message = await sync_to_async(
@@ -68,7 +74,7 @@ class WebsocketCommand:
 
     def handle(self, *args, **options):
         self.network_id = options["network"]
-
+        self.provider = options["provider"]
         # Use uvloop if available for better performance
         try:
             import uvloop

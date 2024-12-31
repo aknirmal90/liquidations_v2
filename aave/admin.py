@@ -164,6 +164,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'get_aggregator_address_link',
+        'provider',
         'network',
         'price',
         'round_id',
@@ -211,6 +212,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         ('Asset Information', {
             'fields': (
                 'aggregator_address',
+                'provider',
                 'get_aggregator_address_link',
                 'network'
             )

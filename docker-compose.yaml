@@ -65,14 +65,14 @@ services:
         stdin_open: true
         tty: true
 
-    websocket-transactions:
+    websocket-transactions-infura:
         restart: always
         build:
             context: .
             dockerfile: Dockerfile
             args:
                 - DOPPLER_TOKEN=$DOPPLER_TOKEN
-        command: /start-websocket-transactions
+        command: /start-websocket-transactions arbitrum infura
         environment:
             DOPPLER_TOKEN: $DOPPLER_TOKEN
         depends_on:
@@ -87,6 +87,75 @@ services:
                 limits:
                     cpus: '0.5'
                     memory: 500M
+
+    # websocket-transactions-alchemy:
+    #     restart: always
+    #     build:
+    #         context: .
+    #         dockerfile: Dockerfile
+    #         args:
+    #             - DOPPLER_TOKEN=$DOPPLER_TOKEN
+    #     command: /start-websocket-transactions arbitrum alchemy
+    #     environment:
+    #         DOPPLER_TOKEN: $DOPPLER_TOKEN
+    #     depends_on:
+    #         redis:
+    #             condition: service_healthy
+    #         postgres:
+    #             condition: service_healthy
+    #     volumes:
+    #         - .:/code
+    #     deploy:
+    #         resources:
+    #             limits:
+    #                 cpus: '0.5'
+    #                 memory: 500M
+
+    # websocket-transactions-quicknode:
+    #     restart: always
+    #     build:
+    #         context: .
+    #         dockerfile: Dockerfile
+    #         args:
+    #             - DOPPLER_TOKEN=$DOPPLER_TOKEN
+    #     command: /start-websocket-transactions arbitrum quicknode
+    #     environment:
+    #         DOPPLER_TOKEN: $DOPPLER_TOKEN
+    #     depends_on:
+    #         redis:
+    #             condition: service_healthy
+    #         postgres:
+    #             condition: service_healthy
+    #     volumes:
+    #         - .:/code
+    #     deploy:
+    #         resources:
+    #             limits:
+    #                 cpus: '0.5'
+    #                 memory: 500M
+
+    # websocket-transactions-nodereal:
+    #     restart: always
+    #     build:
+    #         context: .
+    #         dockerfile: Dockerfile
+    #         args:
+    #             - DOPPLER_TOKEN=$DOPPLER_TOKEN
+    #     command: /start-websocket-transactions arbitrum nodereal
+    #     environment:
+    #         DOPPLER_TOKEN: $DOPPLER_TOKEN
+    #     depends_on:
+    #         redis:
+    #             condition: service_healthy
+    #         postgres:
+    #             condition: service_healthy
+    #     volumes:
+    #         - .:/code
+    #     deploy:
+    #         resources:
+    #             limits:
+    #                 cpus: '0.5'
+    #                 memory: 500M
 
     celeryworker-default:
         build:

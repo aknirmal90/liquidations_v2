@@ -74,7 +74,8 @@ class UpdateAssetPriceTask(Task):
         block_height,
         onchain_created_at,
         round_id,
-        onchain_received_at
+        onchain_received_at,
+        provider
     ):
         # Update assets where contract matches contractA
         # Update assets where contract matches contractA
@@ -95,7 +96,8 @@ class UpdateAssetPriceTask(Task):
             price=new_price,
             onchain_created_at=datetime.fromtimestamp(onchain_created_at, tz=timezone.utc),
             round_id=round_id,
-            onchain_received_at=onchain_received_at
+            onchain_received_at=onchain_received_at,
+            provider=provider
         )
 
 

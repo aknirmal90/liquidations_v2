@@ -7,7 +7,4 @@ set -o nounset
 # Force Python to run in unbuffered mode
 export PYTHONUNBUFFERED=1
 
-# Add timestamp to logs
-exec doppler run --command "python -u manage.py listen_pending_transactions --network arbitrum" 2>&1 | while read -r line; do
-    echo "$(date '+%Y-%m-%d %H:%M:%S') $line"
-done
+doppler run --command "python -u manage.py listen_pending_transactions --network $1 --provider $2"

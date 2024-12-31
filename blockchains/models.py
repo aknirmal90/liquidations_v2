@@ -59,7 +59,12 @@ class Protocol(models.Model):
 class Network(models.Model):
     name = models.CharField(max_length=255, unique=True, null=False, blank=False, db_index=True)
     rpc = models.URLField(null=True, blank=True)
-    wss = models.CharField(max_length=255, null=True, blank=True)
+
+    wss_infura = models.CharField(max_length=255, null=True, blank=True)
+    wss_alchemy = models.CharField(max_length=255, null=True, blank=True)
+    wss_quicknode = models.CharField(max_length=255, null=True, blank=True)
+    wss_nodereal = models.CharField(max_length=255, null=True, blank=True)
+
     latest_block = models.BigIntegerField(null=True, blank=True, default=0)
 
     def __str__(self):
