@@ -60,6 +60,7 @@ class Command(WebsocketCommand, BaseCommand):
             "new_price": int(log["topics"][1], 16),
             "block_height": int(log["blockNumber"], 16),
             "updated_at": int(log["data"], 16),
+            "roundId": int(log["topics"][2], 16),
         }
 
     async def process(self, msg, **kwargs):
