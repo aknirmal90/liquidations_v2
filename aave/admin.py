@@ -166,6 +166,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         'get_aggregator_address_link',
         'network',
         'price',
+        'round_id',
         'onchain_created_at',
         'db_created_at',
         'get_timedelta_ms'
@@ -189,6 +190,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         'aggregator_address',
         'network',
         'price',
+        'round_id',
         'onchain_created_at',
         'get_timedelta_ms',
         'id'
@@ -205,6 +207,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         ('Price Information', {
             'fields': (
                 'price',
+                'round_id'
             )
         }),
         ('Timestamps', {

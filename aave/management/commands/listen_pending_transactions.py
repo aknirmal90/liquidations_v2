@@ -68,47 +68,37 @@ class Command(WebsocketCommand, BaseCommand):
 
         log = msg["params"]["result"]
         parsed_log = self.parse_log(log)
-        logger.info(parsed_log)
 
         await sync_to_async(self.update_asset_price, thread_sensitive=True)(
             contract=parsed_log["asset"],
             new_price=parsed_log["new_price"],
             block_height=parsed_log["block_height"],
-            onchain_created_at=parsed_log["updated_at"]
+            onchain_created_at=parsed_log["updated_at"],
+            round_id=parsed_log["roundId"]
         )
 
-    def update_asset_price(self, contract, new_price, block_height, onchain_created_at):
-        logger.debug(f"Updating price for contract {contract} to {new_price} at block {block_height}")
-
-        self.network.refresh_from_db()
+    def update_asset_price(self, contract, new_price, block_height, onchain_created_at, round_id):
         assets = Asset.objects.filter(contractA__iexact=contract)
 
         if assets.count() > 0:
-            logger.debug(f"Found {assets.count()} assets with contractA matching {contract}")
             assets.update(
                 priceA=new_price, updated_at_block_heightA=block_height
             )
             # for asset in assets:
             # asset._set_price()
-            logger.info(f"Asset {contract} Price updated for {new_price} on ContractA")
-        else:
-            logger.error(f"Asset {contract} not found on ContractA. Price not updated.")
 
         assets = Asset.objects.filter(contractB__iexact=contract)
         if assets.count() > 0:
-            logger.debug(f"Found {assets.count()} assets with contractB matching {contract}")
             assets.update(
                 priceB=new_price, updated_at_block_heightB=block_height
             )
             # for asset in assets:
             # asset._set_price()
-            logger.info(f"Asset {contract} Price updated for {new_price} on ContractB")
-        else:
-            logger.error(f"Asset {contract} not found on ContractB. Price not updated.")
 
         AssetPriceLog.objects.create(
             aggregator_address=contract,
-            network=self.network,
+            network_id=self.network.id,
             price=new_price,
-            onchain_created_at=datetime.fromtimestamp(onchain_created_at, tz=timezone.utc)
+            onchain_created_at=datetime.fromtimestamp(onchain_created_at, tz=timezone.utc),
+            round_id=round_id
         )

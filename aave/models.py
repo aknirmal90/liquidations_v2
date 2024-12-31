@@ -165,6 +165,7 @@ class AssetPriceLog(models.Model):
     price = models.DecimalField(max_digits=72, decimal_places=0, null=True, blank=True)
     onchain_created_at = models.DateTimeField()
     db_created_at = models.DateTimeField(auto_now_add=True)
+    round_id = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         app_label = 'aave'
