@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib import admin
 
 from aave.models import AaveLiquidationLog, Asset, AssetPriceLog
@@ -243,13 +245,55 @@ class AaveLiquidationLogAdmin(admin.ModelAdmin):
         'get_transaction_hash_link',
         'network',
         'protocol',
+        'block_height',
+        'transaction_index',
         'get_liquidator_link',
         'collateral_asset',
         'debt_asset',
-        'db_created_at',
         'debt_to_cover_in_usd',
-        'liquidated_collateral_amount_in_usd'
+        'liquidated_collateral_amount_in_usd',
+        'user',
+        'health_factor_t',
+        'health_factor_t0',
+        'health_factor_t1',
+        'health_factor_t2',
+        'health_factor_t3'
     )
+
+    def health_factor_t(self, obj):
+        if obj.health_factor_before_tx is None:
+            return None
+        return obj.health_factor_before_tx < Decimal('1.00')
+    health_factor_t.boolean = True
+    health_factor_t.short_description = 'T'
+
+    def health_factor_t0(self, obj):
+        if obj.health_factor_before_zero_blocks is None:
+            return None
+        return obj.health_factor_before_zero_blocks < Decimal('1.00')
+    health_factor_t0.boolean = True
+    health_factor_t0.short_description = 'T-0'
+
+    def health_factor_t1(self, obj):
+        if obj.health_factor_before_one_blocks is None:
+            return None
+        return obj.health_factor_before_one_blocks < Decimal('1.00')
+    health_factor_t1.boolean = True
+    health_factor_t1.short_description = 'T-1'
+
+    def health_factor_t2(self, obj):
+        if obj.health_factor_before_two_blocks is None:
+            return None
+        return obj.health_factor_before_two_blocks < Decimal('1.00')
+    health_factor_t2.boolean = True
+    health_factor_t2.short_description = 'T-2'
+
+    def health_factor_t3(self, obj):
+        if obj.health_factor_before_three_blocks is None:
+            return None
+        return obj.health_factor_before_three_blocks < Decimal('1.00')
+    health_factor_t3.boolean = True
+    health_factor_t3.short_description = 'T-3'
 
     list_filter = (
         'network',
@@ -289,6 +333,15 @@ class AaveLiquidationLogAdmin(admin.ModelAdmin):
                 ('debt_asset', 'debt_to_cover', 'debt_to_cover_in_usd'),
             )
         }),
+        ('Simulations', {
+            'fields': (
+                'health_factor_before_tx',
+                'health_factor_before_zero_blocks',
+                'health_factor_before_one_blocks',
+                'health_factor_before_two_blocks',
+                'health_factor_before_three_blocks',
+            )
+        }),
         ('Timestamps', {
             'fields': (
                 'onchain_created_at',
@@ -317,7 +370,12 @@ class AaveLiquidationLogAdmin(admin.ModelAdmin):
         'db_created_at',
         'get_liquidator_link',
         'get_transaction_hash_link',
-        'id'
+        'id',
+        'health_factor_before_tx',
+        'health_factor_before_zero_blocks',
+        'health_factor_before_one_blocks',
+        'health_factor_before_two_blocks',
+        'health_factor_before_three_blocks',
     )
 
     ordering = ('-block_height', '-transaction_index',)

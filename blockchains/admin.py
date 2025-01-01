@@ -22,6 +22,7 @@ class ProtocolAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
 class NetworkAdmin(admin.ModelAdmin):
     list_display = (
         'name',
+        'chain_id',
         'rpc',
         'latest_block'
     )
@@ -34,6 +35,7 @@ class NetworkAdmin(admin.ModelAdmin):
     readonly_fields = (
         'name',
         'latest_block',
+        'chain_id',
     )
 
 

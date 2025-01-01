@@ -6,8 +6,9 @@ from decimal import Decimal
 from celery import Task
 from web3 import Web3
 
-from aave.models import Asset, AssetPriceLog
+from aave.models import AaveLiquidationLog, Asset, AssetPriceLog
 from liquidations_v2.celery_app import app
+from utils.simulation import get_simulated_health_factor
 from utils.tokens import EvmTokenRetriever
 
 logger = logging.getLogger(__name__)
@@ -187,3 +188,71 @@ class UpdateMaxCappedRatiosTask(Task):
 
 
 UpdateMaxCappedRatiosTask = app.register_task(UpdateMaxCappedRatiosTask())
+
+
+class UpdateSimulatedHealthFactorTask(Task):
+    """Task to update simulated health factor for aave liquidation logs."""
+
+    def run(self):
+        """Update simulated health factor for aave liquidation logs."""
+        liquidation_logs = (
+            AaveLiquidationLog.objects
+            .filter(health_factor_before_tx__isnull=True)
+            .order_by('-block_height')[:200]
+        )
+
+        total_logs = len(liquidation_logs)
+        logger.info(f"Processing {total_logs} liquidation logs")
+
+        for idx, liquidation_log in enumerate(liquidation_logs, 1):
+
+            params = [
+                # before tx
+                (liquidation_log.block_height,
+                 liquidation_log.transaction_index - 1,
+                 "health_factor_before_tx"),
+                # before tx and zero blocks
+                (liquidation_log.block_height,
+                 1,
+                 "health_factor_before_zero_blocks"),
+                # before tx and one block
+                (liquidation_log.block_height - 1,
+                 1,
+                 "health_factor_before_one_blocks"),
+                # before tx and two blocks
+                (liquidation_log.block_height - 2,
+                 1,
+                 "health_factor_before_two_blocks"),
+                # before tx and three blocks
+                (liquidation_log.block_height - 3,
+                 1,
+                 "health_factor_before_three_blocks"),
+            ]
+
+            logger.info(
+                f"Processing liquidation log {liquidation_log.id} for user {liquidation_log.user} ({idx}/{total_logs})"
+            )
+            try:
+                for param in params:
+                    logger.debug(f"Getting health factor at block {param[0]} tx index {param[1]}")
+                    health_factor = get_simulated_health_factor(
+                        chain_id=liquidation_log.network.chain_id,
+                        address=liquidation_log.user,
+                        block_number=param[0],
+                        transaction_index=param[1]
+                    )
+                    logger.info(f"Got health factor {health_factor} for {param[2]}")
+                    setattr(liquidation_log, param[2], health_factor)
+                liquidation_log.save()
+                logger.info(f"Successfully updated health factors for liquidation log {liquidation_log.id}")
+            except Exception as e:
+                logger.error(
+                    f"Failed to process liquidation log {liquidation_log.id}: {str(e)}",
+                    exc_info=True
+                )
+                continue
+
+        logger.info(f"Completed processing {total_logs} liquidation logs")
+
+
+UpdateSimulatedHealthFactorTask = app.register_task(UpdateSimulatedHealthFactorTask())

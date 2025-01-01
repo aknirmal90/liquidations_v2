@@ -241,6 +241,37 @@ class AaveLiquidationLog(models.Model):
     onchain_received_at = models.DateTimeField(null=True, blank=True)
     db_created_at = models.DateTimeField(auto_now_add=True)
 
+    health_factor_before_tx = models.DecimalField(
+        max_digits=19,
+        decimal_places=18,
+        null=True,
+        blank=True
+    )
+    health_factor_before_zero_blocks = models.DecimalField(
+        max_digits=19,
+        decimal_places=18,
+        null=True,
+        blank=True
+    )
+    health_factor_before_one_blocks = models.DecimalField(
+        max_digits=19,
+        decimal_places=18,
+        null=True,
+        blank=True
+    )
+    health_factor_before_two_blocks = models.DecimalField(
+        max_digits=19,
+        decimal_places=18,
+        null=True,
+        blank=True
+    )
+    health_factor_before_three_blocks = models.DecimalField(
+        max_digits=19,
+        decimal_places=18,
+        null=True,
+        blank=True
+    )
+
     class Meta:
         verbose_name = 'Aave Liquidation Log'
         verbose_name_plural = 'Aave Liquidation Logs'

@@ -1,5 +1,6 @@
 - name: arbitrum
   rpc: https://arbitrum-mainnet.infura.io/v3/462361faca234b7f871c6c4a77ca51d0
+  chain_id: 42161
   wss_infura: wss://arbitrum-mainnet.infura.io/ws/v3/462361faca234b7f871c6c4a77ca51d0
   wss_alchemy: wss://arb-mainnet.g.alchemy.com/v2/yiE94jexM5umxImo2vmQJK9L4w9-c5AY
   wss_quicknode: wss://wild-cold-valley.arbitrum-mainnet.quiknode.pro/6c00b195e918752ea94364adce7d56a9f41f5a75/
