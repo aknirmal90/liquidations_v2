@@ -68,30 +68,35 @@ class Command(WebsocketCommand, BaseCommand):
         if not ("params" in msg and "result" in msg["params"]):
             return
 
-        onchain_received_at = datetime.now(timezone.utc)
-
         log = msg["params"]["result"]
         parsed_log = self.parse_log(log)
 
-        # Get cached price from Django cache
-        cache_key = f"price-{self.network_name}-{self.provider}-{parsed_log['asset'].lower()}"
+        # Move this after the cache check to avoid unnecessary timestamp creation
+        # if we're going to skip the update anyway
+        asset = parsed_log['asset'].lower()
+        cache_key = f"price-{self.network_name}-{self.provider}-{asset}"
         cached_price = cache.get(cache_key)
 
         # Skip update if price hasn't changed
         if cached_price == parsed_log["new_price"]:
             return
 
-        # Update cache with new price
+        onchain_received_at = datetime.now(timezone.utc)
+
+        # Use cache.set_many to batch cache operations if you have multiple to set
         cache.set(cache_key, parsed_log["new_price"])
 
-        # Fire task to update asset price
-        UpdateAssetPriceTask.delay(
-            network_id=self.network.id,
-            contract=parsed_log['asset'],
-            new_price=parsed_log['new_price'],
-            block_height=parsed_log['block_height'],
-            onchain_created_at=parsed_log['updated_at'],
-            round_id=parsed_log['roundId'],
-            onchain_received_at=onchain_received_at,
-            provider=self.provider
+        # Consider using apply_async instead of delay for more control
+        UpdateAssetPriceTask.apply_async(
+            kwargs={
+                "network_id": self.network.id,
+                "contract": asset,  # Use already lowercased value
+                "new_price": parsed_log['new_price'],
+                "block_height": parsed_log['block_height'],
+                "onchain_created_at": parsed_log['updated_at'],
+                "round_id": parsed_log['roundId'],
+                "onchain_received_at": onchain_received_at,
+                "provider": self.provider
+            },
+            priority=0  # High priority
         )

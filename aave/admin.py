@@ -175,7 +175,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         'get_db_latency_ms'
     )
     list_filter = ('network', 'onchain_created_at', 'db_created_at')
-    search_fields = ('aggregator_address',)
+    search_fields = ('aggregator_address', 'round_id')
     ordering = ('-db_created_at',)
 
     def get_aggregator_address_link(self, obj):
