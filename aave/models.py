@@ -167,8 +167,8 @@ class Asset(models.Model):
 
         elif self.price_type == Asset.PriceType.MAX_CAPPED:
             price = self.priceA
-            if price > self.priceB:
-                price = self.priceB
+            if price > self.max_cap:
+                price = self.max_cap
             price_in_usdt = price / self.decimals_price
             # Max Cap is stored in max_cap
             return price, price_in_usdt

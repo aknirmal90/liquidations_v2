@@ -345,5 +345,47 @@
         ],
         "name": "CapParametersUpdated",
         "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "collateralAsset",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "name": "debtAsset",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "name": "user",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "debtToCover",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "liquidatedCollateralAmount",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "liquidator",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "receiveAToken",
+                "type": "bool"
+            }
+        ],
+        "name": "LiquidationCall",
+        "type": "event"
     }
 ]
