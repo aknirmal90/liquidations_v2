@@ -204,3 +204,49 @@ class AssetPriceLog(models.Model):
 
     def __str__(self):
         return f"{self.aggregator_address} price: {self.price} at {self.onchain_created_at}"
+
+
+class AaveLiquidationLog(models.Model):
+    network = models.ForeignKey('blockchains.Network', on_delete=models.PROTECT)
+    protocol = models.ForeignKey('blockchains.Protocol', on_delete=models.PROTECT)
+
+    user = models.CharField(max_length=42)
+    debt_to_cover = models.DecimalField(max_digits=72, decimal_places=0, null=True, blank=True)
+    debt_to_cover_in_usd = models.DecimalField(max_digits=70, decimal_places=2, null=True, blank=True)
+    liquidated_collateral_amount = models.DecimalField(max_digits=72, decimal_places=0, null=True, blank=True)
+    liquidated_collateral_amount_in_usd = models.DecimalField(max_digits=70, decimal_places=2, null=True, blank=True)
+
+    collateral_asset = models.ForeignKey(
+        'aave.Asset',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='collateral_liquidations'
+    )
+    debt_asset = models.ForeignKey(
+        'aave.Asset',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='debt_liquidations'
+    )
+
+    liquidator = models.CharField(max_length=42)
+
+    block_height = models.PositiveIntegerField(null=True, blank=True)
+    transaction_hash = models.CharField(max_length=66, null=True, blank=True)
+    transaction_index = models.PositiveIntegerField(null=True, blank=True)
+
+    onchain_created_at = models.DateTimeField(null=True, blank=True)
+    onchain_received_at = models.DateTimeField(null=True, blank=True)
+    db_created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Aave Liquidation Log'
+        verbose_name_plural = 'Aave Liquidation Logs'
+        indexes = [
+            models.Index(fields=['network', 'protocol', 'user']),
+        ]
+
+    def __str__(self):
+        return f"Liquidation {self.transaction_hash[:10]}... - {self.network}"

@@ -106,3 +106,44 @@ def get_explorer_address_url(network: Network, address_id: str):
         )
     else:
         return "Configure explorer URLs"
+
+
+def get_explorer_transaction_url(network: Network, tx: str):
+    if not tx:
+        return ""
+
+    short_hash = tx[:8] + "...." + tx[-8:]
+
+    copy_icon_url = static('icons/copy_icon.png')
+    copy_button = (
+        f'<button onclick="navigator.clipboard.writeText(\'{tx}\');'
+        f'this.innerHTML=\'Copied!\';'
+        f'setTimeout(() => this.innerHTML=\'<img src=\\\'{copy_icon_url}\\\' />\', 1000);'
+        f'return false;" '
+        f'style="border:none;background:none;cursor:pointer;padding:0 4px;">'
+        f'<img src=\'{copy_icon_url}\' />'
+        f'</button>'
+    )
+
+    if "ethereum" in network.name:
+        return format_html(
+            f"<a href='https://etherscan.io/tx/{tx}' target='_blank'>{short_hash}</a>{copy_button}"
+        )
+    elif "polygon" in network.name:
+        return format_html(
+            f"<a href='https://polygonscan.com/tx/{tx}' target='_blank'>{short_hash}</a>{copy_button}"
+        )
+    elif "avalanche" in network.name:
+        return format_html(
+            f"<a href='https://snowtrace.io/tx/{tx}' target='_blank'>{short_hash}</a>{copy_button}"
+        )
+    elif "tron" in network.name:
+        return format_html(
+            f"<a href='https://tronscan.org/#/transaction/{tx}' target='_blank'>{short_hash}</a>{copy_button}"
+        )
+    elif "arbitrum" in network.name:
+        return format_html(
+            f"<a href='https://arbiscan.io/tx/{tx}' target='_blank'>{short_hash}</a>{copy_button}"
+        )
+    else:
+        return "Configure explorer URLs"

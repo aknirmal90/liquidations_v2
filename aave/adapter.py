@@ -1,7 +1,9 @@
 import logging
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Dict, List
 
+from aave.models import Asset
 from aave.price import PriceConfigurer
 from aave.tasks import UpdateAssetMetadataTask
 from blockchains.models import Event
@@ -384,3 +386,51 @@ class aaveAdapter:
             ).update(
                 max_cap=Decimal(log.args.snapshotRatio),
             )
+
+    @classmethod
+    def parse_LiquidationCall(cls, event: Event, logs: List[Dict]):
+        model_class = event.get_model_class()
+        onchain_received_at = datetime.now(timezone.utc)
+
+        protocol_name = event.protocol.name
+        network_name = event.network.name
+
+        instances = []
+        for log in logs:
+            collateral_asset = Asset.get(
+                protocol_name=protocol_name,
+                network_name=network_name,
+                token_address=log.args.collateralAsset
+            )
+            debt_asset = Asset.get(
+                protocol_name=protocol_name,
+                network_name=network_name,
+                token_address=log.args.debtAsset
+            )
+
+            liquidated_collateral_amount = Decimal(log.args.liquidatedCollateralAmount)
+            debt_to_cover = Decimal(log.args.debtToCover)
+            liquidated_collateral_amount_in_usd = (
+                liquidated_collateral_amount * collateral_asset.price_in_usdt / collateral_asset.decimals
+            )
+            debt_to_cover_in_usd = (
+                debt_to_cover * debt_asset.price_in_usdt / debt_asset.decimals
+            )
+
+            instances.append(model_class(
+                network=event.network,
+                protocol=event.protocol,
+                user=log.args.user,
+                debt_to_cover=debt_to_cover,
+                liquidated_collateral_amount=liquidated_collateral_amount,
+                liquidator=log.args.liquidator,
+                block_height=log.blockNumber,
+                transaction_hash=log.transactionHash,
+                transaction_index=log.transactionIndex,
+                onchain_received_at=onchain_received_at,
+                collateral_asset=collateral_asset,
+                debt_asset=debt_asset,
+                liquidated_collateral_amount_in_usd=liquidated_collateral_amount_in_usd,
+                debt_to_cover_in_usd=debt_to_cover_in_usd,
+            ))
+        model_class.objects.bulk_create(instances)

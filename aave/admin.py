@@ -1,7 +1,7 @@
 from django.contrib import admin
 
-from aave.models import Asset, AssetPriceLog
-from utils.admin import EnableDisableAdminMixin, get_explorer_address_url
+from aave.models import AaveLiquidationLog, Asset, AssetPriceLog
+from utils.admin import EnableDisableAdminMixin, get_explorer_address_url, get_explorer_transaction_url
 
 
 @admin.register(Asset)
@@ -234,3 +234,98 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
             )
         })
     )
+
+
+@admin.register(AaveLiquidationLog)
+class AaveLiquidationLogAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'get_transaction_hash_link',
+        'network',
+        'protocol',
+        'get_liquidator_link',
+        'collateral_asset',
+        'debt_asset',
+        'db_created_at',
+        'debt_to_cover_in_usd',
+        'liquidated_collateral_amount_in_usd'
+    )
+
+    list_filter = (
+        'network',
+        'protocol',
+        'collateral_asset',
+        'debt_asset',
+        'db_created_at',
+    )
+
+    search_fields = (
+        'transaction_hash',
+        'user',
+        'liquidator',
+        'collateral_asset__symbol',
+        'debt_asset__symbol',
+    )
+
+    fieldsets = (
+        ('Transaction Information', {
+            'fields': (
+                'get_transaction_hash_link',
+                'block_height',
+                'transaction_index',
+                'network',
+                'protocol',
+            )
+        }),
+        ('Addresses', {
+            'fields': (
+                'user',
+                'get_liquidator_link',
+            )
+        }),
+        ('Assets and Amounts', {
+            'fields': (
+                ('collateral_asset', 'liquidated_collateral_amount', 'liquidated_collateral_amount_in_usd'),
+                ('debt_asset', 'debt_to_cover', 'debt_to_cover_in_usd'),
+            )
+        }),
+        ('Timestamps', {
+            'fields': (
+                'onchain_created_at',
+                'onchain_received_at',
+                'db_created_at',
+            )
+        }),
+    )
+
+    readonly_fields = (
+        'transaction_hash',
+        'block_height',
+        'transaction_index',
+        'network',
+        'protocol',
+        'user',
+        'liquidator',
+        'collateral_asset',
+        'liquidated_collateral_amount',
+        'liquidated_collateral_amount_in_usd',
+        'debt_asset',
+        'debt_to_cover',
+        'debt_to_cover_in_usd',
+        'onchain_created_at',
+        'onchain_received_at',
+        'db_created_at',
+        'get_liquidator_link',
+        'get_transaction_hash_link',
+        'id'
+    )
+
+    ordering = ('-block_height', '-transaction_index',)
+
+    def get_transaction_hash_link(self, obj):
+        return get_explorer_transaction_url(obj.network, obj.transaction_hash)
+    get_transaction_hash_link.short_description = 'Transaction Hash'
+
+    def get_liquidator_link(self, obj):
+        return get_explorer_address_url(obj.network, obj.liquidator)
+    get_liquidator_link.short_description = 'Liquidator'
