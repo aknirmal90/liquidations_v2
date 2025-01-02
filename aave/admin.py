@@ -24,8 +24,6 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         'is_reserve_paused',
         'priceA',
         'priceB',
-        'updated_at_block_heightA',
-        'updated_at_block_heightB',
     )
     list_filter = (
         'protocol',
@@ -71,8 +69,8 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
             'fields': (
                 ('price', 'price_in_usdt'),
                 ('get_pricesource_link', 'price_type'),
-                ('get_contractA_link', 'priceA', 'decimals_price', 'updated_at_block_heightA'),
-                ('get_contractB_link', 'priceB', 'max_cap', 'updated_at_block_heightB')
+                ('get_contractA_link', 'priceA', 'decimals_price'),
+                ('get_contractB_link', 'priceB', 'max_cap')
             )
         }),
         ('Risk Parameters', {
@@ -116,8 +114,6 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         'max_cap',
         'price',
         'price_in_usdt',
-        'updated_at_block_heightA',
-        'updated_at_block_heightB',
         'price_type',
         'borrowable_in_isolation_mode',
         'reserve_factor',
@@ -176,7 +172,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         'get_rpc_latency_ms',
         'get_db_latency_ms'
     )
-    list_filter = ('network', 'onchain_created_at', 'db_created_at')
+    list_filter = ('network', 'onchain_created_at', 'db_created_at', 'provider')
     search_fields = ('aggregator_address', 'round_id')
     ordering = ('-db_created_at',)
 
@@ -185,7 +181,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
     get_aggregator_address_link.short_description = "Asset Address"
 
     def get_rpc_latency_ms(self, obj):
-        if obj.onchain_received_at:
+        if obj.onchain_received_at and obj.onchain_created_at:
             delta = obj.onchain_received_at - obj.onchain_created_at
             return int(delta.total_seconds() * 1000)
         return None
@@ -208,7 +204,8 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         'onchain_received_at',
         'get_rpc_latency_ms',
         'get_db_latency_ms',
-        'id'
+        'id',
+        'provider'
     )
 
     fieldsets = (

@@ -1,18 +1,16 @@
 import logging
 from datetime import datetime, timezone
 
-from django.core.cache import cache
 from django.core.management.base import BaseCommand
 
 from aave.management.commands.listen_base import WebsocketCommand
-from aave.models import Asset
 from aave.tasks import UpdateAssetPriceTask
 
 logger = logging.getLogger(__name__)
 
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
@@ -21,23 +19,6 @@ class Command(WebsocketCommand, BaseCommand):
     help = "Subscribe to new pending transactions on a blockchain using websockets"
 
     def get_subscribe_message(self):
-        logger.debug("Getting subscribe message")
-        chainlink_assets = Asset.objects.filter(network=self.network)
-        chainlink_assets_contractA = list(
-            chainlink_assets.values_list("contractA", flat=True)
-        )
-        chainlink_assets_contractB = list(
-            chainlink_assets.values_list("contractB", flat=True)
-        )
-        chainlink_assets_contracts = [
-            contract
-            for contract in list(
-                set(chainlink_assets_contractA + chainlink_assets_contractB)
-            )
-            if contract
-        ]
-        logger.debug(f"Found {len(chainlink_assets_contracts)} contracts to monitor")
-
         message = {
             "id": "1",
             "jsonrpc": "2.0",
@@ -45,7 +26,7 @@ class Command(WebsocketCommand, BaseCommand):
             "params": [
                 "logs",
                 {
-                    "address": chainlink_assets_contracts,
+                    "address": self.contract_addresses,
                     "topics": [
                         "0x0559884fd3a460db3073b7fc896cc77986f16e378210ded43186175bf646fc5f"
                     ],
@@ -62,6 +43,7 @@ class Command(WebsocketCommand, BaseCommand):
             "block_height": int(log["blockNumber"], 16),
             "updated_at": int(log["data"], 16),
             "roundId": int(log["topics"][2], 16),
+            "transaction_hash": log["transactionHash"],
         }
 
     async def process(self, msg, **kwargs):
@@ -70,33 +52,25 @@ class Command(WebsocketCommand, BaseCommand):
 
         log = msg["params"]["result"]
         parsed_log = self.parse_log(log)
-
-        # Move this after the cache check to avoid unnecessary timestamp creation
-        # if we're going to skip the update anyway
-        asset = parsed_log['asset'].lower()
-        cache_key = f"price-{self.network_name}-{self.provider}-{asset}"
-        cached_price = cache.get(cache_key)
-
-        # Skip update if price hasn't changed
-        if cached_price == parsed_log["new_price"]:
+        is_new_price = self.check_and_update_price_cache(
+            new_price=parsed_log["new_price"],
+            asset=parsed_log["asset"]
+        )
+        if not is_new_price:
             return
 
         onchain_received_at = datetime.now(timezone.utc)
 
-        # Use cache.set_many to batch cache operations if you have multiple to set
-        cache.set(cache_key, parsed_log["new_price"])
-
-        # Consider using apply_async instead of delay for more control
         UpdateAssetPriceTask.apply_async(
             kwargs={
                 "network_id": self.network.id,
-                "contract": asset,  # Use already lowercased value
+                "contract": parsed_log['asset'],  # Use already lowercased value
                 "new_price": parsed_log['new_price'],
-                "block_height": parsed_log['block_height'],
                 "onchain_created_at": parsed_log['updated_at'],
                 "round_id": parsed_log['roundId'],
                 "onchain_received_at": onchain_received_at,
-                "provider": self.provider
+                "provider": self.provider,
+                "transaction_hash": parsed_log['transaction_hash']
             },
             priority=0  # High priority
         )

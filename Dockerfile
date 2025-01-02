@@ -45,6 +45,10 @@ COPY ./bin/start-websocket-transactions /start-websocket-transactions
 RUN sed -i 's/\r$//g' /start-websocket-transactions
 RUN chmod +x /start-websocket-transactions
 
+COPY ./bin/start-sequencer /start-sequencer
+RUN sed -i 's/\r$//g' /start-sequencer
+RUN chmod +x /start-sequencer
+
 WORKDIR /code/
 
 CMD ["/start-webserver"]

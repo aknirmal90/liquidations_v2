@@ -105,3 +105,13 @@ def attribute_dict_to_dict(data):
     # Otherwise, return the data as-is
     else:
         return data
+
+
+def add_0x_prefix(value) -> str:
+    if isinstance(value, HexBytes):
+        value = value.hex().lower()
+
+    if value[:2] == "0x":
+        return value
+    else:
+        return "0x" + value

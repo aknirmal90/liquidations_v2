@@ -6,7 +6,7 @@ from decimal import Decimal
 from celery import Task
 from web3 import Web3
 
-from aave.models import AaveLiquidationLog, Asset, AssetPriceLog
+from aave.models import Asset, AssetPriceLog, AaveLiquidationLog
 from liquidations_v2.celery_app import app
 from utils.simulation import get_simulated_health_factor
 from utils.tokens import EvmTokenRetriever
@@ -79,11 +79,11 @@ class UpdateAssetPriceTask(Task):
         network_id,
         contract,
         new_price,
-        block_height,
-        onchain_created_at,
-        round_id,
+        provider,
         onchain_received_at,
-        provider
+        transaction_hash,
+        onchain_created_at=None,
+        round_id=None
     ):
         assets_to_update = []
 
@@ -91,7 +91,6 @@ class UpdateAssetPriceTask(Task):
         assetsA = Asset.objects.filter(contractA__iexact=contract)
         assetsA.update(
             priceA=Decimal(new_price),
-            updated_at_block_heightA=block_height
         )
         for asset in assetsA:
             try:
@@ -107,7 +106,6 @@ class UpdateAssetPriceTask(Task):
         assetsB = Asset.objects.filter(contractB__iexact=contract)
         assetsB.update(
             priceB=Decimal(new_price),
-            updated_at_block_heightB=block_height
         )
         for asset in assetsB:
             try:
@@ -122,15 +120,27 @@ class UpdateAssetPriceTask(Task):
         # Bulk save all updated assets
         Asset.objects.bulk_update(assets_to_update, ['price', 'price_in_usdt'])
 
+        if onchain_created_at:
+            onchain_created_at = datetime.fromtimestamp(onchain_created_at, tz=timezone.utc)
+
         AssetPriceLog.objects.create(
             aggregator_address=contract,
             network_id=network_id,
             price=new_price,
-            onchain_created_at=datetime.fromtimestamp(onchain_created_at, tz=timezone.utc),
+            onchain_created_at=onchain_created_at,
             round_id=round_id,
             onchain_received_at=onchain_received_at,
-            provider=provider
+            provider=provider,
+            transaction_hash=transaction_hash
         )
+        if not provider.startswith("sequencer"):
+            AssetPriceLog.objects.filter(
+                transaction_hash=transaction_hash,
+                network_id=network_id
+            ).update(
+                onchain_created_at=onchain_created_at,
+                round_id=round_id
+            )
 
 
 UpdateAssetPriceTask = app.register_task(UpdateAssetPriceTask())

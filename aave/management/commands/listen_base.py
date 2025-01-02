@@ -4,7 +4,9 @@ import logging
 import orjson as json
 import websockets
 from asgiref.sync import sync_to_async
+from django.core.cache import cache
 
+from aave.models import Asset
 from blockchains.models import Network
 
 logger = logging.getLogger(__name__)
@@ -32,10 +34,8 @@ class WebsocketCommand:
         return instance
 
     async def listen(self):
-        self.network = await self.get_network(self.network_id)
-        self.network_name = self.network.name
-
         wss = getattr(self.network, f"wss_{self.provider}")
+        logger.info(f"Connecting to {wss}")
 
         # Pre-compute subscribe message once
         subscribe_message = await sync_to_async(
@@ -73,8 +73,11 @@ class WebsocketCommand:
                 break
 
     def handle(self, *args, **options):
-        self.network_id = options["network"]
+        self.network_name = options["network"]
+        self.network = Network.get_network(self.network_name)
         self.provider = options["provider"]
+        self.contract_addresses = self.get_contract_addresses()
+
         # Use uvloop if available for better performance
         try:
             import uvloop
@@ -89,3 +92,30 @@ class WebsocketCommand:
 
     async def process(self, response):
         raise NotImplementedError
+
+    def check_and_update_price_cache(self, new_price, asset):
+        cache_key = f"price-{self.network_name}-{self.provider}-{asset}"
+        cached_price = cache.get(cache_key)
+
+        if cached_price == new_price:
+            return False
+
+        cache.set(cache_key, new_price)
+        return True
+
+    def get_contract_addresses(self):
+        """Get contract addresses to monitor from Asset model."""
+        chainlink_assets = Asset.objects.filter(network=self.network)
+        chainlink_assets_contractA = list(
+            chainlink_assets.values_list("contractA", flat=True)
+        )
+        chainlink_assets_contractB = list(
+            chainlink_assets.values_list("contractB", flat=True)
+        )
+        return [
+            contract
+            for contract in list(
+                set(chainlink_assets_contractA + chainlink_assets_contractB)
+            )
+            if contract
+        ]

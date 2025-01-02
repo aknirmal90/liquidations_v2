@@ -86,15 +86,6 @@ class Asset(models.Model):
         max_digits=72, decimal_places=2, null=True, blank=True
     )
 
-    updated_at_block_heightA = models.PositiveIntegerField(default=0)
-    updated_at_block_heightB = models.PositiveIntegerField(default=0)
-
-    updated_at_onchainA = models.PositiveIntegerField(default=0)
-    updated_at_onchainB = models.PositiveIntegerField(default=0)
-
-    updated_at_db_A = models.PositiveIntegerField(default=0)
-    updated_at_db_B = models.PositiveIntegerField(default=0)
-
     emode_category = models.PositiveSmallIntegerField(default=0)
     borrowable_in_isolation_mode = models.BooleanField(default=False)
     is_reserve_paused = models.BooleanField(default=False)
@@ -187,10 +178,11 @@ class Asset(models.Model):
 
 
 class AssetPriceLog(models.Model):
+    transaction_hash = models.CharField(max_length=66, null=True, blank=True)
     aggregator_address = models.CharField(max_length=42)
     network = models.ForeignKey('blockchains.Network', on_delete=models.PROTECT)
     price = models.DecimalField(max_digits=72, decimal_places=0, null=True, blank=True)
-    onchain_created_at = models.DateTimeField()
+    onchain_created_at = models.DateTimeField(null=True, blank=True)
     onchain_received_at = models.DateTimeField(null=True, blank=True)
     db_created_at = models.DateTimeField(auto_now_add=True)
     round_id = models.PositiveIntegerField(null=True, blank=True)
