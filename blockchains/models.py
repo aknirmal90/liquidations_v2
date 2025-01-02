@@ -62,7 +62,7 @@ class Network(models.Model):
     chain_id = models.IntegerField(null=True, blank=True)
 
     wss_infura = models.CharField(max_length=255, null=True, blank=True)
-    wss_sequencer_virginia = models.CharField(max_length=255, null=True, blank=True)
+    wss_sequencer_oregon = models.CharField(max_length=255, null=True, blank=True)
 
     latest_block = models.BigIntegerField(null=True, blank=True, default=0)
 

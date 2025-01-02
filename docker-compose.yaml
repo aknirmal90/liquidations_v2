@@ -95,7 +95,7 @@ services:
             dockerfile: Dockerfile
             args:
                 - DOPPLER_TOKEN=$DOPPLER_TOKEN
-        command: /start-sequencer arbitrum sequencer_virginia
+        command: /start-sequencer arbitrum sequencer_oregon
         environment:
             DOPPLER_TOKEN: $DOPPLER_TOKEN
         depends_on:

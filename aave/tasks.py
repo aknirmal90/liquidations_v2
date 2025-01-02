@@ -6,7 +6,7 @@ from decimal import Decimal
 from celery import Task
 from web3 import Web3
 
-from aave.models import Asset, AssetPriceLog, AaveLiquidationLog
+from aave.models import AaveLiquidationLog, Asset, AssetPriceLog
 from liquidations_v2.celery_app import app
 from utils.simulation import get_simulated_health_factor
 from utils.tokens import EvmTokenRetriever
