@@ -184,6 +184,7 @@ class AssetPriceLog(models.Model):
     price = models.DecimalField(max_digits=72, decimal_places=0, null=True, blank=True)
     onchain_created_at = models.DateTimeField(null=True, blank=True)
     onchain_received_at = models.DateTimeField(null=True, blank=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
     db_created_at = models.DateTimeField(auto_now_add=True)
     round_id = models.PositiveIntegerField(null=True, blank=True)
     provider = models.CharField(max_length=255, null=True, blank=True)

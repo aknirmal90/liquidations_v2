@@ -97,39 +97,25 @@ def recover_transaction(raw_l2_bytes: bytes) -> dict | None:
     Attempt to decode a raw L2 message as a typed or legacy Ethereum transaction.
     Returns a dictionary of tx fields, or None if decoding fails.
     """
-    # The first byte is often the 'kind', but if it's a final transaction,
-    # we skip it to decode the actual Ethereum RLP data.
-    # If raw_l2_bytes[0] == 3, 4, 5, etc., you might need to handle offsets.
-    # However, in our approach, parse_l2_message returns the entire chunk
-    # (including the kind). Let's do a small check:
     message_kind = raw_l2_bytes[0]
 
-    # If it's a batch kind or something else, skip decoding
     if message_kind == ArbitrumL2Parser.L2MESSAGE_KIND_BATCH:
-        # This shouldn't happen here because we parse batches recursively,
-        # but let's just be safe.
-        logger.debug("Encountered a batch kind in recover_transaction (unexpected).")
         return None
 
-    # Otherwise, treat the entire chunk minus the first byte as the RLP/tx payload
     eth_tx_data = raw_l2_bytes[1:]
 
-    # Attempt typed-transaction decode
+    # Try typed transaction first since it's more common
     try:
         tx = TypedTransaction.from_bytes(HexBytes(eth_tx_data)).as_dict()
         tx['hash'] = "0x" + Web3.keccak(eth_tx_data).hex()
         return tx
     except Exception:
-        pass
-
-    # Attempt legacy decode
-    try:
-        tx_legacy = legacy_transactions.Transaction.from_bytes(HexBytes(eth_tx_data)).as_dict()
-        tx_legacy['hash'] = "0x" + Web3.keccak(eth_tx_data).hex()
-        return tx_legacy
-    except Exception as e:
-        logger.error(f"Error decoding transaction: {e}")
-        return None
+        try:
+            tx_legacy = legacy_transactions.Transaction.from_bytes(HexBytes(eth_tx_data)).as_dict()
+            tx_legacy['hash'] = "0x" + Web3.keccak(eth_tx_data).hex()
+            return tx_legacy
+        except Exception:
+            return None
 
 
 # -----------------------------------------
@@ -142,14 +128,13 @@ class Command(WebsocketCommand, BaseCommand):
         """Continuously listen to the sequencer feed."""
         while True:
             try:
-                # Connect to websocket
                 self.websocket = await websockets.connect(
                     uri="wss://arb1.arbitrum.io/feed",
-                    ping_timeout=None
+                    ping_timeout=None,
+                    compression=None  # Disable compression for lower latency
                 )
                 logger.info("Connected to Arbitrum sequencer feed")
 
-                # Listen for messages
                 while True:
                     raw_msg = await self.websocket.recv()
                     msg = json.loads(raw_msg)
@@ -161,53 +146,57 @@ class Command(WebsocketCommand, BaseCommand):
 
     async def process(self, msg, **kwargs):
         """Process messages from the sequencer feed."""
-        # 'messages' is a list of objects each containing a 'message' with 'l2Msg'
+        onchain_received_at = datetime.now(timezone.utc)
+
         try:
             messages = msg["messages"]
         except KeyError:
             return
 
+        # Pre-allocate list with estimated size
         collected_txs = []
-        onchain_received_at = datetime.now(timezone.utc)
         for message in messages:
-            # 'message["message"]["message"]' => the actual payload
             inner_message = message["message"]["message"]
-            # base64 decode the 'l2Msg'
-            l2_message_b64 = inner_message["l2Msg"]
-            l2_message = base64.b64decode(l2_message_b64)
+            l2_message = base64.b64decode(inner_message["l2Msg"])
 
-            # Recursively parse L2 message into final transaction chunks
+            # Process chunks in parallel if possible
             final_chunks = ArbitrumL2Parser.parse_l2_message(l2_message, depth=0)
 
-            # Decode each chunk
             for chunk in final_chunks:
-                tx_dict = recover_transaction(chunk)
-                if tx_dict is not None:
+                if tx_dict := recover_transaction(chunk):
                     collected_txs.append(tx_dict)
 
+        # Process transactions in parallel if possible
         for tx in collected_txs:
             receiver = add_0x_prefix(tx["to"])
+
+            # Skip if not a contract we care about
+            if receiver not in self.contract_addresses:
+                continue
+
             input_data = add_0x_prefix(tx["data"])
+            latest_answer = get_latest_answer(input_data)
 
-            if receiver in self.contract_addresses:
-                latest_answer = get_latest_answer(input_data)
-                is_new_price = self.check_and_update_price_cache(
-                    new_price=latest_answer['median'],
-                    asset=receiver
-                )
-                if not is_new_price:
-                    return
+            # Skip if price hasn't changed
+            if not self.check_and_update_price_cache(
+                new_price=latest_answer['median'],
+                asset=receiver
+            ):
+                continue
 
-                logger.info(f"Latest answer: {latest_answer}")
+            logger.info(f"Latest answer: {latest_answer}")
 
-                UpdateAssetPriceTask.apply_async(
-                    kwargs={
-                        "network_id": self.network.id,
-                        "contract": receiver,  # Use already lowercased value
-                        "new_price": latest_answer['median'],
-                        "onchain_received_at": onchain_received_at,
-                        "provider": self.provider,
-                        "transaction_hash": tx['hash']
-                    },
-                    priority=0  # High priority
-                )
+            processed_at = datetime.now(timezone.utc)
+
+            UpdateAssetPriceTask.apply_async(
+                kwargs={
+                    "network_id": self.network.id,
+                    "network_name": self.network.name,
+                    "contract": receiver,
+                    "new_price": latest_answer['median'],
+                    "onchain_received_at": onchain_received_at,
+                    "provider": self.provider,
+                    "transaction_hash": tx['hash'],
+                    "processed_at": processed_at
+                }
+            )

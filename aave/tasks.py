@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from celery import Task
+from django.core.cache import cache
 from web3 import Web3
 
 from aave.models import AaveLiquidationLog, Asset, AssetPriceLog
@@ -74,51 +75,63 @@ UpdateAssetMetadataTask = app.register_task(UpdateAssetMetadataTask())
 class UpdateAssetPriceTask(Task):
     """Task to update asset prices and create price logs."""
 
+    def get_global_cache_key(self, network_name, contract):
+        return f"price-{network_name}-{contract}"
+
+    def is_price_updated(self, network_name, contract, new_price):
+        global_cache_key = self.get_global_cache_key(network_name, contract)
+        cached_price = cache.get(global_cache_key)
+        return cached_price == new_price
+
     def run(
         self,
         network_id,
+        network_name,
         contract,
         new_price,
         provider,
         onchain_received_at,
         transaction_hash,
+        processed_at,
         onchain_created_at=None,
         round_id=None
     ):
         assets_to_update = []
+        is_price_updated = self.is_price_updated(network_name, contract, new_price)
 
-        # Update assets where contract matches contractA
-        assetsA = Asset.objects.filter(contractA__iexact=contract)
-        assetsA.update(
-            priceA=Decimal(new_price),
-        )
-        for asset in assetsA:
-            try:
-                price, price_in_usdt = asset.get_price()
-                asset.price = price
-                asset.price_in_usdt = price_in_usdt
-                assets_to_update.append(asset)
-            except Exception as e:
-                logger.error(f"Failed to get price for asset {asset.asset}: {str(e)}")
-                continue
+        if is_price_updated:
+            # Update assets where contract matches contractA
+            assetsA = Asset.objects.filter(contractA__iexact=contract)
+            assetsA.update(
+                priceA=Decimal(new_price),
+            )
+            for asset in assetsA:
+                try:
+                    price, price_in_usdt = asset.get_price()
+                    asset.price = price
+                    asset.price_in_usdt = price_in_usdt
+                    assets_to_update.append(asset)
+                except Exception as e:
+                    logger.error(f"Failed to get price for asset {asset.asset}: {str(e)}")
+                    continue
 
-        # Update assets where contract matches contractB
-        assetsB = Asset.objects.filter(contractB__iexact=contract)
-        assetsB.update(
-            priceB=Decimal(new_price),
-        )
-        for asset in assetsB:
-            try:
-                price, price_in_usdt = asset.get_price()
-                asset.price = price
-                asset.price_in_usdt = price_in_usdt
-                assets_to_update.append(asset)
-            except Exception as e:
-                logger.error(f"Failed to get price for asset {asset.asset}: {str(e)}")
-                continue
+            # Update assets where contract matches contractB
+            assetsB = Asset.objects.filter(contractB__iexact=contract)
+            assetsB.update(
+                priceB=Decimal(new_price),
+            )
+            for asset in assetsB:
+                try:
+                    price, price_in_usdt = asset.get_price()
+                    asset.price = price
+                    asset.price_in_usdt = price_in_usdt
+                    assets_to_update.append(asset)
+                except Exception as e:
+                    logger.error(f"Failed to get price for asset {asset.asset}: {str(e)}")
+                    continue
 
-        # Bulk save all updated assets
-        Asset.objects.bulk_update(assets_to_update, ['price', 'price_in_usdt'])
+            # Bulk save all updated assets
+            Asset.objects.bulk_update(assets_to_update, ['price', 'price_in_usdt'])
 
         if onchain_created_at:
             onchain_created_at = datetime.fromtimestamp(onchain_created_at, tz=timezone.utc)
@@ -131,7 +144,8 @@ class UpdateAssetPriceTask(Task):
             round_id=round_id,
             onchain_received_at=onchain_received_at,
             provider=provider,
-            transaction_hash=transaction_hash
+            transaction_hash=transaction_hash,
+            processed_at=processed_at
         )
         if not provider.startswith("sequencer"):
             AssetPriceLog.objects.filter(

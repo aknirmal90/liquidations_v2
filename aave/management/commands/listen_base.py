@@ -94,13 +94,16 @@ class WebsocketCommand:
         raise NotImplementedError
 
     def check_and_update_price_cache(self, new_price, asset):
-        cache_key = f"price-{self.network_name}-{self.provider}-{asset}"
-        cached_price = cache.get(cache_key)
+        global_cache_key = f"price-{self.network_name}-{asset}"
+        cache.set(global_cache_key, new_price)
+
+        local_cache_key = f"price-{self.network_name}-{self.provider}-{asset}"
+        cached_price = cache.get(local_cache_key)
 
         if cached_price == new_price:
             return False
 
-        cache.set(cache_key, new_price)
+        cache.set(local_cache_key, new_price)
         return True
 
     def get_contract_addresses(self):

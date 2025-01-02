@@ -47,6 +47,8 @@ class Command(WebsocketCommand, BaseCommand):
         }
 
     async def process(self, msg, **kwargs):
+        onchain_received_at = datetime.now(timezone.utc)
+
         if not ("params" in msg and "result" in msg["params"]):
             return
 
@@ -59,18 +61,20 @@ class Command(WebsocketCommand, BaseCommand):
         if not is_new_price:
             return
 
-        onchain_received_at = datetime.now(timezone.utc)
+        processed_at = datetime.now(timezone.utc)
 
         UpdateAssetPriceTask.apply_async(
             kwargs={
                 "network_id": self.network.id,
+                "network_name": self.network.name,
                 "contract": parsed_log['asset'],  # Use already lowercased value
                 "new_price": parsed_log['new_price'],
                 "onchain_created_at": parsed_log['updated_at'],
                 "round_id": parsed_log['roundId'],
                 "onchain_received_at": onchain_received_at,
                 "provider": self.provider,
-                "transaction_hash": parsed_log['transaction_hash']
+                "transaction_hash": parsed_log['transaction_hash'],
+                "processed_at": processed_at
             },
             priority=0  # High priority
         )

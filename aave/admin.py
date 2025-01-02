@@ -170,7 +170,8 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         'onchain_created_at',
         'db_created_at',
         'get_rpc_latency_ms',
-        'get_db_latency_ms'
+        'get_parsing_latency_ms',
+        'get_celery_latency_ms'
     )
     list_filter = ('network', 'onchain_created_at', 'db_created_at', 'provider')
     search_fields = ('aggregator_address', 'round_id')
@@ -187,11 +188,18 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         return None
     get_rpc_latency_ms.short_description = "RPC Latency (ms)"
 
-    def get_db_latency_ms(self, obj):
-        if obj.onchain_received_at:
-            delta = obj.db_created_at - obj.onchain_received_at
+    def get_parsing_latency_ms(self, obj):
+        if obj.processed_at and obj.onchain_received_at:
+            delta = obj.processed_at - obj.onchain_received_at
             return int(delta.total_seconds() * 1000)
-    get_db_latency_ms.short_description = "DB Latency (ms)"
+        return None
+    get_parsing_latency_ms.short_description = "Parsing Latency (ms)"
+
+    def get_celery_latency_ms(self, obj):
+        if obj.processed_at:
+            delta = obj.db_created_at - obj.processed_at
+            return int(delta.total_seconds() * 1000)
+    get_celery_latency_ms.short_description = "Celery Latency (ms)"
 
     readonly_fields = (
         'db_created_at',
@@ -202,8 +210,10 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         'round_id',
         'onchain_created_at',
         'onchain_received_at',
+        'processed_at',
         'get_rpc_latency_ms',
-        'get_db_latency_ms',
+        'get_parsing_latency_ms',
+        'get_celery_latency_ms',
         'id',
         'provider'
     )
@@ -228,8 +238,10 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
                 'onchain_created_at',
                 'db_created_at',
                 'onchain_received_at',
+                'processed_at',
                 'get_rpc_latency_ms',
-                'get_db_latency_ms'
+                'get_parsing_latency_ms',
+                'get_celery_latency_ms'
             )
         })
     )
