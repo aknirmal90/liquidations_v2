@@ -162,6 +162,9 @@ class Asset(models.Model):
             # normalize by decimal places to get USDT price on ARB
             return price, price_in_usdt
 
+        elif self.max_cap is None:
+            return None, None
+
         elif self.price_type == Asset.PriceType.MAX_CAPPED:
             price = self.priceA
             if price > self.max_cap:
