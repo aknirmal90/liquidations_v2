@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Dict, List
@@ -7,11 +8,67 @@ from aave.models import Asset
 from aave.price import PriceConfigurer
 from aave.tasks import UpdateAssetMetadataTask
 from blockchains.models import Event
+from utils.constants import EVM_NULL_ADDRESS
+from utils.encoding import add_0x_prefix
 
 logger = logging.getLogger(__name__)
 
 
-class aaveAdapter:
+class BalanceUtils:
+
+    def _update_existing_records(model_class, event, asset_id, users, balances, liquidity_indices):
+        """Update existing balance records"""
+        instances_to_update = model_class.objects.filter(
+            network=event.network,
+            protocol=event.protocol,
+            address__in=users,
+            asset_id=asset_id
+        )
+
+        update_instances = [
+            model_class(
+                id=instance.id,
+                collateral_amount=instance.collateral_amount + balances[asset_id][instance.address],
+                last_updated_liquidity_index=(
+                    liquidity_indices[asset_id][instance.address]
+                    if liquidity_indices is not None else None
+                )
+            ) for instance in instances_to_update
+        ]
+
+        if liquidity_indices is not None:
+            fields_to_update = ['collateral_amount', 'last_updated_liquidity_index']
+        else:
+            fields_to_update = ['collateral_amount']
+
+        model_class.objects.bulk_update(
+            update_instances,
+            fields=fields_to_update
+        )
+        logger.info(f"Updated {len(update_instances)} existing records for asset {asset_id}")
+        return instances_to_update
+
+    def _create_new_records(model_class, event, asset_id, new_addresses, balances, liquidity_indices):
+        """Create new balance records"""
+        new_instances = [
+            model_class(
+                network=event.network,
+                protocol=event.protocol,
+                address=address,
+                asset_id=asset_id,
+                collateral_amount=balances[asset_id][address],
+                last_updated_liquidity_index=(
+                    liquidity_indices[asset_id][address]
+                    if liquidity_indices is not None else None
+                )
+            )
+            for address in new_addresses
+        ]
+        model_class.objects.bulk_create(new_instances)
+        logger.info(f"Created {len(new_instances)} new records for asset {asset_id}")
+
+
+class aaveAdapter(BalanceUtils):
 
     @staticmethod
     def dedupe_logs(logs: List[Dict]) -> Dict:
@@ -83,9 +140,8 @@ class aaveAdapter:
                 'network': event.network,
                 'protocol': event.protocol,
                 'atoken_address': log.args.aToken,
-                'stable_debt_token_address': log.args.stableDebtToken,
+                'stable_debt_token_address': "0x0000000000000000000000000000000000000000",
                 'variable_debt_token_address': log.args.variableDebtToken,
-                'interest_rate_strategy_address': log.args.interestRateStrategyAddress
             })
 
         cls._bulk_create_and_update_metadata(
@@ -434,3 +490,156 @@ class aaveAdapter:
                 debt_to_cover_in_usd=debt_to_cover_in_usd,
             ))
         model_class.objects.bulk_create(instances)
+
+    @classmethod
+    def parse_Mint(cls, event: Event, logs: List[Dict]):
+        model_class = event.get_model_class()
+        atoken_maps = dict(Asset.objects.values_list('atoken_address', 'id'))
+
+        balances = defaultdict(lambda: defaultdict(lambda: Decimal("0.0")))
+        liquidity_indices = defaultdict(dict)
+        max_liquidity_indexes = defaultdict(lambda: Decimal("0.0"))
+        for log in logs:
+            asset_id = atoken_maps.get(log.address)
+            balances[asset_id][log.args.onBehalfOf] += Decimal(log.args.value)
+            liquidity_index = Decimal(log.args.index)
+            liquidity_indices[asset_id][log.args.onBehalfOf] = liquidity_index
+            if liquidity_index > max_liquidity_indexes[asset_id]:
+                max_liquidity_indexes[asset_id] = liquidity_index
+
+        for asset_id in balances:
+            users = list(balances[asset_id].keys())
+
+            instances_to_update = cls._update_existing_records(
+                model_class=model_class,
+                event=event,
+                asset_id=asset_id,
+                users=users,
+                balances=balances,
+                liquidity_indices=liquidity_indices
+            )
+
+            # Create new records for addresses not yet in database
+            existing_addresses = set(instance.address for instance in instances_to_update)
+            new_addresses = set(users) - existing_addresses
+
+            if new_addresses:
+                cls._create_new_records(
+                    model_class=model_class,
+                    event=event,
+                    asset_id=asset_id,
+                    new_addresses=new_addresses,
+                    balances=balances,
+                    liquidity_indices=liquidity_indices
+                )
+
+        Asset.objects.bulk_update(
+            (
+                Asset(
+                    id=asset_id,
+                    liquidity_index=max_liquidity_indexes[asset_id]
+                )
+                for asset_id in max_liquidity_indexes
+            ),
+            fields=['liquidity_index']
+        )
+
+    @classmethod
+    def parse_Burn(cls, event: Event, logs: List[Dict]):
+        model_class = event.get_model_class()
+        atoken_maps = dict(Asset.objects.values_list('atoken_address', 'id'))
+
+        balances = defaultdict(lambda: defaultdict(lambda: Decimal("0.0")))
+        liquidity_indices = defaultdict(dict)
+        max_liquidity_indexes = defaultdict(lambda: Decimal("0.0"))
+
+        for log in logs:
+            asset_id = atoken_maps.get(log.address)
+            addr = getattr(log.args, 'from')
+            balances[asset_id][addr] -= Decimal(log.args.value)
+            liquidity_index = Decimal(log.args.index)
+            liquidity_indices[asset_id][addr] = liquidity_index
+            if liquidity_index > max_liquidity_indexes[asset_id]:
+                max_liquidity_indexes[asset_id] = liquidity_index
+
+        for asset_id in balances:
+            users = list(balances[asset_id].keys())
+
+            instances_to_update = cls._update_existing_records(
+                model_class=model_class,
+                event=event,
+                asset_id=asset_id,
+                users=users,
+                balances=balances,
+                liquidity_indices=liquidity_indices
+            )
+
+            # Create new records for addresses not yet in database
+            existing_addresses = set(instance.address for instance in instances_to_update)
+            new_addresses = set(users) - existing_addresses
+
+            if new_addresses:
+                cls._create_new_records(
+                    model_class=model_class,
+                    event=event,
+                    asset_id=asset_id,
+                    new_addresses=new_addresses,
+                    balances=balances,
+                    liquidity_indices=liquidity_indices
+                )
+
+        Asset.objects.bulk_update(
+            (
+                Asset(
+                    id=asset_id,
+                    liquidity_index=max_liquidity_indexes[asset_id]
+                )
+                for asset_id in max_liquidity_indexes
+            ),
+            fields=['liquidity_index']
+        )
+
+    @classmethod
+    def parse_Transfer(cls, event: Event, logs: List[Dict]):
+        model_class = event.get_model_class()
+        atoken_maps = dict(Asset.objects.values_list('atoken_address', 'id'))
+
+        balances = defaultdict(lambda: defaultdict(lambda: Decimal("0.0")))
+
+        for log in logs:
+            asset_id = atoken_maps.get(log.address)
+
+            to_addr = add_0x_prefix(log.args._to)
+            from_addr = add_0x_prefix(log.args._from)
+
+            if (to_addr == EVM_NULL_ADDRESS) or (from_addr == EVM_NULL_ADDRESS):
+                continue
+
+            balances[asset_id][to_addr] += Decimal(log.args.value)
+            balances[asset_id][from_addr] -= Decimal(log.args.value)
+
+        for asset_id in balances:
+            users = list(balances[asset_id].keys())
+
+            instances_to_update = cls._update_existing_records(
+                model_class=model_class,
+                event=event,
+                asset_id=asset_id,
+                users=users,
+                balances=balances,
+                liquidity_indices=None
+            )
+
+            # Create new records for addresses not yet in database
+            existing_addresses = set(instance.address for instance in instances_to_update)
+            new_addresses = set(users) - existing_addresses
+
+            if new_addresses:
+                cls._create_new_records(
+                    model_class=model_class,
+                    event=event,
+                    asset_id=asset_id,
+                    new_addresses=new_addresses,
+                    balances=balances,
+                    liquidity_indices=None
+                )

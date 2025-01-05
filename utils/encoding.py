@@ -1,5 +1,6 @@
 from typing import Any, Dict, Union
 
+from eth_abi import decode, encode
 from eth_utils import keccak
 from hexbytes import HexBytes
 from web3.datastructures import AttributeDict
@@ -115,3 +116,50 @@ def add_0x_prefix(value) -> str:
         return value
     else:
         return "0x" + value
+
+
+def get_encoded_params(function_abi: list, params: list) -> str:
+    function_types = []
+    for abi in function_abi["inputs"]:
+        if abi.get("type") == "tuple":
+            tuple_types = []
+            for component in abi.get("components", []):
+                if component.get("type") == "tuple":
+                    sub_tuple_types = [c.get("type") for c in component.get("components", [])]
+                    tuple_types.append(f"({','.join(sub_tuple_types)})")
+                else:
+                    tuple_types.append(component.get("type"))
+            function_types.append(f"({','.join(tuple_types)})")
+        else:
+            function_types.append(abi.get("type"))
+    return encode(function_types, params).hex()
+
+
+def get_decoded_params(function_abi: dict, result: str) -> dict:
+    # Get output types from function ABI
+    output_types = []
+    output_names = []
+
+    for output in function_abi.get("outputs", []):
+        if output.get("type") == "tuple":
+            tuple_types = []
+            for component in output.get("components", []):
+                if component.get("type") == "tuple":
+                    sub_tuple_types = [c.get("type") for c in component.get("components", [])]
+                    tuple_types.append(f"({','.join(sub_tuple_types)})")
+                else:
+                    tuple_types.append(component.get("type"))
+            output_types.append(f"({','.join(tuple_types)})")
+        else:
+            output_types.append(output.get("type"))
+        output_names.append(output.get("name"))
+
+    # Remove 0x prefix if present
+    if result.startswith("0x"):
+        result = result[2:]
+
+    # Decode the result
+    decoded = decode(output_types, bytes.fromhex(result))
+
+    # Create dictionary mapping output names to decoded values
+    return dict(zip(output_names, decoded))

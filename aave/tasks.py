@@ -7,8 +7,21 @@ from celery import Task
 from django.core.cache import cache
 from web3 import Web3
 
-from aave.models import AaveLiquidationLog, Asset, AssetPriceLog
+from aave.dataprovider import AaveDataProvider
+from aave.models import (
+    AaveBalanceLog,
+    AaveBurnEvent,
+    AaveLiquidationLog,
+    AaveMintEvent,
+    AaveSupplyEvent,
+    AaveTransferEvent,
+    AaveWithdrawEvent,
+    Asset,
+    AssetPriceLog,
+)
+from blockchains.models import Network
 from liquidations_v2.celery_app import app
+from utils.constants import BALANCES_AMOUNT_ERROR_THRESHOLD
 from utils.simulation import get_simulated_health_factor
 from utils.tokens import EvmTokenRetriever
 
@@ -22,13 +35,57 @@ class ResetAssetsTask(Task):
         """Delete all Asset and AssetPriceLog model instances."""
         logger.info("Starting ResetAssetsTask")
 
-        price_log_count = AssetPriceLog.objects.count()
-        AssetPriceLog.objects.all().delete()
-        logger.info(f"Successfully deleted {price_log_count} AssetPriceLog instances")
+        liquidation_count = AaveLiquidationLog.objects.count()
+        AaveLiquidationLog.objects.all().delete()
+        logger.info(f"Successfully deleted {liquidation_count} AaveLiquidationLog instances")
 
-        asset_count = Asset.objects.count()
-        Asset.objects.all().delete()
-        logger.info(f"Successfully deleted {asset_count} Aave Asset instances")
+        burn_count = AaveBurnEvent.objects.count()
+        AaveBurnEvent.objects.all().delete()
+        logger.info(f"Successfully deleted {burn_count} AaveBurnEvent instances")
+
+        mint_count = AaveMintEvent.objects.count()
+        AaveMintEvent.objects.all().delete()
+        logger.info(f"Successfully deleted {mint_count} AaveMintEvent instances")
+
+        transfer_count = AaveTransferEvent.objects.count()
+        AaveTransferEvent.objects.all().delete()
+        logger.info(f"Successfully deleted {transfer_count} AaveTransferEvent instances")
+
+        supply_count = AaveSupplyEvent.objects.count()
+        AaveSupplyEvent.objects.all().delete()
+        logger.info(f"Successfully deleted {supply_count} AaveSupplyEvent instances")
+
+        withdraw_count = AaveWithdrawEvent.objects.count()
+        AaveWithdrawEvent.objects.all().delete()
+        logger.info(f"Successfully deleted {withdraw_count} AaveWithdrawEvent instances")
+
+        balance_count = AaveBalanceLog.objects.count()
+        logger.info(f"Found {balance_count} AaveBalanceLog instances to delete")
+
+        # Delete in batches of 10000 using min/max PKs for efficiency
+        batch_size = 10000
+        min_pk = AaveBalanceLog.objects.order_by('pk').first().pk
+        max_pk = AaveBalanceLog.objects.order_by('-pk').first().pk
+
+        for batch_start in range(min_pk, max_pk + 1, batch_size):
+            batch_end = min(batch_start + batch_size, max_pk + 1)
+            deleted_count = AaveBalanceLog.objects.filter(
+                pk__gte=batch_start,
+                pk__lt=batch_end
+            ).delete()[0]
+            logger.info(
+                f"Deleted batch of {deleted_count} AaveBalanceLog instances (PKs {batch_start} to {batch_end-1})"
+            )
+
+        logger.info(f"Successfully deleted all {balance_count} AaveBalanceLog instances")
+
+        # price_log_count = AssetPriceLog.objects.count()
+        # AssetPriceLog.objects.all().delete()
+        # logger.info(f"Successfully deleted {price_log_count} AssetPriceLog instances")
+
+        # asset_count = Asset.objects.count()
+        # Asset.objects.all().delete()
+        # logger.info(f"Successfully deleted {asset_count} Aave Asset instances")
 
         logger.info("Completed ResetAssetsTask")
 
@@ -280,3 +337,168 @@ class UpdateSimulatedHealthFactorTask(Task):
 
 
 UpdateSimulatedHealthFactorTask = app.register_task(UpdateSimulatedHealthFactorTask())
+
+
+class UpdateCollateralAmountLiveIsVerifiedTask(Task):
+    """Task to update collateral amount live for aave balance logs."""
+    expires = 60 * 60 * 3
+
+    def is_collateral_amount_verified(self, collateral_amount_live, collateral_amount_contract):
+        collateral_amount_live = collateral_amount_live.quantize(Decimal('1.00'))
+        if abs(collateral_amount_live - collateral_amount_contract) <= Decimal('1.00'):
+            return True
+        elif collateral_amount_contract != Decimal('0'):
+            pct_difference = (collateral_amount_live - collateral_amount_contract) / collateral_amount_contract
+            return pct_difference < BALANCES_AMOUNT_ERROR_THRESHOLD
+        return False
+
+    def run(self):
+        """Update collateral amount live for aave balance logs."""
+        networks = Network.objects.all().values_list('name', flat=True)
+        for network in networks:
+            self._process_network(network)
+
+    def _process_network(self, network_name):
+        """Process a single network's assets and balance logs."""
+        assets = Asset.objects.filter(network__name=network_name)
+        provider = AaveDataProvider(network_name)
+
+        for asset in assets:
+            self._process_asset(asset, provider)
+
+    def _process_asset(self, asset, provider):
+        """Process balance logs for a single asset."""
+        balances = AaveBalanceLog.objects.filter(asset=asset)
+        for i in range(0, len(balances), 100):
+            batch = balances[i:i + 100]
+            self._process_balance_batch(batch, asset, provider)
+
+    def _process_balance_batch(self, batch, asset, provider):
+        """Process a batch of balance logs."""
+        logger.info(f"Processing batch of {len(batch)} balance logs for asset {asset.symbol}")
+
+        user_reserves = provider.getUserReserveData(
+            asset.asset,
+            [obj.address for obj in batch]
+        )
+        logger.info(f"Retrieved user reserve data from provider for {len(user_reserves)} users")
+
+        updated_batch = self._update_batch_verification(
+            batch=batch,
+            user_reserves=user_reserves,
+            asset=asset
+        )
+        logger.info("Updated batch verification status")
+
+        # Bulk update the batch
+        AaveBalanceLog.objects.bulk_update(
+            updated_batch,
+            ['collateral_amount_live_is_verified', 'collateral_amount_live', 'mark_for_deletion']
+        )
+        logger.info(f"Successfully updated verification status for {len(batch)} balance logs")
+
+    def _update_batch_verification(self, batch, user_reserves, asset):
+        """Update verification status for a batch of balance logs."""
+        updated_batch = []
+        for i, contract_user_reserve in enumerate(user_reserves):
+            db_user_reserve = batch[i]
+            collateral_amount_contract = Decimal(contract_user_reserve["result"].currentATokenBalance)
+
+            if db_user_reserve.last_updated_liquidity_index:
+                collateral_amount_live = (
+                    db_user_reserve.collateral_amount * (
+                        asset.liquidity_index / db_user_reserve.last_updated_liquidity_index
+                    )
+                )
+            else:
+                collateral_amount_live = db_user_reserve.collateral_amount
+
+            db_user_reserve.collateral_amount_live = collateral_amount_live
+            db_user_reserve.collateral_amount_live_is_verified = self.is_collateral_amount_verified(
+                collateral_amount_live,
+                collateral_amount_contract
+            )
+            if collateral_amount_contract == Decimal('0'):
+                db_user_reserve.mark_for_deletion = True
+            updated_batch.append(db_user_reserve)
+        return updated_batch
+
+
+UpdateCollateralAmountLiveIsVerifiedTask = app.register_task(UpdateCollateralAmountLiveIsVerifiedTask())
+
+
+class VerifyReserveConfigurationTask(Task):
+    """Task to verify reserve configuration for assets."""
+
+    def run(self):
+        """Verify reserve configuration for assets."""
+        networks = Network.objects.all()
+        for network in networks:
+            assets = Asset.objects.filter(network=network)
+            assets_addresses = [asset.asset for asset in assets]
+            dataprovider = AaveDataProvider(network.name)
+
+            reserve_configuration_data = dataprovider.getReserveConfigurationData(assets_addresses)
+            reserve_tokens_addresses = dataprovider.getReserveTokensAddresses(assets_addresses)
+            price_sources = dataprovider.getSourceOfAsset(assets_addresses)
+            logger.info(f"Got reserve configuration data for {len(reserve_configuration_data)} assets")
+
+            for i in range(len(assets)):
+                self.validate_asset(
+                    asset=assets[i],
+                    reserve_configuration_data=reserve_configuration_data[i],
+                    reserve_tokens_addresses=reserve_tokens_addresses[i],
+                    price_sources=price_sources[i]
+                )
+
+    def validate_asset(self, asset, reserve_configuration_data, reserve_tokens_addresses, price_sources):
+        """Validate asset configuration."""
+        reserve_configuration_fields = (
+            ('decimals', 'num_decimals'),
+            ('liquidationThreshold', 'liquidation_threshold'),
+            ('liquidationBonus', 'liquidation_bonus'),
+            ('reserveFactor', 'reserve_factor'),
+        )
+
+        reserve_tokens_fields = (
+            ("aTokenAddress", "atoken_address"),
+            ("stableDebtTokenAddress", "stable_debt_token_address"),
+            ("variableDebtTokenAddress", "variable_debt_token_address"),
+        )
+
+        price_source_fields = (
+            ("source", "pricesource"),
+        )
+
+        has_mismatches = False
+
+        for attr, field in reserve_configuration_fields:
+            contract_value = reserve_configuration_data['result'][attr]
+            db_value = getattr(asset, field)
+
+            if isinstance(db_value, Decimal):
+                db_value = int(db_value)
+
+            if contract_value != db_value:
+                has_mismatches = True
+                logger.error(f"Mismatch for {attr} on {asset.symbol} - Contract: {contract_value}, DB: {db_value}")
+
+        for attr, field in reserve_tokens_fields:
+            contract_value = reserve_tokens_addresses['result'][attr]
+            db_value = getattr(asset, field)
+            if contract_value != db_value:
+                has_mismatches = True
+                logger.error(f"Mismatch for {attr} on {asset.symbol} - Contract: {contract_value}, DB: {db_value}")
+
+        for attr, field in price_source_fields:
+            contract_value = price_sources['result'][attr]
+            db_value = getattr(asset, field)
+            if contract_value != db_value:
+                has_mismatches = True
+                logger.error(f"Mismatch for {attr} on {asset.symbol} - Contract: {contract_value}, DB: {db_value}")
+
+        if not has_mismatches:
+            logger.info(f"All configurations matched for {asset.symbol}")
+
+
+VerifyReserveConfigurationTask = app.register_task(VerifyReserveConfigurationTask())

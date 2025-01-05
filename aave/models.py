@@ -21,7 +21,8 @@ class Asset(models.Model):
     atoken_address = models.CharField(max_length=255, null=True, blank=True)
     stable_debt_token_address = models.CharField(max_length=255, null=True, blank=True)
     variable_debt_token_address = models.CharField(max_length=255, null=True, blank=True)
-    interest_rate_strategy_address = models.CharField(max_length=255, null=True, blank=True)
+
+    liquidity_index = models.DecimalField(max_digits=72, decimal_places=0, null=True, blank=True)
 
     symbol = models.CharField(max_length=255)
     num_decimals = models.DecimalField(
@@ -31,10 +32,10 @@ class Asset(models.Model):
     is_enabled = models.BooleanField(default=False)
 
     liquidation_threshold = models.DecimalField(
-        max_digits=12, decimal_places=6, null=True, blank=True
+        max_digits=12, decimal_places=6, default=Decimal("0")
     )
     liquidation_bonus = models.DecimalField(
-        max_digits=12, decimal_places=6, null=True, blank=True
+        max_digits=12, decimal_places=6, default=Decimal("0")
     )
 
     emode_liquidation_threshold = models.DecimalField(
@@ -94,6 +95,7 @@ class Asset(models.Model):
         max_digits=12, decimal_places=6, null=True, blank=True
     )
     reserve_is_flash_loan_enabled = models.BooleanField(default=True)
+    reserve_is_collateral_enabled = models.BooleanField(default=True)
     reserve_is_borrow_enabled = models.BooleanField(default=True)
     reserve_is_frozen = models.BooleanField(default=False)
 
@@ -110,6 +112,10 @@ class Asset(models.Model):
     @classmethod
     def get_cache_key(cls, protocol_name: str, network_name: str, token_address: str):
         return f"asset-aave-{protocol_name}-{network_name}-{token_address}"
+
+    @classmethod
+    def get_a_token_cache_key(cls, protocol_id: int, network_id: int, atoken_address: str):
+        return f"asset-a-token-aave-{protocol_id}-{network_id}-{atoken_address}"
 
     @classmethod
     def get(cls, protocol_name: str, network_name: str, token_address: str):
@@ -274,3 +280,122 @@ class AaveLiquidationLog(models.Model):
 
     def __str__(self):
         return f"Liquidation {self.transaction_hash[:10]}... - {self.network}"
+
+
+class AaveBalanceLog(models.Model):
+    network = models.ForeignKey('blockchains.Network', on_delete=models.PROTECT)
+    protocol = models.ForeignKey('blockchains.Protocol', on_delete=models.PROTECT)
+    address = models.CharField(max_length=42, db_index=True)
+    asset = models.ForeignKey('aave.Asset', on_delete=models.PROTECT)
+
+    last_updated_liquidity_index = models.DecimalField(max_digits=72, decimal_places=0, null=True, blank=True)
+
+    collateral_amount = models.DecimalField(max_digits=72, decimal_places=18, null=True, blank=True)
+    collateral_amount_live = models.DecimalField(max_digits=72, decimal_places=18, null=True, blank=True)
+    collateral_amount_live_is_verified = models.BooleanField(default=None, null=True, blank=True)
+    collateral_is_enabled = models.BooleanField(default=False)
+
+    borrow_amount = models.DecimalField(max_digits=72, decimal_places=18, null=True, blank=True)
+    borrow_is_enabled = models.BooleanField(default=False)
+
+    mark_for_deletion = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ('network', 'protocol', 'address', 'asset')
+        app_label = 'aave'
+        indexes = [
+            models.Index(fields=['network', 'protocol', 'address', 'asset']),
+            models.Index(fields=['network', 'protocol', 'asset']),
+        ]
+
+
+class AaveTransferEvent(models.Model):
+    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.PROTECT)
+
+    from_address = models.CharField(max_length=42, db_index=True)
+    to_address = models.CharField(max_length=42, db_index=True)
+    value = models.DecimalField(max_digits=72, decimal_places=18)
+    block_height = models.PositiveBigIntegerField()
+    transaction_hash = models.CharField(max_length=66)
+    transaction_index = models.PositiveIntegerField()
+    log_index = models.PositiveIntegerField()
+
+    class Meta:
+        verbose_name = 'Aave Transfer Event'
+        verbose_name_plural = 'Aave Transfer Events'
+        unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log')
+
+
+class AaveMintEvent(models.Model):
+    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.PROTECT)
+
+    caller = models.CharField(max_length=42, db_index=True)
+    on_behalf_of = models.CharField(max_length=42, db_index=True)
+    value = models.DecimalField(max_digits=72, decimal_places=18)
+    balance_increase = models.DecimalField(max_digits=72, decimal_places=18)
+    index = models.DecimalField(max_digits=72, decimal_places=18)
+    block_height = models.PositiveBigIntegerField()
+    transaction_hash = models.CharField(max_length=66)
+    transaction_index = models.PositiveIntegerField()
+    log_index = models.PositiveIntegerField()
+
+    class Meta:
+        verbose_name = 'Aave Mint Event'
+        verbose_name_plural = 'Aave Mint Events'
+        unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log')
+
+
+class AaveBurnEvent(models.Model):
+    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.PROTECT)
+
+    from_address = models.CharField(max_length=42, db_index=True)
+    target = models.CharField(max_length=42, db_index=True)
+    value = models.DecimalField(max_digits=72, decimal_places=18)
+    balance_increase = models.DecimalField(max_digits=72, decimal_places=18)
+    index = models.DecimalField(max_digits=72, decimal_places=18)
+    block_height = models.PositiveBigIntegerField()
+    transaction_hash = models.CharField(max_length=66)
+    transaction_index = models.PositiveIntegerField()
+    log_index = models.PositiveIntegerField()
+
+    class Meta:
+        verbose_name = 'Aave Burn Event'
+        verbose_name_plural = 'Aave Burn Events'
+        unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log')
+
+
+class AaveSupplyEvent(models.Model):
+    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.PROTECT)
+
+    user = models.CharField(max_length=42, db_index=True)
+    on_behalf_of = models.CharField(max_length=42, db_index=True)
+    amount = models.DecimalField(max_digits=72, decimal_places=18)
+    referral_code = models.PositiveSmallIntegerField()
+
+    block_height = models.PositiveBigIntegerField()
+    transaction_hash = models.CharField(max_length=66)
+    transaction_index = models.PositiveIntegerField()
+    log_index = models.PositiveIntegerField()
+
+    class Meta:
+        verbose_name = 'Aave Supply Event'
+        verbose_name_plural = 'Aave Supply Events'
+        unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log')
+
+
+class AaveWithdrawEvent(models.Model):
+    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.PROTECT)
+
+    user = models.CharField(max_length=42, db_index=True)
+    to_address = models.CharField(max_length=42, db_index=True)
+    amount = models.DecimalField(max_digits=72, decimal_places=18)
+
+    block_height = models.PositiveBigIntegerField()
+    transaction_hash = models.CharField(max_length=66)
+    transaction_index = models.PositiveIntegerField()
+    log_index = models.PositiveIntegerField()
+
+    class Meta:
+        verbose_name = 'Aave Withdraw Event'
+        verbose_name_plural = 'Aave Withdraw Events'
+        unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log')

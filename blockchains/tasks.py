@@ -227,6 +227,9 @@ class BaseSynchronizeTask(Task):
     def get_aave_pricesources(self, network: Network):
         return Asset.objects.filter(network=network).values_list('pricesource', flat=True)
 
+    def get_aave_atokens(self, network: Network):
+        return Asset.objects.filter(network=network).values_list('atoken_address', flat=True)
+
     def sync_events_for_network(self, network: Network, network_events: List[Event]):
         rpc_adapter = network.rpc_adapter
         global_to_block = rpc_adapter.block_height
@@ -243,7 +246,17 @@ class BaseSynchronizeTask(Task):
             Web3.to_checksum_address(address)
             for event in network_events
             for address in event.contract_addresses
-        )) + [Web3.to_checksum_address(address) for address in self.get_aave_pricesources(network)]
+        ))
+        contract_addresses.extend([
+            Web3.to_checksum_address(address)
+            for address in self.get_aave_pricesources(network)
+            if address
+        ])
+        contract_addresses.extend([
+            Web3.to_checksum_address(address)
+            for address in self.get_aave_atokens(network)
+            if address
+        ])
 
         EVENTS_ARRAY_THRESHOLD_SIZE = 5000
 

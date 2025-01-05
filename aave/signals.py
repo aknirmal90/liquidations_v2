@@ -19,4 +19,11 @@ def update_asset_cache(sender, instance, **kwargs):
     )
     serialized_value = serialize("json", [instance])
     cache.set(key, serialized_value)
+
+    key = instance.get_a_token_cache_key(
+        protocol_id=instance.protocol.id,
+        network_id=instance.network.id,
+        atoken_address=instance.atoken_address
+    )
+    cache.set(key, instance.asset)
     logger.info(f"Successfully updated cache for asset {instance.asset}")

@@ -1,8 +1,24 @@
 from decimal import Decimal
 
 from django.contrib import admin
+from django.db import models
+from django.utils.safestring import mark_safe
+from django_object_actions import DjangoObjectActions, action
 
-from aave.models import AaveLiquidationLog, Asset, AssetPriceLog
+from aave.dataprovider import AaveDataProvider
+from aave.inlines import (
+    AaveBurnEventInline,
+    AaveMintEventInline,
+    AaveSupplyEventInline,
+    AaveTransferEventInline,
+    AaveWithdrawEventInline,
+    get_burn_events_for_address,
+    get_mint_events_for_address,
+    get_supply_events_for_address,
+    get_transfer_events_for_address,
+    get_withdraw_events_for_address,
+)
+from aave.models import AaveBalanceLog, AaveLiquidationLog, Asset, AssetPriceLog
 from utils.admin import EnableDisableAdminMixin, get_explorer_address_url, get_explorer_transaction_url
 
 
@@ -24,6 +40,7 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         'is_reserve_paused',
         'priceA',
         'priceB',
+        'liquidity_index',
     )
     list_filter = (
         'protocol',
@@ -47,14 +64,15 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
                 'is_reserve_paused',
                 'reserve_is_frozen',
                 'reserve_is_borrow_enabled',
-                'reserve_is_flash_loan_enabled'
+                'reserve_is_flash_loan_enabled',
             )
         }),
         ('Asset Information', {
             'fields': (
                 ('symbol', 'protocol', 'network'),
                 ('decimals', 'num_decimals'),
-                'get_asset_link'
+                'get_asset_link',
+                'liquidity_index'
             )
         }),
         ('Associated Token Addresses', {
@@ -167,8 +185,6 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         'network',
         'price',
         'round_id',
-        'onchain_created_at',
-        'db_created_at',
         'get_rpc_latency_ms',
         'get_parsing_latency_ms',
         'get_celery_latency_ms'
@@ -215,7 +231,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
         'get_parsing_latency_ms',
         'get_celery_latency_ms',
         'id',
-        'provider'
+        'provider',
     )
 
     fieldsets = (
@@ -224,7 +240,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
                 'aggregator_address',
                 'provider',
                 'get_aggregator_address_link',
-                'network'
+                'network',
             )
         }),
         ('Price Information', {
@@ -396,3 +412,229 @@ class AaveLiquidationLogAdmin(admin.ModelAdmin):
     def get_liquidator_link(self, obj):
         return get_explorer_address_url(obj.network, obj.liquidator)
     get_liquidator_link.short_description = 'Liquidator'
+
+
+@admin.register(AaveBalanceLog)
+class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
+    list_display = (
+        'id',
+        'network',
+        'protocol',
+        'get_address_link',
+        'asset',
+        'collateral_amount',
+        'collateral_amount_live_is_verified',
+        'borrow_amount',
+        'borrow_is_enabled'
+    )
+
+    list_filter = (
+        'network',
+        'protocol',
+        'collateral_is_enabled',
+        'borrow_is_enabled',
+        'collateral_amount_live_is_verified',
+        'mark_for_deletion'
+    )
+
+    search_fields = (
+        'address',
+        'asset__symbol'
+    )
+
+    readonly_fields = (
+        'id',
+        'network',
+        'protocol',
+        'get_address_link',
+        'address',
+        'asset',
+        'last_updated_liquidity_index',
+        'collateral_amount',
+        'collateral_amount_live',
+        'collateral_is_enabled',
+        'borrow_amount',
+        'borrow_is_enabled',
+        'get_collateral_amount_contract',
+        'collateral_amount_live_is_verified',
+        'get_aggregate_amounts'
+    )
+
+    fieldsets = (
+        ('Account Information', {
+            'fields': (
+                'get_address_link',
+                'network',
+                'protocol',
+                'asset',
+                'last_updated_liquidity_index'
+            )
+        }),
+        ('Collateral Details', {
+            'fields': (
+                'collateral_amount',
+                'collateral_amount_live',
+                'get_collateral_amount_contract',
+                'collateral_is_enabled',
+                'collateral_amount_live_is_verified'
+            )
+        }),
+        ('Borrow Details', {
+            'fields': (
+                'borrow_amount',
+                'borrow_is_enabled'
+            )
+        }),
+        ('Aggregate Event Details', {
+            'fields': (
+                'get_aggregate_amounts',
+            )
+        })
+    )
+
+    inlines = [
+        AaveMintEventInline,
+        AaveBurnEventInline,
+        AaveTransferEventInline,
+        AaveSupplyEventInline,
+        AaveWithdrawEventInline,
+    ]
+
+    def get_address_link(self, obj):
+        return get_explorer_address_url(obj.network, obj.address)
+    get_address_link.short_description = 'Address'
+
+    @action(label="Get Logs")
+    def get_logs(self, request, obj):
+        self.message_user(request, "Starting to fetch logs...")
+        try:
+            get_burn_events_for_address(obj)
+            self.message_user(request, "Successfully fetched burn events")
+
+            get_mint_events_for_address(obj)
+            self.message_user(request, "Successfully fetched mint events")
+
+            get_transfer_events_for_address(obj)
+            self.message_user(request, "Successfully fetched transfer events")
+
+            get_supply_events_for_address(obj)
+            self.message_user(request, "Successfully fetched supply events")
+
+            get_withdraw_events_for_address(obj)
+            self.message_user(request, "Successfully fetched withdraw events")
+
+            self.message_user(request, "Successfully fetched all logs")
+        except Exception as e:
+            self.message_user(request, f"Error fetching logs: {str(e)}", level='ERROR')
+
+    change_actions = ('get_logs', )
+
+    def get_collateral_amount_contract(self, obj):
+        provider = AaveDataProvider(obj.network)
+        user_reserve = provider.getUserReserveData(obj.asset.asset, [obj.address])[0]['result']
+        collateral_amount_contract = Decimal(user_reserve.currentATokenBalance)
+        if obj.collateral_amount_live:
+            difference = obj.collateral_amount_live - collateral_amount_contract
+        else:
+            difference = ''
+
+        if difference and collateral_amount_contract != Decimal('0'):
+            pct_difference = (difference / collateral_amount_contract) * Decimal('10000.000000')
+        else:
+            pct_difference = ''
+
+        # Determine color for the difference
+        color = 'green' if difference and difference >= 0 else 'red'
+        return mark_safe(
+            '''
+            <div>
+                <div>Contract: <span style="color: blue">{}</span></div>
+                <div>Difference: <span style="color: {}">{:+}</span></div>
+                <div>% Difference: <span style="color: {}">{:+.6f} bps</span></div>
+            </div>
+            '''.format(
+                collateral_amount_contract,
+                color,
+                difference,
+                color,
+                pct_difference
+            )
+        )
+    get_collateral_amount_contract.short_description = 'Collateral Amount Contract'
+
+    def get_aggregate_amounts(self, obj):
+        total_mint = (
+            obj.aavemintevent_set.aggregate(
+                models.Sum('value'))['value__sum'] or Decimal('0')
+        )
+        total_mint_interest = (
+            obj.aavemintevent_set.aggregate(
+                models.Sum('balance_increase'))['balance_increase__sum'] or Decimal('0')
+        )
+        total_burn = (
+            obj.aaveburnevent_set.aggregate(
+                models.Sum('value'))['value__sum'] or Decimal('0')
+        )
+        total_burn_interest = (
+            obj.aaveburnevent_set.aggregate(
+                models.Sum('balance_increase'))['balance_increase__sum'] or Decimal('0')
+        )
+        total_transfer_in = (
+            obj.aavetransferevent_set.filter(
+                to_address__iexact=obj.address
+            ).aggregate(models.Sum('value'))['value__sum'] or Decimal('0')
+        )
+        total_transfer_out = (
+            obj.aavetransferevent_set.filter(
+                from_address__iexact=obj.address
+            ).aggregate(models.Sum('value'))['value__sum'] or Decimal('0')
+        )
+        total_supply = (
+            obj.aavesupplyevent_set.aggregate(
+                models.Sum('amount'))['amount__sum'] or Decimal('0')
+        )
+        total_withdraw = (
+            obj.aavewithdrawevent_set.aggregate(
+                models.Sum('amount'))['amount__sum'] or Decimal('0')
+        )
+
+        mint_burn_diff = total_mint - total_burn + total_transfer_in - total_transfer_out
+        mint_burn_interest_diff = total_mint_interest - total_burn_interest
+
+        return mark_safe(
+            '''
+            <div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div>Total Mint: <span style="color: green">{:+}</span>
+                (Interest: <span style="color: green">{:+}</span>)</div>
+                <div>Total Burn: <span style="color: red">{:+}</span>
+                (Interest: <span style="color: red">{:+}</span>)</div>
+                <div>Total Transfer In: <span style="color: green">{:+}</span></div>
+                <div>Total Transfer Out: <span style="color: red">{:+}</span></div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div>Token Model Balance: <span style="color: {};">{:+}</span>
+                (Interest: <span style="color: {};">{:+}</span>)</div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div>Total Supply: <span style="color: green">{:+}</span></div>
+                <div>Total Withdraw: <span style="color: red">{:+}</span></div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+            </div>
+            '''.format(
+                total_mint,
+                total_mint_interest,
+                total_burn,
+                total_burn_interest,
+                total_transfer_in,
+                total_transfer_out,
+                'green' if mint_burn_diff >= 0 else 'red',
+                mint_burn_diff,
+                'green' if mint_burn_interest_diff >= 0 else 'red',
+                mint_burn_interest_diff,
+                total_supply,
+                total_withdraw
+            )
+        )
+    get_aggregate_amounts.short_description = 'Aggregate Event Amounts'

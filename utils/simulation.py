@@ -53,7 +53,6 @@ def get_simulated_health_factor(
     address,
     transaction_index,
 ):
-    # import ipdb; ipdb.set_trace()
     key = f"AAVE_POOL_CONTRACT_{chain_id}"
     configuration = Configuration.objects.get(key=key)
 

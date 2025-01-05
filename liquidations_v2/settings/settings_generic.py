@@ -48,6 +48,8 @@ INSTALLED_APPS = [
     "blockchains",
     "config",
     "aave",
+    "django_admin_inline_paginator",
+    "django_object_actions"
 ]
 
 MIDDLEWARE = [

@@ -22,3 +22,5 @@ django-choices==2.0.0
 django-cors-headers==4.1.0
 uvloop==0.21.0
 orjson==3.10.13
+django-admin-inline-paginator==0.4.0
+django-object-actions==4.3.0

@@ -48,6 +48,15 @@ events:
   - name: "LiquidationCall"
     model_class: "aave.models.AaveLiquidationLog"
 
+  - name: "Mint"
+    model_class: "aave.models.AaveBalanceLog"
+
+  - name: "Burn"
+    model_class: "aave.models.AaveBalanceLog"
+
+  - name: "Transfer"
+    model_class: "aave.models.AaveBalanceLog"
+
 networks:
   - network: "arbitrum"
     contract_addresses:
