@@ -8,7 +8,12 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "liquidations_v2.settings")
 app = Celery("app")
 
 app.config_from_object("django.conf:settings")
-app.conf.update(BROKER_URL=config('CELERY_BROKER_URL'))
+app.conf.update(
+    BROKER_URL=config('CELERY_BROKER_URL'),
+    BROKER_TRANSPORT_OPTIONS={
+        'max_connections': 50  # Set the max connections in the pool
+    }
+)
 
 # Load task modules from all registered Django app configs.
 app.conf.task_default_queue = "default"
