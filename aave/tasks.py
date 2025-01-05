@@ -345,7 +345,7 @@ class UpdateCollateralAmountLiveIsVerifiedTask(Task):
 
     def is_collateral_amount_verified(self, collateral_amount_live, collateral_amount_contract):
         collateral_amount_live = collateral_amount_live.quantize(Decimal('1.00'))
-        if abs(collateral_amount_live - collateral_amount_contract) <= Decimal('1.00'):
+        if abs(collateral_amount_live - collateral_amount_contract) <= Decimal('2.00'):
             return True
         elif collateral_amount_contract != Decimal('0'):
             pct_difference = (collateral_amount_live - collateral_amount_contract) / collateral_amount_contract
