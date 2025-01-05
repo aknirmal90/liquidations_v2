@@ -96,6 +96,8 @@ ResetAssetsTask = app.register_task(ResetAssetsTask())
 class UpdateAssetMetadataTask(Task):
     """Task to update token metadata for assets with missing symbols."""
 
+    acks_late = False
+
     def run(self):
         """Update metadata for assets with null/blank symbols."""
         logger.info("Starting UpdateAssetMetadataTask")
@@ -131,6 +133,8 @@ UpdateAssetMetadataTask = app.register_task(UpdateAssetMetadataTask())
 
 class UpdateAssetPriceTask(Task):
     """Task to update asset prices and create price logs."""
+
+    acks_late = False
 
     def get_global_cache_key(self, network_name, contract):
         return f"price-{network_name}-{contract}"
