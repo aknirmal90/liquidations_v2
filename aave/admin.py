@@ -80,7 +80,6 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
                 'get_atoken_address_link',
                 'get_stable_debt_token_address_link',
                 'get_variable_debt_token_address_link',
-                'get_interest_rate_strategy_address_link'
             )
         }),
         ('Price Information', {
@@ -117,7 +116,6 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         'get_atoken_address_link',
         'get_stable_debt_token_address_link',
         'get_variable_debt_token_address_link',
-        'get_interest_rate_strategy_address_link',
         'liquidation_threshold',
         'liquidation_bonus',
         'emode_liquidation_threshold',
@@ -158,10 +156,6 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
     def get_variable_debt_token_address_link(self, obj):
         return get_explorer_address_url(obj.network, obj.variable_debt_token_address)
     get_variable_debt_token_address_link.short_description = "Variable Debt Token Address"
-
-    def get_interest_rate_strategy_address_link(self, obj):
-        return get_explorer_address_url(obj.network, obj.interest_rate_strategy_address)
-    get_interest_rate_strategy_address_link.short_description = "Interest Rate Strategy Address"
 
     def get_contractA_link(self, obj):
         return get_explorer_address_url(obj.network, obj.contractA)

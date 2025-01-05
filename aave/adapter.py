@@ -151,7 +151,6 @@ class aaveAdapter(BalanceUtils):
                 "atoken_address",
                 "stable_debt_token_address",
                 "variable_debt_token_address",
-                "interest_rate_strategy_address"
             ]
         )
 
@@ -335,27 +334,6 @@ class aaveAdapter(BalanceUtils):
             model_class,
             defaults_list,
             ['reserve_is_frozen']
-        )
-
-    @classmethod
-    def parse_ReserveInterestRateStrategyChanged(cls, event: Event, logs: List[Dict]):
-        model_class = event.get_model_class()
-        defaults_list = []
-
-        latest_logs = cls.dedupe_logs(logs)
-
-        for log in latest_logs.values():
-            defaults_list.append({
-                'asset': log.args.asset,
-                'network': event.network,
-                'protocol': event.protocol,
-                'interest_rate_strategy_address': log.args.newStrategy
-            })
-
-        cls._bulk_create_and_update_metadata(
-            model_class,
-            defaults_list,
-            ['interest_rate_strategy_address']
         )
 
     @classmethod

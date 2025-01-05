@@ -27,9 +27,6 @@ events:
   - name: "ReserveFrozen"
     model_class: "aave.models.Asset"
 
-  - name: "ReserveInterestRateStrategyChanged"
-    model_class: "aave.models.Asset"
-
   - name: "AssetCollateralInEModeChanged"
     model_class: "aave.models.Asset"
 
