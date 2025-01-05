@@ -156,7 +156,10 @@ class Asset(models.Model):
                 return asset_instance
 
     def get_price(self):
-        if self.price_type in (Asset.PriceType.CONSTANT, Asset.PriceType.AGGREGATOR):
+        if (
+            self.price_type in (Asset.PriceType.CONSTANT, Asset.PriceType.AGGREGATOR)
+            and self.priceA is not None
+        ):
             price = self.priceA
             price_in_usdt = price / self.decimals_price
             # normalize by decimal places to get USDT price on ARB
@@ -184,6 +187,8 @@ class Asset(models.Model):
             price = price * ratio
             price_in_usdt = price / self.decimals_price
             return price, price_in_usdt
+
+        return None, None
 
 
 class AssetPriceLog(models.Model):
