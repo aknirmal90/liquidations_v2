@@ -316,6 +316,30 @@ class AaveBalanceLog(models.Model):
             models.Index(fields=['network', 'protocol', 'asset']),
         ]
 
+    def is_liquidity_index_updated(self):
+        return self.last_updated_liquidity_index and self.asset.liquidity_index
+
+    def get_scaled_balance(self, type="collateral"):
+        if type not in ["collateral", "borrow"]:
+            raise ValueError(f"Invalid balance type: {type}")
+
+        amount = self.collateral_amount if type == "collateral" else self.borrow_amount
+
+        if not self.is_liquidity_index_updated():
+            return amount
+
+        return (
+            amount * self.last_updated_liquidity_index / self.asset.liquidity_index
+        ).quantize(Decimal('1.00'))
+
+    def get_unscaled_balance(self, amount):
+        if not self.is_liquidity_index_updated():
+            return amount
+
+        return (
+            amount * self.asset.liquidity_index / self.last_updated_liquidity_index
+        ).quantize(Decimal('1.00'))
+
 
 class AaveTransferEvent(models.Model):
     balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.CASCADE)
@@ -407,3 +431,19 @@ class AaveWithdrawEvent(models.Model):
         verbose_name = 'Aave Withdraw Event'
         verbose_name_plural = 'Aave Withdraw Events'
         unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log')
+
+
+class AaveDataQualityAnalyticsReport(models.Model):
+    network = models.ForeignKey('blockchains.Network', on_delete=models.PROTECT)
+    protocol = models.ForeignKey('blockchains.Protocol', on_delete=models.PROTECT)
+    date = models.DateField(db_index=True)
+
+    num_collateral_verified = models.PositiveIntegerField(default=0)
+    num_borrow_verified = models.PositiveIntegerField(default=0)
+    num_collateral_unverified = models.PositiveIntegerField(default=0)
+    num_borrow_unverified = models.PositiveIntegerField(default=0)
+    num_collateral_deleted = models.PositiveIntegerField(default=0)
+    num_borrow_deleted = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.network} - {self.protocol} - {self.date}"

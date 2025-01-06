@@ -18,7 +18,7 @@ from aave.inlines import (
     get_transfer_events_for_address,
     get_withdraw_events_for_address,
 )
-from aave.models import AaveBalanceLog, AaveLiquidationLog, Asset, AssetPriceLog
+from aave.models import AaveBalanceLog, AaveDataQualityAnalyticsReport, AaveLiquidationLog, Asset, AssetPriceLog
 from utils.admin import EnableDisableAdminMixin, get_explorer_address_url, get_explorer_transaction_url
 
 
@@ -632,3 +632,84 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
             )
         )
     get_aggregate_amounts.short_description = 'Aggregate Event Amounts'
+
+
+@admin.register(AaveDataQualityAnalyticsReport)
+class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
+    list_display = (
+        'date',
+        'network',
+        'protocol',
+        'get_collateral_verification_rate',
+        'get_borrow_verification_rate',
+        'num_collateral_verified',
+        'num_collateral_unverified',
+        'num_collateral_deleted',
+        'num_borrow_verified',
+        'num_borrow_unverified',
+        'num_borrow_deleted',
+    )
+
+    list_filter = (
+        'network',
+        'protocol',
+        'date',
+    )
+
+    readonly_fields = (
+        'date',
+        'network',
+        'protocol',
+        'num_collateral_verified',
+        'num_collateral_unverified',
+        'num_collateral_deleted',
+        'num_borrow_verified',
+        'num_borrow_unverified',
+        'num_borrow_deleted',
+        'get_collateral_verification_rate',
+        'get_borrow_verification_rate',
+    )
+
+    fieldsets = (
+        ('Report Information', {
+            'fields': (
+                'date',
+                'network',
+                'protocol',
+            )
+        }),
+        ('Collateral Metrics', {
+            'fields': (
+                'num_collateral_verified',
+                'num_collateral_unverified',
+                'num_collateral_deleted',
+                'get_collateral_verification_rate',
+            )
+        }),
+        ('Borrow Metrics', {
+            'fields': (
+                'num_borrow_verified',
+                'num_borrow_unverified',
+                'num_borrow_deleted',
+                'get_borrow_verification_rate',
+            )
+        }),
+    )
+
+    ordering = ('-date',)
+
+    def get_collateral_verification_rate(self, obj):
+        total = obj.num_collateral_verified + obj.num_collateral_unverified
+        if total == 0:
+            return '0%'
+        rate = (obj.num_collateral_verified / total) * 100
+        return f'{rate:.2f}%'
+    get_collateral_verification_rate.short_description = 'Collateral Verification Rate'
+
+    def get_borrow_verification_rate(self, obj):
+        total = obj.num_borrow_verified + obj.num_borrow_unverified
+        if total == 0:
+            return '0%'
+        rate = (obj.num_borrow_verified / total) * 100
+        return f'{rate:.2f}%'
+    get_borrow_verification_rate.short_description = 'Borrow Verification Rate'

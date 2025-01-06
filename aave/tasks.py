@@ -1,16 +1,18 @@
 import logging
 import math
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, DivisionByZero
 
 from celery import Task
 from django.core.cache import cache
+from django.db import models
 from web3 import Web3
 
 from aave.dataprovider import AaveDataProvider
 from aave.models import (
     AaveBalanceLog,
     AaveBurnEvent,
+    AaveDataQualityAnalyticsReport,
     AaveLiquidationLog,
     AaveMintEvent,
     AaveSupplyEvent,
@@ -19,9 +21,9 @@ from aave.models import (
     Asset,
     AssetPriceLog,
 )
-from blockchains.models import Network
+from blockchains.models import Network, Protocol
 from liquidations_v2.celery_app import app
-from utils.constants import BALANCES_AMOUNT_ERROR_THRESHOLD
+from utils.constants import BALANCES_AMOUNT_ERROR_THRESHOLD_PCT, BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE
 from utils.simulation import get_simulated_health_factor
 from utils.tokens import EvmTokenRetriever
 
@@ -347,20 +349,30 @@ class UpdateCollateralAmountLiveIsVerifiedTask(Task):
     """Task to update collateral amount live for aave balance logs."""
     expires = 60 * 60 * 3
 
-    def is_collateral_amount_verified(self, collateral_amount_live, collateral_amount_contract):
-        collateral_amount_live = collateral_amount_live.quantize(Decimal('1.00'))
-        if abs(collateral_amount_live - collateral_amount_contract) <= Decimal('100.00'):
-            return True
-        elif collateral_amount_contract != Decimal('0'):
-            pct_difference = (collateral_amount_live - collateral_amount_contract) / collateral_amount_contract
-            return pct_difference < BALANCES_AMOUNT_ERROR_THRESHOLD
-        return False
-
     def run(self):
         """Update collateral amount live for aave balance logs."""
-        # First clear any records marked for deletion
-        # Get min and max IDs of records marked for deletion
-        marked_records = AaveBalanceLog.objects.filter(mark_for_deletion=True)
+        protocol = Protocol.objects.get(name="aave")
+
+        # Process networks
+        networks = Network.objects.all()
+        for network in networks:
+            self._process_network(network, protocol)
+            self._generate_analytics_report(network, protocol)
+            self._delete_marked_records(network, protocol)
+
+    def is_collateral_amount_verified(self, collateral_amount_live, collateral_amount_contract):
+        if abs(collateral_amount_live - collateral_amount_contract) <= BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE:
+            return True
+        else:
+            try:
+                pct_difference = (collateral_amount_live - collateral_amount_contract) / collateral_amount_contract
+                return pct_difference < BALANCES_AMOUNT_ERROR_THRESHOLD_PCT
+            except DivisionByZero:
+                return False
+
+    def _delete_marked_records(self, network, protocol):
+        """Delete records marked for deletion in batches."""
+        marked_records = AaveBalanceLog.objects.filter(mark_for_deletion=True, network=network, protocol=protocol)
         if not marked_records.exists():
             return
 
@@ -372,22 +384,67 @@ class UpdateCollateralAmountLiveIsVerifiedTask(Task):
             end_id = start_id + batch_size
             batch_to_delete = AaveBalanceLog.objects.filter(
                 mark_for_deletion=True,
+                network=network,
+                protocol=protocol,
                 id__gte=start_id,
                 id__lt=end_id
             )
             deleted_count = batch_to_delete.delete()[0]
             if deleted_count > 0:
-                logger.info(f"Deleted batch of {deleted_count} marked records")
+                logger.info(f"Deleted batch of {deleted_count} marked records for {network.name}")
 
-        # Process networks
-        networks = Network.objects.all().values_list('name', flat=True)
-        for network in networks:
-            self._process_network(network)
+    def _generate_analytics_report(self, network, protocol):
+        """Generate analytics report for today's data."""
+        today = datetime.now(timezone.utc).date()
 
-    def _process_network(self, network_name):
+        # Get all network/protocol combinations that have balance logs
+        balance_logs = AaveBalanceLog.objects.filter(network=network, protocol=protocol)
+
+        # Get metrics for this network/protocol combination
+        collateral_metrics = balance_logs.aggregate(
+            verified=models.Count(
+                'id',
+                filter=models.Q(
+                    collateral_amount_live_is_verified=True,
+                    mark_for_deletion=False
+                )
+            ),
+            unverified=models.Count(
+                'id',
+                filter=models.Q(
+                    collateral_amount_live_is_verified=False,
+                    mark_for_deletion=False
+                )
+            ),
+            deleted=models.Count(
+                'id',
+                filter=models.Q(mark_for_deletion=True)
+            )
+        )
+
+        # Create or update the report
+        report = AaveDataQualityAnalyticsReport.objects.create(
+            network=network,
+            protocol=protocol,
+            date=today,
+            num_collateral_verified=collateral_metrics['verified'],
+            num_collateral_unverified=collateral_metrics['unverified'],
+            num_collateral_deleted=collateral_metrics['deleted'],
+            # Set borrow metrics to 0 for now as they're not implemented
+            num_borrow_verified=0,
+            num_borrow_unverified=0,
+            num_borrow_deleted=0,
+        )
+
+        logger.info(
+            f"Generated analytics report for {report.network.name} - "
+            f"{report.protocol.name} on {report.date}"
+        )
+
+    def _process_network(self, network, protocol):
         """Process a single network's assets and balance logs."""
-        assets = Asset.objects.filter(network__name=network_name)
-        provider = AaveDataProvider(network_name)
+        assets = Asset.objects.filter(network=network, protocol=protocol)
+        provider = AaveDataProvider(network.name)
 
         for asset in assets:
             self._process_asset(asset, provider)
@@ -430,14 +487,7 @@ class UpdateCollateralAmountLiveIsVerifiedTask(Task):
             db_user_reserve = batch[i]
             collateral_amount_contract = Decimal(contract_user_reserve["result"].currentATokenBalance)
 
-            if db_user_reserve.last_updated_liquidity_index:
-                collateral_amount_live = (
-                    db_user_reserve.collateral_amount * (
-                        asset.liquidity_index / db_user_reserve.last_updated_liquidity_index
-                    )
-                )
-            else:
-                collateral_amount_live = db_user_reserve.collateral_amount
+            collateral_amount_live = db_user_reserve.get_scaled_balance(type="collateral")
 
             db_user_reserve.collateral_amount_live = collateral_amount_live
             db_user_reserve.collateral_amount_live_is_verified = self.is_collateral_amount_verified(
