@@ -218,8 +218,8 @@ class BaseSynchronizeTask(Task):
     Syncs event logs from contracts, signatures, and block ranges for a list of event IDs.
     """
     abstract = True
-    expires = 5 * 60  # 5 minutes in seconds
-    time_limit = 5 * 60  # 5 minutes in seconds
+    expires = 1 * 60  # 1 minute in seconds
+    time_limit = 1 * 60  # 1 minute in seconds
 
     def get_queryset(self, event_ids: List[int]):
         raise NotImplementedError
