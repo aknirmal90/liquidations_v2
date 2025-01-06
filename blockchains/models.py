@@ -40,7 +40,7 @@ class Protocol(models.Model):
         return f"protocol-{protocol_name}"
 
     @classmethod
-    def get_protocol(cls, protocol_name: str):
+    def get_protocol_by_name(cls, protocol_name: str):
         if protocol_name is None:
             return
 
@@ -75,21 +75,41 @@ class Network(models.Model):
         return NetworkAdapters[self.name]
 
     @classmethod
-    def get_cache_key(cls, network_name: str):
+    def get_cache_key_by_name(cls, network_name: str):
         return f"network-{network_name}"
 
     @classmethod
-    def get_network(cls, network_name: str):
+    def get_cache_key_by_id(cls, id: int):
+        return f"network-{id}"
+
+    @classmethod
+    def get_network_by_name(cls, network_name: str):
         if network_name is None:
             return
 
-        key = cls.get_cache_key(network_name=network_name)
+        key = cls.get_cache_key_by_name(network_name=network_name)
         serialized_value = cache.get(key)
 
         if serialized_value:
             return next(deserialize("json", serialized_value)).object
         else:
             network = cls.objects.get(name=network_name)
+            deserialized_value = serialize("json", [network])
+            cache.set(key, deserialized_value)
+            return network
+
+    @classmethod
+    def get_network_by_id(cls, id: int):
+        if id is None:
+            return
+
+        key = cls.get_cache_key_by_id(id=id)
+        serialized_value = cache.get(key)
+
+        if serialized_value:
+            return next(deserialize("json", serialized_value)).object
+        else:
+            network = cls.objects.get(id=id)
             deserialized_value = serialize("json", [network])
             cache.set(key, deserialized_value)
             return network

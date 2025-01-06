@@ -27,11 +27,11 @@ class WebsocketCommand:
             help="Provider to use for websocket connection (infura, alchemy, quicknode, nodereal)",
         )
 
-    async def get_network(self, network_id):
-        instance = await sync_to_async(Network.objects.get, thread_sensitive=True)(
-            name=network_id
-        )
-        return instance
+    # async def get_network_by_name(self, network_id):
+    #     instance = await sync_to_async(Network.objects.get, thread_sensitive=True)(
+    #         name=network_id
+    #     )
+    #     return instance
 
     async def listen(self):
         wss = getattr(self.network, f"wss_{self.provider}")
@@ -74,7 +74,7 @@ class WebsocketCommand:
 
     def handle(self, *args, **options):
         self.network_name = options["network"]
-        self.network = Network.get_network(self.network_name)
+        self.network = Network.get_network_by_name(self.network_name)
         self.provider = options["provider"]
         self.contract_addresses = self.get_contract_addresses()
 

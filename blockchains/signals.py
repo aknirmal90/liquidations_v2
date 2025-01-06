@@ -11,6 +11,6 @@ def update_protocol_cache(sender, instance, **kwargs):
 
 
 def update_network_cache(sender, instance, **kwargs):
-    key = Network.get_cache_key(network_name=instance.name)
+    key = Network.get_cache_key_by_name(network_name=instance.name)
     serialized_value = serialize("json", [instance])
     cache.set(key, serialized_value)

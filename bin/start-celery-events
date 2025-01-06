@@ -1,9 +1,0 @@
-#!/bin/bash
-
-set -o errexit
-set -o pipefail
-set -o nounset
-
-rm -f './celerybeat.pid'
-
-doppler run --command "celery -A liquidations_v2 worker --concurrency 8 -Ofair --loglevel info -E -Q events -n events"

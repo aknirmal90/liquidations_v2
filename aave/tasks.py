@@ -345,7 +345,7 @@ class UpdateSimulatedHealthFactorTask(Task):
 UpdateSimulatedHealthFactorTask = app.register_task(UpdateSimulatedHealthFactorTask())
 
 
-class UpdateCollateralAmountLiveIsVerifiedTask(Task):
+class VerifyBalancesTask(Task):
     """Task to update collateral amount live for aave balance logs."""
     expires = 60 * 60 * 3
 
@@ -469,18 +469,22 @@ class UpdateCollateralAmountLiveIsVerifiedTask(Task):
         updated_batch = self._update_batch_verification(
             batch=batch,
             user_reserves=user_reserves,
-            asset=asset
         )
         logger.info("Updated batch verification status")
 
         # Bulk update the batch
         AaveBalanceLog.objects.bulk_update(
             updated_batch,
-            ['collateral_amount_live_is_verified', 'collateral_amount_live', 'mark_for_deletion']
+            [
+                'collateral_amount_live_is_verified',
+                'collateral_amount_live',
+                'mark_for_deletion',
+                'collateral_amount'
+            ]
         )
         logger.info(f"Successfully updated verification status for {len(batch)} balance logs")
 
-    def _update_batch_verification(self, batch, user_reserves, asset):
+    def _update_batch_verification(self, batch, user_reserves):
         """Update verification status for a batch of balance logs."""
         updated_batch = []
         for i, contract_user_reserve in enumerate(user_reserves):
@@ -494,13 +498,21 @@ class UpdateCollateralAmountLiveIsVerifiedTask(Task):
                 collateral_amount_live,
                 collateral_amount_contract
             )
+
+            # If balance is 0, mark for deletion
             if collateral_amount_contract == Decimal('0'):
                 db_user_reserve.mark_for_deletion = True
+
+            # If live balance is not verified, update the raw balance
+            if not db_user_reserve.collateral_amount_live_is_verified:
+                db_user_reserve.collateral_amount = (
+                    db_user_reserve.get_unscaled_balance(collateral_amount_contract)
+                )
             updated_batch.append(db_user_reserve)
         return updated_batch
 
 
-UpdateCollateralAmountLiveIsVerifiedTask = app.register_task(UpdateCollateralAmountLiveIsVerifiedTask())
+VerifyBalancesTask = app.register_task(VerifyBalancesTask())
 
 
 class VerifyReserveConfigurationTask(Task):
@@ -578,3 +590,44 @@ class VerifyReserveConfigurationTask(Task):
 
 
 VerifyReserveConfigurationTask = app.register_task(VerifyReserveConfigurationTask())
+
+
+class UpdateMissingLiquidityIndexTask(Task):
+    """Task to update missing liquidity index for aave balance logs."""
+
+    def run(self):
+        """Update missing liquidity index for aave balance logs."""
+        network_ids = AaveBalanceLog.objects.filter(
+            last_updated_liquidity_index__isnull=True
+        ).values_list('network', flat=True).distinct()
+
+        for id in network_ids:
+            network = Network.get_network_by_id(id)
+            dataprovider = AaveDataProvider(network.name)
+
+            balances = AaveBalanceLog.objects.filter(
+                network=network,
+                last_updated_liquidity_index__isnull=True
+            )
+
+            asset_ids = balances.values_list('asset', flat=True).distinct()
+            for asset_id in asset_ids:
+                asset_instance = Asset.get_by_id(asset_id)
+                asset_balances = balances.filter(asset_id=asset_id)
+
+                for i in range(0, len(asset_balances), 100):
+                    batch = asset_balances[i:i + 100]
+                    self._process_balance_batch(batch, asset_instance, dataprovider)
+
+    def _process_balance_batch(self, batch, asset_instance, dataprovider):
+        """Process a batch of balance logs."""
+        logger.info(f"Processing batch of {len(batch)} balance logs for asset {asset_instance.symbol}")
+        indices = dataprovider.getPreviousIndex(asset_instance.atoken_address, [obj.address for obj in batch])
+        updated_batch = []
+        for i, response in enumerate(indices):
+            batch[i].last_updated_liquidity_index = response['result']['index']
+            updated_batch.append(batch[i])
+        AaveBalanceLog.objects.bulk_update(updated_batch, ['last_updated_liquidity_index'])
+
+
+UpdateMissingLiquidityIndexTask = app.register_task(UpdateMissingLiquidityIndexTask())

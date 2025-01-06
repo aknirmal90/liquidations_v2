@@ -37,10 +37,6 @@ COPY ./bin/start-celery-default /start-celery-default
 RUN sed -i 's/\r$//g' /start-celery-default
 RUN chmod +x /start-celery-default
 
-COPY ./bin/start-celery-events /start-celery-events
-RUN sed -i 's/\r$//g' /start-celery-events
-RUN chmod +x /start-celery-events
-
 COPY ./bin/start-websocket-transactions /start-websocket-transactions
 RUN sed -i 's/\r$//g' /start-websocket-transactions
 RUN chmod +x /start-websocket-transactions
@@ -48,6 +44,10 @@ RUN chmod +x /start-websocket-transactions
 COPY ./bin/start-sequencer /start-sequencer
 RUN sed -i 's/\r$//g' /start-sequencer
 RUN chmod +x /start-sequencer
+
+COPY ./bin/start-celery-prices /start-celery-prices
+RUN sed -i 's/\r$//g' /start-celery-prices
+RUN chmod +x /start-celery-prices
 
 WORKDIR /code/
 

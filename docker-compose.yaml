@@ -131,7 +131,7 @@ services:
                     cpus: '1'
                     memory: 2G
 
-    celeryworker-events:
+    celeryworker-prices:
         build:
             context: .
             dockerfile: Dockerfile
@@ -139,7 +139,7 @@ services:
                 - aknirmal90/liquidations_v2
             args:
                 - DOPPLER_TOKEN=$DOPPLER_TOKEN
-        command: /start-celery-events
+        command: /start-celery-prices
         environment:
             DOPPLER_TOKEN: $DOPPLER_TOKEN
         depends_on:
@@ -166,23 +166,23 @@ services:
             django:
                 condition: service_healthy
 
-    flower:
-        image: mher/flower:1.2.0
-        depends_on:
-            redis:
-                condition: service_healthy
-            postgres:
-                condition: service_healthy
-        ports:
-            - 5555:5555
-        environment:
-            CELERY_BROKER_URL: redis://redis:6379/1
-            FLOWER_PORT: 5555
-        deploy:
-            resources:
-                limits:
-                    cpus: '0.25'
-                    memory: 256M
+    # flower:
+    #     image: mher/flower:1.2.0
+    #     depends_on:
+    #         redis:
+    #             condition: service_healthy
+    #         postgres:
+    #             condition: service_healthy
+    #     ports:
+    #         - 5555:5555
+    #     environment:
+    #         CELERY_BROKER_URL: redis://redis:6379/1
+    #         FLOWER_PORT: 5555
+    #     deploy:
+    #         resources:
+    #             limits:
+    #                 cpus: '0.25'
+    #                 memory: 256M
 
 volumes:
     postgres_data:

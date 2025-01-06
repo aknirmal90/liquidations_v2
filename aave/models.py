@@ -110,19 +110,27 @@ class Asset(models.Model):
         app_label = 'aave'
 
     @classmethod
-    def get_cache_key(cls, protocol_name: str, network_name: str, token_address: str):
+    def get_cache_key_by_address(cls, protocol_name: str, network_name: str, token_address: str):
         return f"asset-aave-{protocol_name}-{network_name}-{token_address}"
+
+    @classmethod
+    def get_cache_key_by_id(cls, id: int):
+        return f"asset-aave-{id}"
 
     @classmethod
     def get_a_token_cache_key(cls, protocol_id: int, network_id: int, atoken_address: str):
         return f"asset-a-token-aave-{protocol_id}-{network_id}-{atoken_address}"
 
     @classmethod
-    def get(cls, protocol_name: str, network_name: str, token_address: str):
+    def get_by_address(cls, protocol_name: str, network_name: str, token_address: str):
         if protocol_name is None or network_name is None or token_address is None:
             return
 
-        key = cls.get_cache_key(protocol_name=protocol_name, network_name=network_name, token_address=token_address)
+        key = cls.get_cache_key_by_address(
+            protocol_name=protocol_name,
+            network_name=network_name,
+            token_address=token_address
+        )
         serialized_value = cache.get(key)
 
         if serialized_value:
@@ -139,8 +147,8 @@ class Asset(models.Model):
                 return token
             except cls.DoesNotExist:
                 token_retriever = EvmTokenRetriever(network_name=network_name, token_address=token_address)
-                network = Network.get_network(network_name)
-                protocol = Protocol.get_protocol(protocol_name)
+                network = Network.get_network_by_name(network_name)
+                protocol = Protocol.get_protocol_by_name(protocol_name)
                 asset_instance, is_created = cls.objects.get_or_create(
                     asset=token_retriever.token_address,
                     network=network.id,
@@ -154,6 +162,22 @@ class Asset(models.Model):
                 serialized_value = serialize("json", [asset_instance])
                 cache.set(key, serialized_value)
                 return asset_instance
+
+    @classmethod
+    def get_by_id(cls, id: int):
+        if id is None:
+            return
+
+        key = cls.get_cache_key_by_id(id=id)
+        serialized_value = cache.get(key)
+
+        if serialized_value:
+            return next(deserialize("json", serialized_value)).object
+        else:
+            asset = cls.objects.get(id=id)
+            deserialized_value = serialize("json", [asset])
+            cache.set(key, deserialized_value)
+            return asset
 
     def get_price(self):
         if (

@@ -56,7 +56,7 @@ class EvmTokenRetriever:
     def __init__(self, network_name: str, token_address: str):
         # Retrieve the RPC URL from the network name using the utility function
         from blockchains.models import Network
-        self.network = Network.get_network(network_name)
+        self.network = Network.get_network_by_name(network_name)
 
         # Initialize Web3 connection
         self.adapter = self.network.rpc_adapter

@@ -499,3 +499,25 @@ class SynchronizeForAppTask(BaseSynchronizeForGroupTask):
 
 
 SynchronizeForAppTask = app.register_task(SynchronizeForAppTask())
+
+
+class UpdateMetadataCacheTask(Task):
+    def run(self):
+        logger.info("Starting metadata cache update...")
+
+        logger.info("Updating network cache...")
+        for network in Network.objects.all():
+            logger.info(f"Caching network {network.name}")
+            Network.get_network_by_name(network.name)
+            Network.get_network_by_id(network.id)
+
+        logger.info("Updating asset cache...")
+        for asset in Asset.objects.all():
+            logger.info(f"Caching asset {asset.asset} for {asset.protocol.name} on {asset.network.name}")
+            Asset.get_by_address(asset.protocol.name, asset.network.name, asset.asset)
+            Asset.get_by_id(asset.id)
+
+        logger.info("Completed metadata cache update")
+
+
+UpdateMetadataCacheTask = app.register_task(UpdateMetadataCacheTask())

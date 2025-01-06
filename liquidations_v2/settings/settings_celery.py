@@ -15,7 +15,7 @@ CELERY_WORKER_MAX_MEMORY_PER_CHILD = 500_000  # 500 MB
 CELERY_WORKER_MAX_TASKS_PER_CHILD = 10
 
 CELERY_ROUTES = {
-    # "blockchains.tasks.events.ResetLogsForAppTask": {"queue": "events"},
+    "aave.tasks.UpdateAssetPriceTask": {"queue": "prices"},
 }
 
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
