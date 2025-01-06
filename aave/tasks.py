@@ -33,10 +33,19 @@ class ResetAssetsTask(Task):
         balance_count = AaveBalanceLog.objects.count()
         logger.info(f"Found {balance_count} AaveBalanceLog instances to delete")
 
+        Event.objects.filter(protocol__name="aave").update(last_synced_block=0)
+
         # Delete in batches of 10000 using min/max PKs for efficiency
         batch_size = 10000
-        min_pk = AaveBalanceLog.objects.order_by('pk').first().pk
-        max_pk = AaveBalanceLog.objects.order_by('-pk').first().pk
+        first_record = AaveBalanceLog.objects.order_by('pk').first()
+        last_record = AaveBalanceLog.objects.order_by('-pk').first()
+
+        if not first_record or not last_record:
+            logger.info("No AaveBalanceLog records found to delete")
+            return
+
+        min_pk = first_record.pk
+        max_pk = last_record.pk
 
         for batch_start in range(min_pk, max_pk + 1, batch_size):
             batch_end = min(batch_start + batch_size, max_pk + 1)
@@ -49,8 +58,6 @@ class ResetAssetsTask(Task):
             )
 
         logger.info(f"Successfully deleted all {balance_count} AaveBalanceLog instances")
-
-        Event.objects.filter(protocol__name="aave").update(last_synced_block=0)
 
         # price_log_count = AssetPriceLog.objects.count()
         # AssetPriceLog.objects.all().delete()
