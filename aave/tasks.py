@@ -9,19 +9,8 @@ from django.db import models
 from web3 import Web3
 
 from aave.dataprovider import AaveDataProvider
-from aave.models import (
-    AaveBalanceLog,
-    AaveBurnEvent,
-    AaveDataQualityAnalyticsReport,
-    AaveLiquidationLog,
-    AaveMintEvent,
-    AaveSupplyEvent,
-    AaveTransferEvent,
-    AaveWithdrawEvent,
-    Asset,
-    AssetPriceLog,
-)
-from blockchains.models import Network, Protocol
+from aave.models import AaveBalanceLog, AaveDataQualityAnalyticsReport, AaveLiquidationLog, Asset, AssetPriceLog
+from blockchains.models import Event, Network, Protocol
 from liquidations_v2.celery_app import app
 from utils.constants import BALANCES_AMOUNT_ERROR_THRESHOLD_PCT, BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE
 from utils.simulation import get_simulated_health_factor
@@ -40,26 +29,6 @@ class ResetAssetsTask(Task):
         liquidation_count = AaveLiquidationLog.objects.count()
         AaveLiquidationLog.objects.all().delete()
         logger.info(f"Successfully deleted {liquidation_count} AaveLiquidationLog instances")
-
-        burn_count = AaveBurnEvent.objects.count()
-        AaveBurnEvent.objects.all().delete()
-        logger.info(f"Successfully deleted {burn_count} AaveBurnEvent instances")
-
-        mint_count = AaveMintEvent.objects.count()
-        AaveMintEvent.objects.all().delete()
-        logger.info(f"Successfully deleted {mint_count} AaveMintEvent instances")
-
-        transfer_count = AaveTransferEvent.objects.count()
-        AaveTransferEvent.objects.all().delete()
-        logger.info(f"Successfully deleted {transfer_count} AaveTransferEvent instances")
-
-        supply_count = AaveSupplyEvent.objects.count()
-        AaveSupplyEvent.objects.all().delete()
-        logger.info(f"Successfully deleted {supply_count} AaveSupplyEvent instances")
-
-        withdraw_count = AaveWithdrawEvent.objects.count()
-        AaveWithdrawEvent.objects.all().delete()
-        logger.info(f"Successfully deleted {withdraw_count} AaveWithdrawEvent instances")
 
         balance_count = AaveBalanceLog.objects.count()
         logger.info(f"Found {balance_count} AaveBalanceLog instances to delete")
@@ -80,6 +49,8 @@ class ResetAssetsTask(Task):
             )
 
         logger.info(f"Successfully deleted all {balance_count} AaveBalanceLog instances")
+
+        Event.objects.filter(protocol__name="aave").update(last_synced_block=0)
 
         # price_log_count = AssetPriceLog.objects.count()
         # AssetPriceLog.objects.all().delete()
@@ -346,11 +317,11 @@ UpdateSimulatedHealthFactorTask = app.register_task(UpdateSimulatedHealthFactorT
 
 
 class VerifyBalancesTask(Task):
-    """Task to update collateral amount live for aave balance logs."""
+    """Task to update collateral and borrow amounts live for aave balance logs."""
     expires = 60 * 60 * 3
 
     def run(self):
-        """Update collateral amount live for aave balance logs."""
+        """Update collateral and borrow amounts live for aave balance logs."""
         protocol = Protocol.objects.get(name="aave")
 
         # Process networks
@@ -366,6 +337,16 @@ class VerifyBalancesTask(Task):
         else:
             try:
                 pct_difference = (collateral_amount_live - collateral_amount_contract) / collateral_amount_contract
+                return pct_difference < BALANCES_AMOUNT_ERROR_THRESHOLD_PCT
+            except DivisionByZero:
+                return False
+
+    def is_borrow_amount_verified(self, borrow_amount_live, borrow_amount_contract):
+        if abs(borrow_amount_live - borrow_amount_contract) <= BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE:
+            return True
+        else:
+            try:
+                pct_difference = (borrow_amount_live - borrow_amount_contract) / borrow_amount_contract
                 return pct_difference < BALANCES_AMOUNT_ERROR_THRESHOLD_PCT
             except DivisionByZero:
                 return False
@@ -401,18 +382,32 @@ class VerifyBalancesTask(Task):
         balance_logs = AaveBalanceLog.objects.filter(network=network, protocol=protocol)
 
         # Get metrics for this network/protocol combination
-        collateral_metrics = balance_logs.aggregate(
-            verified=models.Count(
+        metrics = balance_logs.aggregate(
+            collateral_verified=models.Count(
                 'id',
                 filter=models.Q(
                     collateral_amount_live_is_verified=True,
                     mark_for_deletion=False
                 )
             ),
-            unverified=models.Count(
+            collateral_unverified=models.Count(
                 'id',
                 filter=models.Q(
                     collateral_amount_live_is_verified=False,
+                    mark_for_deletion=False
+                )
+            ),
+            borrow_verified=models.Count(
+                'id',
+                filter=models.Q(
+                    borrow_amount_live_is_verified=True,
+                    mark_for_deletion=False
+                )
+            ),
+            borrow_unverified=models.Count(
+                'id',
+                filter=models.Q(
+                    borrow_amount_live_is_verified=False,
                     mark_for_deletion=False
                 )
             ),
@@ -427,13 +422,12 @@ class VerifyBalancesTask(Task):
             network=network,
             protocol=protocol,
             date=today,
-            num_collateral_verified=collateral_metrics['verified'],
-            num_collateral_unverified=collateral_metrics['unverified'],
-            num_collateral_deleted=collateral_metrics['deleted'],
-            # Set borrow metrics to 0 for now as they're not implemented
-            num_borrow_verified=0,
-            num_borrow_unverified=0,
-            num_borrow_deleted=0,
+            num_collateral_verified=metrics['collateral_verified'],
+            num_collateral_unverified=metrics['collateral_unverified'],
+            num_borrow_verified=metrics['borrow_verified'],
+            num_borrow_unverified=metrics['borrow_unverified'],
+            num_collateral_deleted=metrics['deleted'],
+            num_borrow_deleted=metrics['deleted']
         )
 
         logger.info(
@@ -478,8 +472,11 @@ class VerifyBalancesTask(Task):
             [
                 'collateral_amount_live_is_verified',
                 'collateral_amount_live',
+                'borrow_amount_live_is_verified',
+                'borrow_amount_live',
                 'mark_for_deletion',
-                'collateral_amount'
+                'collateral_amount',
+                'borrow_amount'
             ]
         )
         logger.info(f"Successfully updated verification status for {len(batch)} balance logs")
@@ -490,24 +487,37 @@ class VerifyBalancesTask(Task):
         for i, contract_user_reserve in enumerate(user_reserves):
             db_user_reserve = batch[i]
             collateral_amount_contract = Decimal(contract_user_reserve["result"].currentATokenBalance)
+            borrow_amount_contract = Decimal(contract_user_reserve["result"].currentVariableDebt)
 
             collateral_amount_live = db_user_reserve.get_scaled_balance(type="collateral")
+            borrow_amount_live = db_user_reserve.get_scaled_balance(type="borrow")
 
             db_user_reserve.collateral_amount_live = collateral_amount_live
+            db_user_reserve.borrow_amount_live = borrow_amount_live
+
             db_user_reserve.collateral_amount_live_is_verified = self.is_collateral_amount_verified(
-                collateral_amount_live,
+                db_user_reserve.collateral_amount,
                 collateral_amount_contract
             )
+            db_user_reserve.borrow_amount_live_is_verified = self.is_borrow_amount_verified(
+                db_user_reserve.borrow_amount,
+                borrow_amount_contract
+            )
 
-            # If balance is 0, mark for deletion
-            if collateral_amount_contract == Decimal('0'):
+            # If both balances are 0, mark for deletion
+            if collateral_amount_contract == Decimal('0') and borrow_amount_contract == Decimal('0'):
                 db_user_reserve.mark_for_deletion = True
 
-            # If live balance is not verified, update the raw balance
+            # If live balances are not verified, update the raw balances
             if not db_user_reserve.collateral_amount_live_is_verified:
                 db_user_reserve.collateral_amount = (
-                    db_user_reserve.get_unscaled_balance(collateral_amount_contract)
+                    db_user_reserve.get_unscaled_balance(collateral_amount_contract, type="collateral")
                 )
+            if not db_user_reserve.borrow_amount_live_is_verified:
+                db_user_reserve.borrow_amount = (
+                    db_user_reserve.get_unscaled_balance(borrow_amount_contract, type="borrow")
+                )
+
             updated_batch.append(db_user_reserve)
         return updated_batch
 
@@ -590,44 +600,3 @@ class VerifyReserveConfigurationTask(Task):
 
 
 VerifyReserveConfigurationTask = app.register_task(VerifyReserveConfigurationTask())
-
-
-class UpdateMissingLiquidityIndexTask(Task):
-    """Task to update missing liquidity index for aave balance logs."""
-
-    def run(self):
-        """Update missing liquidity index for aave balance logs."""
-        network_ids = AaveBalanceLog.objects.filter(
-            last_updated_liquidity_index__isnull=True
-        ).values_list('network', flat=True).distinct()
-
-        for id in network_ids:
-            network = Network.get_network_by_id(id)
-            dataprovider = AaveDataProvider(network.name)
-
-            balances = AaveBalanceLog.objects.filter(
-                network=network,
-                last_updated_liquidity_index__isnull=True
-            )
-
-            asset_ids = balances.values_list('asset', flat=True).distinct()
-            for asset_id in asset_ids:
-                asset_instance = Asset.get_by_id(asset_id)
-                asset_balances = balances.filter(asset_id=asset_id)
-
-                for i in range(0, len(asset_balances), 100):
-                    batch = asset_balances[i:i + 100]
-                    self._process_balance_batch(batch, asset_instance, dataprovider)
-
-    def _process_balance_batch(self, batch, asset_instance, dataprovider):
-        """Process a batch of balance logs."""
-        logger.info(f"Processing batch of {len(batch)} balance logs for asset {asset_instance.symbol}")
-        indices = dataprovider.getPreviousIndex(asset_instance.atoken_address, [obj.address for obj in batch])
-        updated_batch = []
-        for i, response in enumerate(indices):
-            batch[i].last_updated_liquidity_index = response['result']['index']
-            updated_batch.append(batch[i])
-        AaveBalanceLog.objects.bulk_update(updated_batch, ['last_updated_liquidity_index'])
-
-
-UpdateMissingLiquidityIndexTask = app.register_task(UpdateMissingLiquidityIndexTask())

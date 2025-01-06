@@ -7,19 +7,30 @@ from django_object_actions import DjangoObjectActions, action
 
 from aave.dataprovider import AaveDataProvider
 from aave.inlines import (
+    AaveBorrowEventInline,
     AaveBurnEventInline,
+    AaveLiquidationCallEventInline,
     AaveMintEventInline,
+    AaveRepayEventInline,
     AaveSupplyEventInline,
     AaveTransferEventInline,
     AaveWithdrawEventInline,
+    get_borrow_events_for_address,
     get_burn_events_for_address,
+    get_liquidation_call_events_for_address,
     get_mint_events_for_address,
+    get_repay_events_for_address,
     get_supply_events_for_address,
     get_transfer_events_for_address,
     get_withdraw_events_for_address,
 )
 from aave.models import AaveBalanceLog, AaveDataQualityAnalyticsReport, AaveLiquidationLog, Asset, AssetPriceLog
-from utils.admin import EnableDisableAdminMixin, get_explorer_address_url, get_explorer_transaction_url
+from utils.admin import (
+    EnableDisableAdminMixin,
+    format_pretty_json,
+    get_explorer_address_url,
+    get_explorer_transaction_url,
+)
 
 
 @admin.register(Asset)
@@ -40,7 +51,8 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         'is_reserve_paused',
         'priceA',
         'priceB',
-        'liquidity_index',
+        'collateral_liquidity_index',
+        'borrow_liquidity_index',
     )
     list_filter = (
         'protocol',
@@ -72,7 +84,7 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
                 ('symbol', 'protocol', 'network'),
                 ('decimals', 'num_decimals'),
                 'get_asset_link',
-                'liquidity_index'
+                ('collateral_liquidity_index', 'borrow_liquidity_index')
             )
         }),
         ('Associated Token Addresses', {
@@ -138,7 +150,9 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         'reserve_is_frozen',
         'emode_is_collateral',
         'emode_is_borrowable',
-        'is_reserve_paused'
+        'is_reserve_paused',
+        'borrow_liquidity_index',
+        'collateral_liquidity_index'
     )
 
     def get_asset_link(self, obj):
@@ -417,9 +431,7 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         'get_address_link',
         'asset',
         'collateral_amount',
-        'collateral_amount_live_is_verified',
         'borrow_amount',
-        'borrow_is_enabled'
     )
 
     list_filter = (
@@ -428,6 +440,7 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         'collateral_is_enabled',
         'borrow_is_enabled',
         'collateral_amount_live_is_verified',
+        'borrow_amount_live_is_verified',
         'mark_for_deletion'
     )
 
@@ -443,7 +456,8 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         'get_address_link',
         'address',
         'asset',
-        'last_updated_liquidity_index',
+        'last_updated_collateral_liquidity_index',
+        'last_updated_borrow_liquidity_index',
         'collateral_amount',
         'collateral_amount_live',
         'collateral_is_enabled',
@@ -451,7 +465,16 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         'borrow_is_enabled',
         'get_collateral_amount_contract',
         'collateral_amount_live_is_verified',
-        'get_aggregate_amounts'
+        'get_collateral_aggregate_amounts',
+        'borrow_amount_live',
+        'borrow_amount_live_is_verified',
+        'get_borrow_amount_contract',
+        'get_borrow_aggregate_amounts',
+        'get_user_reserve_data',
+        'get_collateral_indexes',
+        'get_borrow_indexes',
+        'collateral_is_enabled_updated_at_block',
+        'collateral_is_enabled',
     )
 
     fieldsets = (
@@ -461,7 +484,8 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
                 'network',
                 'protocol',
                 'asset',
-                'last_updated_liquidity_index'
+                ('get_collateral_indexes', 'get_borrow_indexes'),
+                ('collateral_is_enabled_updated_at_block', 'collateral_is_enabled'),
             )
         }),
         ('Collateral Details', {
@@ -469,19 +493,26 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
                 'collateral_amount',
                 'collateral_amount_live',
                 'get_collateral_amount_contract',
-                'collateral_is_enabled',
                 'collateral_amount_live_is_verified'
             )
         }),
         ('Borrow Details', {
             'fields': (
                 'borrow_amount',
-                'borrow_is_enabled'
+                'borrow_amount_live',
+                'get_borrow_amount_contract',
+                'borrow_amount_live_is_verified'
             )
         }),
         ('Aggregate Event Details', {
             'fields': (
-                'get_aggregate_amounts',
+                'get_collateral_aggregate_amounts',
+                'get_borrow_aggregate_amounts',
+            )
+        }),
+        ('User Reserve Data', {
+            'fields': (
+                'get_user_reserve_data',
             )
         })
     )
@@ -492,6 +523,9 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         AaveTransferEventInline,
         AaveSupplyEventInline,
         AaveWithdrawEventInline,
+        AaveBorrowEventInline,
+        AaveRepayEventInline,
+        AaveLiquidationCallEventInline,
     ]
 
     def get_address_link(self, obj):
@@ -517,6 +551,15 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
             get_withdraw_events_for_address(obj)
             self.message_user(request, "Successfully fetched withdraw events")
 
+            get_liquidation_call_events_for_address(obj)
+            self.message_user(request, "Successfully fetched liquidation call events")
+
+            get_borrow_events_for_address(obj)
+            self.message_user(request, "Successfully fetched borrow events")
+
+            get_repay_events_for_address(obj)
+            self.message_user(request, "Successfully fetched repay events")
+
             self.message_user(request, "Successfully fetched all logs")
         except Exception as e:
             self.message_user(request, f"Error fetching logs: {str(e)}", level='ERROR')
@@ -527,15 +570,17 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         provider = AaveDataProvider(obj.network)
         user_reserve = provider.getUserReserveData(obj.asset.asset, [obj.address])[0]['result']
         collateral_amount_contract = Decimal(user_reserve.currentATokenBalance)
-        if obj.collateral_amount_live:
-            difference = obj.collateral_amount_live - collateral_amount_contract
+        collateral_amount_live = obj.get_scaled_balance("collateral")
+
+        if collateral_amount_live:
+            difference = collateral_amount_live - collateral_amount_contract
         else:
-            difference = ''
+            difference = 0
 
         if difference and collateral_amount_contract != Decimal('0'):
             pct_difference = (difference / collateral_amount_contract) * Decimal('10000.000000')
         else:
-            pct_difference = ''
+            pct_difference = 0
 
         # Determine color for the difference
         color = 'green' if difference and difference >= 0 else 'red'
@@ -543,11 +588,13 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
             '''
             <div>
                 <div>Contract: <span style="color: blue">{}</span></div>
+                <div>Live: <span style="color: blue">{}</span></div>
                 <div>Difference: <span style="color: {}">{:+}</span></div>
                 <div>% Difference: <span style="color: {}">{:+.6f} bps</span></div>
             </div>
             '''.format(
                 collateral_amount_contract,
+                collateral_amount_live or 0,
                 color,
                 difference,
                 color,
@@ -556,21 +603,58 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         )
     get_collateral_amount_contract.short_description = 'Collateral Amount Contract'
 
-    def get_aggregate_amounts(self, obj):
+    def get_borrow_amount_contract(self, obj):
+        provider = AaveDataProvider(obj.network)
+        user_reserve = provider.getUserReserveData(obj.asset.asset, [obj.address])[0]['result']
+        borrow_amount_contract = Decimal(user_reserve.currentVariableDebt)
+        borrow_amount_live = obj.get_scaled_balance("borrow")
+
+        if borrow_amount_live:
+            difference = borrow_amount_live - borrow_amount_contract
+        else:
+            difference = 0
+
+        if difference and borrow_amount_contract != Decimal('0'):
+            pct_difference = (difference / borrow_amount_contract) * Decimal('10000.000000')
+        else:
+            pct_difference = 0
+
+        # Determine color for the difference
+        color = 'green' if difference and difference >= 0 else 'red'
+        return mark_safe(
+            '''
+            <div>
+                <div>Contract: <span style="color: blue">{}</span></div>
+                <div>Live: <span style="color: blue">{}</span></div>
+                <div>Difference: <span style="color: {}">{:+}</span></div>
+                <div>% Difference: <span style="color: {}">{:+.6f} bps</span></div>
+            </div>
+            '''.format(
+                borrow_amount_contract,
+                borrow_amount_live or 0,
+                color,
+                difference,
+                color,
+                pct_difference
+            )
+        )
+    get_borrow_amount_contract.short_description = 'Borrow Amount Contract'
+
+    def get_collateral_aggregate_amounts(self, obj):
         total_mint = (
-            obj.aavemintevent_set.aggregate(
+            obj.aavemintevent_set.filter(type="collateral").aggregate(
                 models.Sum('value'))['value__sum'] or Decimal('0')
         )
         total_mint_interest = (
-            obj.aavemintevent_set.aggregate(
+            obj.aavemintevent_set.filter(type="collateral").aggregate(
                 models.Sum('balance_increase'))['balance_increase__sum'] or Decimal('0')
         )
         total_burn = (
-            obj.aaveburnevent_set.aggregate(
+            obj.aaveburnevent_set.filter(type="collateral").aggregate(
                 models.Sum('value'))['value__sum'] or Decimal('0')
         )
         total_burn_interest = (
-            obj.aaveburnevent_set.aggregate(
+            obj.aaveburnevent_set.filter(type="collateral").aggregate(
                 models.Sum('balance_increase'))['balance_increase__sum'] or Decimal('0')
         )
         total_transfer_in = (
@@ -595,6 +679,8 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         mint_burn_diff = total_mint - total_burn + total_transfer_in - total_transfer_out
         mint_burn_interest_diff = total_mint_interest - total_burn_interest
 
+        event_diff = total_supply - total_withdraw
+
         return mark_safe(
             '''
             <div>
@@ -613,7 +699,7 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
                 <div>Total Supply: <span style="color: green">{:+}</span></div>
                 <div>Total Withdraw: <span style="color: red">{:+}</span></div>
                 <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
-                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div>Total Event Diff: <span style="color: {};">{:+}</span></div>
                 <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
             </div>
             '''.format(
@@ -628,10 +714,138 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
                 'green' if mint_burn_interest_diff >= 0 else 'red',
                 mint_burn_interest_diff,
                 total_supply,
-                total_withdraw
+                total_withdraw,
+                'green' if event_diff >= 0 else 'red',
+                event_diff
             )
         )
-    get_aggregate_amounts.short_description = 'Aggregate Event Amounts'
+    get_collateral_aggregate_amounts.short_description = 'Aggregate Collateral Event Amounts'
+
+    def get_borrow_aggregate_amounts(self, obj):
+        total_mint = (
+            obj.aavemintevent_set.filter(type="borrow").aggregate(
+                models.Sum('value'))['value__sum'] or Decimal('0')
+        )
+        total_mint_interest = (
+            obj.aavemintevent_set.filter(type="borrow").aggregate(
+                models.Sum('balance_increase'))['balance_increase__sum'] or Decimal('0')
+        )
+        total_burn = (
+            obj.aaveburnevent_set.filter(type="borrow").aggregate(
+                models.Sum('value'))['value__sum'] or Decimal('0')
+        )
+        total_burn_interest = (
+            obj.aaveburnevent_set.filter(type="borrow").aggregate(
+                models.Sum('balance_increase'))['balance_increase__sum'] or Decimal('0')
+        )
+        total_borrow = (
+            obj.aaveborrowevent_set.aggregate(
+                models.Sum('amount'))['amount__sum'] or Decimal('0')
+        )
+        total_repay = (
+            obj.aaverepayevent_set.aggregate(
+                models.Sum('amount'))['amount__sum'] or Decimal('0')
+        )
+
+        mint_burn_diff = total_mint - total_burn
+        mint_burn_interest_diff = total_mint_interest - total_burn_interest
+        event_diff = total_borrow - total_repay
+
+        return mark_safe(
+            '''
+            <div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div>Total Mint: <span style="color: green">{:+}</span>
+                (Interest: <span style="color: green">{:+}</span>)</div>
+                <div>Total Burn: <span style="color: red">{:+}</span>
+                (Interest: <span style="color: red">{:+}</span>)</div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div>Token Model Balance: <span style="color: {};">{:+}</span>
+                (Interest: <span style="color: {};">{:+}</span>)</div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div>Total Borrow: <span style="color: green">{:+}</span></div>
+                <div>Total Repay: <span style="color: red">{:+}</span></div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div>Total Event Diff: <span style="color: {};">{:+}</span></div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+            </div>
+            '''.format(
+                total_mint,
+                total_mint_interest,
+                total_burn,
+                total_burn_interest,
+                'green' if mint_burn_diff >= 0 else 'red',
+                mint_burn_diff,
+                'green' if mint_burn_interest_diff >= 0 else 'red',
+                mint_burn_interest_diff,
+                total_borrow,
+                total_repay,
+                'green' if event_diff >= 0 else 'red',
+                event_diff
+            )
+        )
+    get_borrow_aggregate_amounts.short_description = 'Aggregate Borrow Event Amounts'
+
+    def get_user_reserve_data(self, obj):
+        provider = AaveDataProvider(obj.network.name)
+        user_reserve = provider.getUserReserveData(obj.asset.asset, [obj.address])[0]['result']
+        return format_pretty_json(dict(user_reserve))
+    get_user_reserve_data.short_description = 'User Reserve Data'
+
+    def get_collateral_indexes(self, obj):
+        provider = AaveDataProvider(obj.network.name)
+        previous_collateral_index = provider.getPreviousIndex(
+            obj.asset.atoken_address,
+            [obj.address]
+        )[0]['result'].index
+        db_index = obj.last_updated_collateral_liquidity_index
+
+        return mark_safe(
+            '''
+            <div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div>Contract Value: <span>{}</span></div>
+                <div>Database Value: <span>{}</span></div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div>Diff: <span style="color: {};">{:+}</span></div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+            </div>
+            '''.format(
+                previous_collateral_index,
+                db_index,
+                'green' if previous_collateral_index >= db_index else 'red',
+                previous_collateral_index - db_index
+            )
+        )
+    get_collateral_indexes.short_description = 'Collateral Indexes'
+
+    def get_borrow_indexes(self, obj):
+        provider = AaveDataProvider(obj.network.name)
+        previous_borrow_index = provider.getPreviousIndex(
+            obj.asset.variable_debt_address,
+            [obj.address]
+        )[0]['result'].index
+        db_index = obj.last_updated_borrow_liquidity_index
+
+        return mark_safe(
+            '''
+            <div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div>Contract Value: <span>{}</span></div>
+                <div>Database Value: <span>{}</span></div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+                <div>Diff: <span style="color: {};">{:+}</span></div>
+                <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
+            </div>
+            '''.format(
+                previous_borrow_index,
+                db_index,
+                'green' if previous_borrow_index >= db_index else 'red',
+                previous_borrow_index - db_index
+            )
+        )
+    get_borrow_indexes.short_description = 'Borrow Indexes'
 
 
 @admin.register(AaveDataQualityAnalyticsReport)

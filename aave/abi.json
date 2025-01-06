@@ -453,28 +453,6 @@
         "type": "event"
     },
     {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "name": "_from",
-                "type": "address"
-            },
-            {
-                "indexed": true,
-                "name": "_to",
-                "type": "address"
-            },
-            {
-                "indexed": false,
-                "name": "value",
-                "type": "uint256"
-            }
-        ],
-        "name": "Transfer",
-        "type": "event"
-    },
-    {
         "inputs": [
             {
                 "internalType": "address",
@@ -727,5 +705,140 @@
         ],
         "stateMutability": "view",
         "type": "function"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "_from",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "name": "_to",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "value",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "index",
+                "type": "uint256"
+            }
+        ],
+        "name": "BalanceTransfer",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "reserve",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "user",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "name": "onBehalfOf",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "amount",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "interestRateMode",
+                "type": "uint8"
+            },
+            {
+                "indexed": false,
+                "name": "borrowRate",
+                "type": "uint256"
+            },
+            {
+                "indexed": true,
+                "name": "referralCode",
+                "type": "uint16"
+            }
+        ],
+        "name": "Borrow",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "reserve",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "name": "user",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "name": "repayer",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "name": "amount",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "name": "useATokens",
+                "type": "bool"
+            }
+        ],
+        "name": "Repay",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "reserve",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "name": "user",
+                "type": "address"
+            }
+        ],
+        "name": "ReserveUsedAsCollateralDisabled",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "name": "reserve",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "name": "user",
+                "type": "address"
+            }
+        ],
+        "name": "ReserveUsedAsCollateralEnabled",
+        "type": "event"
     }
 ]

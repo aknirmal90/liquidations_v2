@@ -51,7 +51,13 @@ events:
   - name: "Burn"
     model_class: "aave.models.AaveBalanceLog"
 
-  - name: "Transfer"
+  - name: "BalanceTransfer"
+    model_class: "aave.models.AaveBalanceLog"
+
+  - name: "ReserveUsedAsCollateralDisabled"
+    model_class: "aave.models.AaveBalanceLog"
+
+  - name: "ReserveUsedAsCollateralEnabled"
     model_class: "aave.models.AaveBalanceLog"
 
 networks:

@@ -13,5 +13,5 @@ if [ -z "$DOPPLER_TOKEN" ]; then
 fi
 
 # Start docker-compose with the environment variable passed implicitly
-docker-compose stop celeryworker-default celeryworker-events
-docker-compose up -d --build celeryworker-default celeryworker-events
+docker-compose stop celeryworker-default celeryworker-prices
+docker-compose up -d --build celeryworker-default celeryworker-prices

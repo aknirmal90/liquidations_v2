@@ -230,10 +230,14 @@ class BaseSynchronizeTask(Task):
     def get_aave_atokens(self, network: Network):
         return Asset.objects.filter(network=network).values_list('atoken_address', flat=True)
 
+    def get_aave_variable_debt_tokens(self, network: Network):
+        return Asset.objects.filter(network=network).values_list('variable_debt_token_address', flat=True)
+
     def sync_events_for_network(self, network: Network, network_events: List[Event]):
         rpc_adapter = network.rpc_adapter
         global_to_block = rpc_adapter.block_height
         global_from_block = min(event.last_synced_block for event in network_events)
+        EVENTS_ARRAY_THRESHOLD_SIZE = 5000
 
         if global_from_block >= global_to_block:
             logger.debug(f"{network.name} has no new blocks. Nothing to sync.")
@@ -257,8 +261,11 @@ class BaseSynchronizeTask(Task):
             for address in self.get_aave_atokens(network)
             if address
         ])
-
-        EVENTS_ARRAY_THRESHOLD_SIZE = 5000
+        contract_addresses.extend([
+            Web3.to_checksum_address(address)
+            for address in self.get_aave_variable_debt_tokens(network)
+            if address
+        ])
 
         while True:
             try:

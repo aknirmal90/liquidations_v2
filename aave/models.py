@@ -22,7 +22,8 @@ class Asset(models.Model):
     stable_debt_token_address = models.CharField(max_length=255, null=True, blank=True)
     variable_debt_token_address = models.CharField(max_length=255, null=True, blank=True)
 
-    liquidity_index = models.DecimalField(max_digits=72, decimal_places=0, null=True, blank=True)
+    collateral_liquidity_index = models.DecimalField(max_digits=72, decimal_places=0, default=Decimal("0.0"))
+    borrow_liquidity_index = models.DecimalField(max_digits=72, decimal_places=0, default=Decimal("0.0"))
 
     symbol = models.CharField(max_length=255)
     num_decimals = models.DecimalField(
@@ -320,14 +321,20 @@ class AaveBalanceLog(models.Model):
     address = models.CharField(max_length=42, db_index=True)
     asset = models.ForeignKey('aave.Asset', on_delete=models.PROTECT)
 
-    last_updated_liquidity_index = models.DecimalField(max_digits=72, decimal_places=0, null=True, blank=True)
+    last_updated_collateral_liquidity_index = models.DecimalField(
+        max_digits=72, decimal_places=0, default=Decimal("0.0")
+    )
+    last_updated_borrow_liquidity_index = models.DecimalField(max_digits=72, decimal_places=0, default=Decimal("0.0"))
 
-    collateral_amount = models.DecimalField(max_digits=72, decimal_places=18, null=True, blank=True)
-    collateral_amount_live = models.DecimalField(max_digits=72, decimal_places=18, null=True, blank=True)
+    collateral_amount = models.DecimalField(max_digits=72, decimal_places=18, default=Decimal("0.0"))
+    collateral_amount_live = models.DecimalField(max_digits=72, decimal_places=18, default=Decimal("0.0"))
     collateral_amount_live_is_verified = models.BooleanField(default=None, null=True, blank=True)
     collateral_is_enabled = models.BooleanField(default=False)
+    collateral_is_enabled_updated_at_block = models.PositiveBigIntegerField(default=0)
 
-    borrow_amount = models.DecimalField(max_digits=72, decimal_places=18, null=True, blank=True)
+    borrow_amount = models.DecimalField(max_digits=72, decimal_places=18, default=Decimal("0.0"))
+    borrow_amount_live = models.DecimalField(max_digits=72, decimal_places=18, default=Decimal("0.0"))
+    borrow_amount_live_is_verified = models.BooleanField(default=None, null=True, blank=True)
     borrow_is_enabled = models.BooleanField(default=False)
 
     mark_for_deletion = models.BooleanField(default=False)
@@ -340,29 +347,48 @@ class AaveBalanceLog(models.Model):
             models.Index(fields=['network', 'protocol', 'asset']),
         ]
 
-    def is_liquidity_index_updated(self):
-        return self.last_updated_liquidity_index and self.asset.liquidity_index
+    def is_collateral_liquidity_index_updated(self):
+        return self.last_updated_collateral_liquidity_index and self.asset.collateral_liquidity_index
+
+    def is_borrow_liquidity_index_updated(self):
+        return self.last_updated_borrow_liquidity_index and self.asset.borrow_liquidity_index
 
     def get_scaled_balance(self, type="collateral"):
         if type not in ["collateral", "borrow"]:
             raise ValueError(f"Invalid balance type: {type}")
 
         amount = self.collateral_amount if type == "collateral" else self.borrow_amount
+        if not self.collateral_is_enabled:
+            return Decimal("0.0")
 
-        if not self.is_liquidity_index_updated():
-            return amount
+        if type == "collateral":
+            scale = self.last_updated_collateral_liquidity_index / self.asset.collateral_liquidity_index
+        else:
+            scale = self.last_updated_borrow_liquidity_index / self.asset.borrow_liquidity_index
 
-        return (
-            amount * self.last_updated_liquidity_index / self.asset.liquidity_index
-        ).quantize(Decimal('1.00'))
+        if type == "collateral":
+            if not self.is_collateral_liquidity_index_updated():
+                return amount
+        else:
+            if not self.is_borrow_liquidity_index_updated():
+                return amount
 
-    def get_unscaled_balance(self, amount):
-        if not self.is_liquidity_index_updated():
-            return amount
+        return (amount * scale).quantize(Decimal('1.00'))
 
-        return (
-            amount * self.asset.liquidity_index / self.last_updated_liquidity_index
-        ).quantize(Decimal('1.00'))
+    def get_unscaled_balance(self, amount, type="collateral"):
+        if type == "collateral":
+            if not self.is_collateral_liquidity_index_updated():
+                return amount
+        else:
+            if not self.is_borrow_liquidity_index_updated():
+                return amount
+
+        if type == "collateral":
+            scale = self.asset.collateral_liquidity_index / self.last_updated_collateral_liquidity_index
+        else:
+            scale = self.asset.borrow_liquidity_index / self.last_updated_borrow_liquidity_index
+
+        return (amount * scale).quantize(Decimal('1.00'))
 
 
 class AaveTransferEvent(models.Model):
@@ -385,6 +411,12 @@ class AaveTransferEvent(models.Model):
 class AaveMintEvent(models.Model):
     balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.CASCADE)
 
+    TYPE_CHOICES = [
+        ('collateral', 'Collateral'),
+        ('borrow', 'Borrow')
+    ]
+    type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='collateral')
+
     caller = models.CharField(max_length=42, db_index=True)
     on_behalf_of = models.CharField(max_length=42, db_index=True)
     value = models.DecimalField(max_digits=72, decimal_places=18)
@@ -398,11 +430,17 @@ class AaveMintEvent(models.Model):
     class Meta:
         verbose_name = 'Aave Mint Event'
         verbose_name_plural = 'Aave Mint Events'
-        unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log')
+        unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log', 'type')
 
 
 class AaveBurnEvent(models.Model):
     balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.CASCADE)
+
+    TYPE_CHOICES = [
+        ('collateral', 'Collateral'),
+        ('borrow', 'Borrow')
+    ]
+    type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='collateral')
 
     from_address = models.CharField(max_length=42, db_index=True)
     target = models.CharField(max_length=42, db_index=True)
@@ -417,7 +455,7 @@ class AaveBurnEvent(models.Model):
     class Meta:
         verbose_name = 'Aave Burn Event'
         verbose_name_plural = 'Aave Burn Events'
-        unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log')
+        unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log', 'type')
 
 
 class AaveSupplyEvent(models.Model):
@@ -471,3 +509,65 @@ class AaveDataQualityAnalyticsReport(models.Model):
 
     def __str__(self):
         return f"{self.network} - {self.protocol} - {self.date}"
+
+
+class AaveBorrowEvent(models.Model):
+    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.CASCADE)
+
+    user = models.CharField(max_length=42, db_index=True)
+    on_behalf_of = models.CharField(max_length=42, db_index=True)
+    amount = models.DecimalField(max_digits=72, decimal_places=18)
+    interest_rate_mode = models.PositiveSmallIntegerField()
+    borrow_rate = models.DecimalField(max_digits=72, decimal_places=18)
+    referral_code = models.PositiveSmallIntegerField()
+
+    block_height = models.PositiveBigIntegerField()
+    transaction_hash = models.CharField(max_length=66)
+    transaction_index = models.PositiveIntegerField()
+    log_index = models.PositiveIntegerField()
+
+    class Meta:
+        verbose_name = 'Aave Borrow Event'
+        verbose_name_plural = 'Aave Borrow Events'
+        unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log')
+
+
+class AaveRepayEvent(models.Model):
+    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.CASCADE)
+
+    user = models.CharField(max_length=42, db_index=True)
+    repayer = models.CharField(max_length=42, db_index=True)
+    amount = models.DecimalField(max_digits=72, decimal_places=18)
+    use_a_tokens = models.BooleanField()
+
+    block_height = models.PositiveBigIntegerField()
+    transaction_hash = models.CharField(max_length=66)
+    transaction_index = models.PositiveIntegerField()
+    log_index = models.PositiveIntegerField()
+
+    class Meta:
+        verbose_name = 'Aave Repay Event'
+        verbose_name_plural = 'Aave Repay Events'
+        unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log')
+
+
+class AaveLiquidationCallEvent(models.Model):
+    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.CASCADE)
+
+    collateral_asset = models.CharField(max_length=42, db_index=True)
+    debt_asset = models.CharField(max_length=42, db_index=True)
+    user = models.CharField(max_length=42, db_index=True)
+    debt_to_cover = models.DecimalField(max_digits=72, decimal_places=18)
+    liquidated_collateral_amount = models.DecimalField(max_digits=72, decimal_places=18)
+    liquidator = models.CharField(max_length=42, db_index=True)
+    receive_a_token = models.BooleanField()
+
+    block_height = models.PositiveBigIntegerField()
+    transaction_hash = models.CharField(max_length=66)
+    transaction_index = models.PositiveIntegerField()
+    log_index = models.PositiveIntegerField()
+
+    class Meta:
+        verbose_name = 'Aave Liquidation Call Event'
+        verbose_name_plural = 'Aave Liquidation Call Events'
+        unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log')
