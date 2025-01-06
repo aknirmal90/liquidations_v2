@@ -334,7 +334,7 @@ class VerifyBalancesTask(Task):
         # Process networks
         networks = Network.objects.all()
         for network in networks:
-            self._process_network(network, protocol)
+            # self._process_network(network, protocol)
             self._generate_analytics_report(network, protocol)
             self._delete_marked_records(network, protocol)
 
@@ -512,7 +512,12 @@ class VerifyBalancesTask(Task):
             )
 
             # If both balances are 0, mark for deletion
-            if collateral_amount_contract == Decimal('0') and borrow_amount_contract == Decimal('0'):
+            if (
+                collateral_amount_contract == Decimal('0')
+                and borrow_amount_contract == Decimal('0')
+                and abs(db_user_reserve.collateral_amount) <= BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE
+                and abs(db_user_reserve.borrow_amount) <= BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE
+            ):
                 db_user_reserve.mark_for_deletion = True
 
             # If live balances are not verified, update the raw balances
