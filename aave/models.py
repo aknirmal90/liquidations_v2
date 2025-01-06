@@ -318,7 +318,7 @@ class AaveBalanceLog(models.Model):
 
 
 class AaveTransferEvent(models.Model):
-    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.PROTECT)
+    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.CASCADE)
 
     from_address = models.CharField(max_length=42, db_index=True)
     to_address = models.CharField(max_length=42, db_index=True)
@@ -335,7 +335,7 @@ class AaveTransferEvent(models.Model):
 
 
 class AaveMintEvent(models.Model):
-    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.PROTECT)
+    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.CASCADE)
 
     caller = models.CharField(max_length=42, db_index=True)
     on_behalf_of = models.CharField(max_length=42, db_index=True)
@@ -354,7 +354,7 @@ class AaveMintEvent(models.Model):
 
 
 class AaveBurnEvent(models.Model):
-    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.PROTECT)
+    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.CASCADE)
 
     from_address = models.CharField(max_length=42, db_index=True)
     target = models.CharField(max_length=42, db_index=True)
@@ -373,7 +373,7 @@ class AaveBurnEvent(models.Model):
 
 
 class AaveSupplyEvent(models.Model):
-    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.PROTECT)
+    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.CASCADE)
 
     user = models.CharField(max_length=42, db_index=True)
     on_behalf_of = models.CharField(max_length=42, db_index=True)
@@ -392,7 +392,7 @@ class AaveSupplyEvent(models.Model):
 
 
 class AaveWithdrawEvent(models.Model):
-    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.PROTECT)
+    balance_log = models.ForeignKey('aave.AaveBalanceLog', on_delete=models.CASCADE)
 
     user = models.CharField(max_length=42, db_index=True)
     to_address = models.CharField(max_length=42, db_index=True)

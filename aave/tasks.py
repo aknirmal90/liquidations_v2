@@ -358,6 +358,28 @@ class UpdateCollateralAmountLiveIsVerifiedTask(Task):
 
     def run(self):
         """Update collateral amount live for aave balance logs."""
+        # First clear any records marked for deletion
+        # Get min and max IDs of records marked for deletion
+        marked_records = AaveBalanceLog.objects.filter(mark_for_deletion=True)
+        if not marked_records.exists():
+            return
+
+        min_id = marked_records.order_by('id').first().id
+        max_id = marked_records.order_by('-id').first().id
+
+        batch_size = 10000
+        for start_id in range(min_id, max_id + 1, batch_size):
+            end_id = start_id + batch_size
+            batch_to_delete = AaveBalanceLog.objects.filter(
+                mark_for_deletion=True,
+                id__gte=start_id,
+                id__lt=end_id
+            )
+            deleted_count = batch_to_delete.delete()[0]
+            if deleted_count > 0:
+                logger.info(f"Deleted batch of {deleted_count} marked records")
+
+        # Process networks
         networks = Network.objects.all().values_list('name', flat=True)
         for network in networks:
             self._process_network(network)
