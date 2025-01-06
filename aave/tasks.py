@@ -334,7 +334,7 @@ class VerifyBalancesTask(Task):
         # Process networks
         networks = Network.objects.all()
         for network in networks:
-            # self._process_network(network, protocol)
+            self._process_network(network, protocol)
             self._generate_analytics_report(network, protocol)
             self._delete_marked_records(network, protocol)
 
