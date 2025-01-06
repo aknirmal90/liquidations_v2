@@ -6,7 +6,7 @@ from typing import Dict, List
 
 from aave.models import Asset
 from aave.price import PriceConfigurer
-from aave.tasks import UpdateAssetMetadataTask  # , UpdateMissingLiquidityIndexTask
+from aave.tasks import UpdateAssetMetadataTask, UpdateMissingLiquidityIndexTask
 from blockchains.models import Event
 from utils.constants import EVM_NULL_ADDRESS
 from utils.encoding import add_0x_prefix
@@ -622,4 +622,4 @@ class aaveAdapter(BalanceUtils):
                     liquidity_indices=None
                 )
 
-#        UpdateMissingLiquidityIndexTask.delay()
+        UpdateMissingLiquidityIndexTask.delay()
