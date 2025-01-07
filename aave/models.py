@@ -1,6 +1,6 @@
 import logging
 import math
-from decimal import Decimal
+from decimal import Decimal, DivisionByZero, DivisionUndefined
 
 from django.core.cache import cache
 from django.core.serializers import deserialize, serialize
@@ -361,17 +361,20 @@ class AaveBalanceLog(models.Model):
         if not self.collateral_is_enabled:
             return Decimal("0.0")
 
-        if type == "collateral":
-            scale = self.last_updated_collateral_liquidity_index / self.asset.collateral_liquidity_index
-        else:
-            scale = self.last_updated_borrow_liquidity_index / self.asset.borrow_liquidity_index
+        try:
+            if type == "collateral":
+                scale = self.last_updated_collateral_liquidity_index / self.asset.collateral_liquidity_index
+            else:
+                scale = self.last_updated_borrow_liquidity_index / self.asset.borrow_liquidity_index
+        except (DivisionByZero, DivisionUndefined):
+            return amount
 
         if type == "collateral":
             if not self.is_collateral_liquidity_index_updated():
-                return amount
+                return amount.quantize(Decimal('1.00'))
         else:
             if not self.is_borrow_liquidity_index_updated():
-                return amount
+                return amount.quantize(Decimal('1.00'))
 
         return (amount * scale).quantize(Decimal('1.00'))
 
