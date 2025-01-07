@@ -519,6 +519,8 @@ class VerifyBalancesTask(Task):
                 and abs(db_user_reserve.borrow_amount) <= BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE
             ):
                 db_user_reserve.mark_for_deletion = True
+            else:
+                db_user_reserve.mark_for_deletion = False
 
             # If live balances are not verified, update the raw balances
             if not db_user_reserve.collateral_amount_live_is_verified:
