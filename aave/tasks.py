@@ -1,7 +1,7 @@
 import logging
 import math
 from datetime import datetime, timezone
-from decimal import Decimal, DivisionByZero
+from decimal import Decimal, DivisionByZero, DivisionUndefined
 
 from celery import Task
 from django.core.cache import cache
@@ -345,7 +345,7 @@ class VerifyBalancesTask(Task):
             try:
                 pct_difference = (collateral_amount_live - collateral_amount_contract) / collateral_amount_contract
                 return pct_difference < BALANCES_AMOUNT_ERROR_THRESHOLD_PCT
-            except DivisionByZero:
+            except (DivisionByZero, DivisionUndefined):
                 return False
 
     def is_borrow_amount_verified(self, borrow_amount_live, borrow_amount_contract):
@@ -355,7 +355,7 @@ class VerifyBalancesTask(Task):
             try:
                 pct_difference = (borrow_amount_live - borrow_amount_contract) / borrow_amount_contract
                 return pct_difference < BALANCES_AMOUNT_ERROR_THRESHOLD_PCT
-            except DivisionByZero:
+            except (DivisionByZero, DivisionUndefined):
                 return False
 
     def _delete_marked_records(self, network, protocol):
