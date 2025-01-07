@@ -2,7 +2,7 @@ from decouple import config
 
 CELERY_BROKER_URL = config("CELERY_BROKER_URL")
 
-CELERYD_TASK_TIME_LIMIT = 60 * 60 * 3  # 3 hours
+CELERYD_TASK_TIME_LIMIT = 60 * 60 * 6  # 6 hours
 
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 

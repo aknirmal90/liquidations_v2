@@ -325,7 +325,7 @@ UpdateSimulatedHealthFactorTask = app.register_task(UpdateSimulatedHealthFactorT
 
 class VerifyBalancesTask(Task):
     """Task to update collateral and borrow amounts live for aave balance logs."""
-    expires = 60 * 60 * 3
+    expires = 60 * 60 * 6
 
     def run(self):
         """Update collateral and borrow amounts live for aave balance logs."""
