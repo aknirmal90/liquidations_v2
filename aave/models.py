@@ -1,6 +1,6 @@
 import logging
 import math
-from decimal import Decimal, DivisionByZero, DivisionUndefined
+from decimal import Decimal
 
 from django.core.cache import cache
 from django.core.serializers import deserialize, serialize
@@ -366,7 +366,7 @@ class AaveBalanceLog(models.Model):
                 scale = self.last_updated_collateral_liquidity_index / self.asset.collateral_liquidity_index
             else:
                 scale = self.last_updated_borrow_liquidity_index / self.asset.borrow_liquidity_index
-        except (DivisionByZero, DivisionUndefined):
+        except Exception:
             return amount
 
         if type == "collateral":
