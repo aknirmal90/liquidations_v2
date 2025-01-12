@@ -92,10 +92,12 @@ class BalanceUtils:
 
             if collateral_index and collateral_index > 0:
                 instance.collateral_amount = collateral_amount
+                instance.collateral_amount_live = instance.get_scaled_balance("collateral")
                 instance.last_updated_collateral_liquidity_index = collateral_index
 
             if borrow_index and borrow_index > 0:
                 instance.borrow_amount = borrow_amount
+                instance.borrow_amount_live = instance.get_scaled_balance("borrow")
                 instance.last_updated_borrow_liquidity_index = borrow_index
 
             instances.append(instance)
@@ -602,7 +604,8 @@ class aaveAdapter(BalanceUtils):
         log, asset_id, balances, liquidity_indices, max_indices, value
     ):
         user = log.args.onBehalfOf if hasattr(log.args, 'onBehalfOf') else getattr(log.args, 'from')
-        balances[asset_id][user]['collateral'] += value
+        asset = Asset.get_by_id(asset_id)
+        balances[asset_id][user]['collateral'] += value / asset.decimals
         liquidity_index = Decimal(log.args.index)
         if liquidity_index > liquidity_indices[asset_id][user].get('collateral', Decimal("0.0")):
             liquidity_indices[asset_id][user]['collateral'] = liquidity_index
@@ -614,7 +617,8 @@ class aaveAdapter(BalanceUtils):
         log, asset_id, balances, liquidity_indices, max_indices, value
     ):
         user = log.args.onBehalfOf if hasattr(log.args, 'onBehalfOf') else getattr(log.args, 'from')
-        balances[asset_id][user]['borrow'] += value
+        asset = Asset.get_by_id(asset_id)
+        balances[asset_id][user]['borrow'] += value / asset.decimals
         liquidity_index = Decimal(log.args.index)
         if liquidity_index > liquidity_indices[asset_id][user].get('borrow', Decimal("0.0")):
             liquidity_indices[asset_id][user]['borrow'] = liquidity_index
@@ -625,6 +629,8 @@ class aaveAdapter(BalanceUtils):
     def _handle_balance_and_index_updates(
         cls, model_class, event, balances, liquidity_indices, max_indices
     ):
+        cls._update_asset_liquidity_indices(max_indices)
+
         for asset_id in balances:
             users = list(balances[asset_id].keys())
             cls._handle_balance_updates(
@@ -635,8 +641,6 @@ class aaveAdapter(BalanceUtils):
                 balances=balances,
                 liquidity_indices=liquidity_indices
             )
-
-        cls._update_asset_liquidity_indices(max_indices)
 
     @classmethod
     def _handle_balance_updates(
@@ -715,6 +719,7 @@ class aaveAdapter(BalanceUtils):
 
         for log in logs:
             asset_id = atoken_maps.get(log.address)
+            asset = Asset.get_by_id(asset_id)
 
             to_addr = add_0x_prefix(log.args._to)
             from_addr = add_0x_prefix(log.args._from)
@@ -730,8 +735,8 @@ class aaveAdapter(BalanceUtils):
             liquidity_indices[asset_id][to_addr] = {'collateral': collateral_liquidity_index}
             liquidity_indices[asset_id][from_addr] = {'collateral': collateral_liquidity_index}
 
-            balances[asset_id][to_addr]['collateral'] += Decimal(log.args.value)
-            balances[asset_id][from_addr]['collateral'] -= Decimal(log.args.value)
+            balances[asset_id][to_addr]['collateral'] += Decimal(log.args.value) / asset.decimals
+            balances[asset_id][from_addr]['collateral'] -= Decimal(log.args.value) / asset.decimals
 
         for asset_id in balances:
             users = list(balances[asset_id].keys())
@@ -802,6 +807,7 @@ class aaveAdapter(BalanceUtils):
                 ):
                     user_reserve.collateral_is_enabled_updated_at_block = block_number
                     user_reserve.collateral_is_enabled = False
+                    user_reserve.collateral_amount_live = Decimal("0.0")
                     instances_to_update.append(user_reserve)
 
         model_class.objects.bulk_update(
@@ -850,6 +856,7 @@ class aaveAdapter(BalanceUtils):
                 ):
                     user_reserve.collateral_is_enabled_updated_at_block = block_number
                     user_reserve.collateral_is_enabled = True
+                    user_reserve.collateral_amount_live = user_reserve.get_scaled_balance("collateral")
                     instances_to_update.append(user_reserve)
 
         model_class.objects.bulk_update(

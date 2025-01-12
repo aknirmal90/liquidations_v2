@@ -338,8 +338,9 @@ class VerifyBalancesTask(Task):
             self._generate_analytics_report(network, protocol)
             self._delete_marked_records(network, protocol)
 
-    def is_collateral_amount_verified(self, collateral_amount_live, collateral_amount_contract):
-        if abs(collateral_amount_live - collateral_amount_contract) <= BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE:
+    def is_collateral_amount_verified(self, collateral_amount_live, collateral_amount_contract, decimals):
+        if (abs(collateral_amount_live - collateral_amount_contract)
+                <= BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE / decimals):
             return True
         else:
             try:
@@ -348,8 +349,8 @@ class VerifyBalancesTask(Task):
             except (DivisionByZero, DivisionUndefined):
                 return False
 
-    def is_borrow_amount_verified(self, borrow_amount_live, borrow_amount_contract):
-        if abs(borrow_amount_live - borrow_amount_contract) <= BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE:
+    def is_borrow_amount_verified(self, borrow_amount_live, borrow_amount_contract, decimals):
+        if abs(borrow_amount_live - borrow_amount_contract) <= BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE / decimals:
             return True
         else:
             try:
@@ -493,8 +494,9 @@ class VerifyBalancesTask(Task):
         updated_batch = []
         for i, contract_user_reserve in enumerate(user_reserves):
             db_user_reserve = batch[i]
-            collateral_amount_contract = Decimal(contract_user_reserve["result"].currentATokenBalance)
-            borrow_amount_contract = Decimal(contract_user_reserve["result"].currentVariableDebt)
+            decimals = db_user_reserve.asset.decimals
+            collateral_amount_contract = Decimal(contract_user_reserve["result"].currentATokenBalance) / decimals
+            borrow_amount_contract = Decimal(contract_user_reserve["result"].currentVariableDebt) / decimals
 
             collateral_amount_live = db_user_reserve.get_scaled_balance(type="collateral")
             borrow_amount_live = db_user_reserve.get_scaled_balance(type="borrow")
@@ -504,19 +506,21 @@ class VerifyBalancesTask(Task):
 
             db_user_reserve.collateral_amount_live_is_verified = self.is_collateral_amount_verified(
                 db_user_reserve.collateral_amount,
-                collateral_amount_contract
+                collateral_amount_contract,
+                decimals
             )
             db_user_reserve.borrow_amount_live_is_verified = self.is_borrow_amount_verified(
                 db_user_reserve.borrow_amount,
-                borrow_amount_contract
+                borrow_amount_contract,
+                decimals
             )
 
             # If both balances are 0, mark for deletion
             if (
                 collateral_amount_contract == Decimal('0')
                 and borrow_amount_contract == Decimal('0')
-                and abs(db_user_reserve.collateral_amount) <= BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE
-                and abs(db_user_reserve.borrow_amount) <= BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE
+                and abs(db_user_reserve.collateral_amount) <= BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE / decimals
+                and abs(db_user_reserve.borrow_amount) <= BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE / decimals
             ):
                 db_user_reserve.mark_for_deletion = True
             else:
@@ -527,10 +531,12 @@ class VerifyBalancesTask(Task):
                 db_user_reserve.collateral_amount = (
                     db_user_reserve.get_unscaled_balance(collateral_amount_contract, type="collateral")
                 )
+                db_user_reserve.collateral_amount_live = db_user_reserve.get_scaled_balance("collateral")
             if not db_user_reserve.borrow_amount_live_is_verified:
                 db_user_reserve.borrow_amount = (
                     db_user_reserve.get_unscaled_balance(borrow_amount_contract, type="borrow")
                 )
+                db_user_reserve.borrow_amount_live = db_user_reserve.get_scaled_balance("borrow")
 
             updated_batch.append(db_user_reserve)
         return updated_batch

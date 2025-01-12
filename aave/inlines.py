@@ -274,7 +274,7 @@ def get_burn_events_for_address(balance_log: AaveBalanceLog, type="collateral"):
         burn_event_objects.append(AaveBurnEvent(
             from_address=event_data["args"]["from"],
             target=event_data["args"]["target"],
-            value=event_data["args"]["value"],
+            value=event_data["args"]["value"] / balance_log.asset.decimals,
             balance_increase=event_data["args"]["balanceIncrease"],
             index=event_data["args"]["index"],
             transaction_hash=add_0x_prefix(event_data['transactionHash']),
@@ -325,7 +325,7 @@ def get_mint_events_for_address(balance_log: AaveBalanceLog, type="collateral"):
         mint_event_objects.append(AaveMintEvent(
             caller=event_data["args"]["caller"],
             on_behalf_of=event_data["args"]["onBehalfOf"],
-            value=event_data["args"]["value"],
+            value=event_data["args"]["value"] / balance_log.asset.decimals,
             balance_increase=event_data["args"]["balanceIncrease"],
             index=event_data["args"]["index"],
             transaction_hash=add_0x_prefix(event_data['transactionHash']),
@@ -391,7 +391,7 @@ def get_transfer_events_for_address(balance_log: AaveBalanceLog):
         transfer_event_objects.append(AaveTransferEvent(
             from_address=event_data["args"]["_from"],
             to_address=event_data["args"]["_to"],
-            value=event_data["args"]["value"],
+            value=event_data["args"]["value"] / balance_log.asset.decimals,
             transaction_hash=add_0x_prefix(event_data['transactionHash']),
             transaction_index=event_data['transactionIndex'],
             log_index=event_data['logIndex'],
@@ -431,7 +431,7 @@ def get_supply_events_for_address(balance_log: AaveBalanceLog):
         supply_event_objects.append(AaveSupplyEvent(
             user=event_data["args"]["user"],
             on_behalf_of=event_data["args"]["onBehalfOf"],
-            amount=event_data["args"]["amount"],
+            amount=event_data["args"]["amount"] / balance_log.asset.decimals,
             referral_code=event_data["args"]["referralCode"],
             transaction_hash=add_0x_prefix(event_data['transactionHash']),
             transaction_index=event_data['transactionIndex'],
@@ -470,7 +470,7 @@ def get_withdraw_events_for_address(balance_log: AaveBalanceLog):
         withdraw_event_objects.append(AaveWithdrawEvent(
             user=event_data["args"]["user"],
             to_address=event_data["args"]["to"],
-            amount=event_data["args"]["amount"],
+            amount=event_data["args"]["amount"] / balance_log.asset.decimals,
             transaction_hash=add_0x_prefix(event_data['transactionHash']),
             transaction_index=event_data['transactionIndex'],
             log_index=event_data['logIndex'],
@@ -510,7 +510,7 @@ def get_borrow_events_for_address(balance_log: AaveBalanceLog):
             AaveBorrowEvent(
                 user=event_data["args"]["user"],
                 on_behalf_of=event_data["args"]["onBehalfOf"],
-                amount=event_data["args"]["amount"],
+                amount=event_data["args"]["amount"] / balance_log.asset.decimals,
                 interest_rate_mode=event_data["args"]["interestRateMode"],
                 borrow_rate=event_data["args"]["borrowRate"],
                 referral_code=event_data["args"]["referralCode"],
@@ -554,7 +554,7 @@ def get_repay_events_for_address(balance_log: AaveBalanceLog):
             AaveRepayEvent(
                 user=event_data["args"]["user"],
                 repayer=event_data["args"]["repayer"],
-                amount=event_data["args"]["amount"],
+                amount=event_data["args"]["amount"] / balance_log.asset.decimals,
                 use_a_tokens=event_data["args"]["useATokens"],
                 transaction_hash=add_0x_prefix(event_data['transactionHash']),
                 transaction_index=event_data['transactionIndex'],

@@ -569,7 +569,7 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
     def get_collateral_amount_contract(self, obj):
         provider = AaveDataProvider(obj.network)
         user_reserve = provider.getUserReserveData(obj.asset.asset, [obj.address])[0]['result']
-        collateral_amount_contract = Decimal(user_reserve.currentATokenBalance)
+        collateral_amount_contract = Decimal(user_reserve.currentATokenBalance) / obj.asset.decimals
         collateral_amount_live = obj.get_scaled_balance("collateral")
 
         if collateral_amount_live:
@@ -606,7 +606,7 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
     def get_borrow_amount_contract(self, obj):
         provider = AaveDataProvider(obj.network)
         user_reserve = provider.getUserReserveData(obj.asset.asset, [obj.address])[0]['result']
-        borrow_amount_contract = Decimal(user_reserve.currentVariableDebt)
+        borrow_amount_contract = Decimal(user_reserve.currentVariableDebt) / obj.asset.decimals
         borrow_amount_live = obj.get_scaled_balance("borrow")
 
         if borrow_amount_live:
