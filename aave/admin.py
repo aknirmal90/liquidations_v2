@@ -823,7 +823,7 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
     def get_borrow_indexes(self, obj):
         provider = AaveDataProvider(obj.network.name)
         previous_borrow_index = provider.getPreviousIndex(
-            obj.asset.variable_debt_address,
+            obj.asset.variable_debt_token_address,
             [obj.address]
         )[0]['result'].index
         db_index = obj.last_updated_borrow_liquidity_index

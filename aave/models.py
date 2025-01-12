@@ -363,9 +363,9 @@ class AaveBalanceLog(models.Model):
 
         try:
             if type == "collateral":
-                scale = self.last_updated_collateral_liquidity_index / self.asset.collateral_liquidity_index
+                scale = self.asset.collateral_liquidity_index / self.last_updated_collateral_liquidity_index
             else:
-                scale = self.last_updated_borrow_liquidity_index / self.asset.borrow_liquidity_index
+                scale = self.asset.borrow_liquidity_index / self.last_updated_borrow_liquidity_index
         except Exception:
             return amount
 
@@ -387,9 +387,9 @@ class AaveBalanceLog(models.Model):
                 return amount
 
         if type == "collateral":
-            scale = self.asset.collateral_liquidity_index / self.last_updated_collateral_liquidity_index
+            scale = self.last_updated_collateral_liquidity_index / self.asset.collateral_liquidity_index
         else:
-            scale = self.asset.borrow_liquidity_index / self.last_updated_borrow_liquidity_index
+            scale = self.last_updated_borrow_liquidity_index / self.asset.borrow_liquidity_index
 
         return (amount * scale).quantize(Decimal('1.00'))
 
