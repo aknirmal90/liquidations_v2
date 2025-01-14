@@ -247,6 +247,7 @@ class AaveLiquidationLog(models.Model):
     debt_to_cover_in_usd = models.DecimalField(max_digits=70, decimal_places=2, null=True, blank=True)
     liquidated_collateral_amount = models.DecimalField(max_digits=72, decimal_places=0, null=True, blank=True)
     liquidated_collateral_amount_in_usd = models.DecimalField(max_digits=70, decimal_places=2, null=True, blank=True)
+    profit_in_usd = models.DecimalField(max_digits=70, decimal_places=2, null=True, blank=True)
 
     collateral_asset = models.ForeignKey(
         'aave.Asset',
@@ -265,6 +266,7 @@ class AaveLiquidationLog(models.Model):
 
     liquidator = models.CharField(max_length=42)
 
+    block_datetime = models.DateTimeField(null=True, blank=True)
     block_height = models.PositiveIntegerField(null=True, blank=True)
     transaction_hash = models.CharField(max_length=66, null=True, blank=True)
     transaction_index = models.PositiveIntegerField(null=True, blank=True)

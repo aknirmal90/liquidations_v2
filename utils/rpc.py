@@ -1,15 +1,50 @@
 import logging
 from typing import Dict, List, Optional
 
+import requests
 import urllib3
 from web3 import Web3
 
-from blockchains.models import Network
+from blockchains.models import ApproximateBlockTimestamp, Network
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 logger = logging.getLogger(__name__)
+
+
+def get_evm_block_timestamps(network: Network, blocks: List[int]) -> Dict:
+    """
+    Get the transaction receipt from the network using the transaction ID.
+
+    Args:
+        transaction_id (str): The transaction ID.
+
+    Returns:
+        Dict: The transaction receipt data.
+    """
+    batch_request = [
+        {
+            "jsonrpc": "2.0",
+            "method": "eth_getBlockByNumber",
+            "params": [hex(b), False],
+            "id": i
+        }
+        for i, b in enumerate(blocks)
+    ]
+
+    # Send batch request and get responses
+    response = requests.post(network.rpc, json=batch_request)
+    responses = response.json()
+    return {
+        int(response['result']['number'], 16): int(response['result']['timestamp'], 16)
+        for response in responses
+    }
+
+
+def get_block_timestamps(network: Network, blocks: List[int]) -> Dict:
+    approximate_block_timestamp = ApproximateBlockTimestamp.objects.get(network=network)
+    return approximate_block_timestamp.get_timestamps(blocks=blocks)
 
 
 class EVMRpcAdapter:

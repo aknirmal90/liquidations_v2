@@ -1,3 +1,5 @@
+from typing import Dict, List
+
 from django.core.cache import cache
 from django.core.serializers import deserialize, serialize
 from django.db import models
@@ -211,3 +213,24 @@ class Contract(models.Model):
                 serialized_value = serialize("json", [contract_instance])
                 cache.set(key, serialized_value)
                 return contract_instance
+
+
+class ApproximateBlockTimestamp(models.Model):
+    reference_block_number = models.BigIntegerField(db_index=True)
+    timestamp = models.BigIntegerField(null=True, blank=True)
+    network = models.ForeignKey(Network, on_delete=models.CASCADE, unique=True)
+    block_time_in_milliseconds = models.BigIntegerField(null=True, blank=True)
+
+    class Meta:
+        app_label = 'blockchains'
+
+    def __str__(self):
+        return f"{self.network.name} - {self.reference_block_number}"
+
+    def get_timestamps(self, blocks: List[int]) -> Dict[int, int]:
+        return {
+            block_number: int(self.timestamp + (
+                block_number - self.reference_block_number
+            ) * self.block_time_in_milliseconds / 1_000)
+            for block_number in blocks
+        }

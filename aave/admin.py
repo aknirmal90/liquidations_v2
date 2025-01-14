@@ -278,14 +278,12 @@ class AaveLiquidationLogAdmin(admin.ModelAdmin):
         'get_transaction_hash_link',
         'network',
         'protocol',
-        'block_height',
+        'block_datetime',
         'transaction_index',
         'get_liquidator_link',
         'collateral_asset',
         'debt_asset',
-        'debt_to_cover_in_usd',
-        'liquidated_collateral_amount_in_usd',
-        'user',
+        'profit_in_usd',
         'health_factor_t',
         'health_factor_t0',
         'health_factor_t1',
@@ -348,6 +346,7 @@ class AaveLiquidationLogAdmin(admin.ModelAdmin):
         ('Transaction Information', {
             'fields': (
                 'get_transaction_hash_link',
+                'block_datetime',
                 'block_height',
                 'transaction_index',
                 'network',
@@ -362,6 +361,7 @@ class AaveLiquidationLogAdmin(admin.ModelAdmin):
         }),
         ('Assets and Amounts', {
             'fields': (
+                ('profit_in_usd'),
                 ('collateral_asset', 'liquidated_collateral_amount', 'liquidated_collateral_amount_in_usd'),
                 ('debt_asset', 'debt_to_cover', 'debt_to_cover_in_usd'),
             )
@@ -386,6 +386,7 @@ class AaveLiquidationLogAdmin(admin.ModelAdmin):
 
     readonly_fields = (
         'transaction_hash',
+        'block_datetime',
         'block_height',
         'transaction_index',
         'network',
@@ -409,6 +410,7 @@ class AaveLiquidationLogAdmin(admin.ModelAdmin):
         'health_factor_before_one_blocks',
         'health_factor_before_two_blocks',
         'health_factor_before_three_blocks',
+        'profit_in_usd'
     )
 
     ordering = ('-block_height', '-transaction_index',)

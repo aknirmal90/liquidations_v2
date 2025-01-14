@@ -7,7 +7,7 @@ from typing import Dict, List
 from aave.models import AaveBalanceLog, Asset
 from aave.price import PriceConfigurer
 from aave.tasks import UpdateAssetMetadataTask
-from blockchains.models import Event
+from blockchains.models import ApproximateBlockTimestamp, Event
 from utils.constants import EVM_NULL_ADDRESS
 from utils.encoding import add_0x_prefix
 
@@ -467,6 +467,7 @@ class aaveAdapter(BalanceUtils):
 
         protocol_name = event.protocol.name
         network_name = event.network.name
+        approximate_block_timestamp = ApproximateBlockTimestamp.objects.get(network=event.network)
 
         instances = []
         for log in logs:
@@ -481,14 +482,30 @@ class aaveAdapter(BalanceUtils):
                 token_address=log.args.debtAsset
             )
 
+            block_timestamp = approximate_block_timestamp.get_timestamps([log.blockNumber])[log.blockNumber]
+            block_datetime = datetime.fromtimestamp(block_timestamp, timezone.utc)
+
             liquidated_collateral_amount = Decimal(log.args.liquidatedCollateralAmount)
             debt_to_cover = Decimal(log.args.debtToCover)
-            liquidated_collateral_amount_in_usd = (
-                liquidated_collateral_amount * collateral_asset.price_in_usdt / collateral_asset.decimals
-            )
-            debt_to_cover_in_usd = (
-                debt_to_cover * debt_asset.price_in_usdt / debt_asset.decimals
-            )
+
+            try:
+                liquidated_collateral_amount_in_usd = (
+                    liquidated_collateral_amount * collateral_asset.price_in_usdt / collateral_asset.decimals
+                )
+                debt_to_cover_in_usd = (
+                    debt_to_cover * debt_asset.price_in_usdt / debt_asset.decimals
+                )
+                collateral_returned = (
+                    liquidated_collateral_amount / collateral_asset.liquidation_bonus * Decimal("10000")
+                )
+                profit_in_usd = (
+                    (liquidated_collateral_amount - collateral_returned) * collateral_asset.price_in_usdt
+                    / collateral_asset.decimals
+                )
+            except Exception:
+                liquidated_collateral_amount_in_usd = None
+                debt_to_cover_in_usd = None
+                profit_in_usd = None
 
             instances.append(model_class(
                 network=event.network,
@@ -505,6 +522,8 @@ class aaveAdapter(BalanceUtils):
                 debt_asset=debt_asset,
                 liquidated_collateral_amount_in_usd=liquidated_collateral_amount_in_usd,
                 debt_to_cover_in_usd=debt_to_cover_in_usd,
+                block_datetime=block_datetime,
+                profit_in_usd=profit_in_usd
             ))
         model_class.objects.bulk_create(instances)
 

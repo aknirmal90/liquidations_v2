@@ -13,11 +13,12 @@ from web3.exceptions import Web3RPCError
 
 from aave.models import Asset
 from aave.tasks import ResetAssetsTask
-from blockchains.models import Event, Network, Protocol
+from blockchains.models import ApproximateBlockTimestamp, Event, Network, Protocol
 from liquidations_v2.celery_app import app
 from utils.constants import ACCEPTABLE_EVENT_BLOCK_LAG_DELAY
 from utils.encoding import decode_any, get_signature, get_topic_0
 from utils.files import parse_yaml
+from utils.rpc import get_evm_block_timestamps
 
 logger = logging.getLogger(__name__)
 
@@ -528,3 +529,40 @@ class UpdateMetadataCacheTask(Task):
 
 
 UpdateMetadataCacheTask = app.register_task(UpdateMetadataCacheTask())
+
+
+class UpdateApproximateBlockTimestampsTask(Task):
+
+    def run(self, *args, **kwargs):
+        networks = Network.objects.all()
+        for network in networks:
+            block_height = network.rpc_adapter.block_height
+            blocks = list(range(block_height - 5, block_height + 1))
+            timestamps = get_evm_block_timestamps(network=network, blocks=blocks)
+            num_items = 0
+            total_time = 0
+            for block_number, timestamp in timestamps.items():
+                if (block_number + 1) in timestamps:
+                    total_time += timestamps[block_number + 1] - timestamp
+                    num_items += 1
+
+            average_block_time = int((total_time / num_items) * 1000)
+            timestamp_obj, created = ApproximateBlockTimestamp.objects.update_or_create(
+                network=network,
+                defaults={
+                    'timestamp': timestamps[block_height],
+                    'block_time_in_milliseconds': average_block_time,
+                    'reference_block_number': block_height
+                }
+            )
+            if created:
+                logger.info(
+                    f"Created new block timestamp for network {network.name} with block time {average_block_time}ms"
+                )
+            else:
+                logger.info(
+                    f"Updated block timestamp for network {network.name} with block time {average_block_time}ms"
+                )
+
+
+UpdateApproximateBlockTimestampsTask = app.register_task(UpdateApproximateBlockTimestampsTask())

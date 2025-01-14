@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.db import models
 from django.forms import Textarea
 
-from blockchains.models import Event, Network, Protocol
+from blockchains.models import ApproximateBlockTimestamp, Event, Network, Protocol
 from utils.admin import EnableDisableAdminMixin, format_pretty_json
 
 
@@ -117,3 +117,26 @@ class EventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         return format_pretty_json(obj.abi)
 
     abi_display.short_description = 'ABI'
+
+
+@admin.register(ApproximateBlockTimestamp)
+class ApproximateBlockTimestampAdmin(admin.ModelAdmin):
+    list_display = (
+        'network',
+        'reference_block_number',
+        'timestamp',
+        'block_time_in_milliseconds'
+    )
+    list_filter = ('network',)
+    readonly_fields = (
+        'network',
+        'reference_block_number',
+        'timestamp',
+        'block_time_in_milliseconds'
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
