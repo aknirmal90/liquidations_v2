@@ -10,6 +10,7 @@ from aave.tasks import UpdateAssetMetadataTask
 from blockchains.models import ApproximateBlockTimestamp, Event
 from utils.constants import EVM_NULL_ADDRESS
 from utils.encoding import add_0x_prefix
+from utils.events import is_latest_log
 
 logger = logging.getLogger(__name__)
 
@@ -118,13 +119,7 @@ class aaveAdapter(BalanceUtils):
         latest_logs = {}
         for log in logs:
             asset = log.args.asset
-            if asset not in latest_logs or (
-                log.blockNumber > latest_logs[asset].blockNumber
-                or (
-                    log.blockNumber == latest_logs[asset].blockNumber
-                    and log.transactionIndex > latest_logs[asset].transactionIndex
-                )
-            ):
+            if asset not in latest_logs or is_latest_log(log, latest_logs[asset]):
                 latest_logs[asset] = log
         return latest_logs
 
@@ -799,13 +794,12 @@ class aaveAdapter(BalanceUtils):
                 token_address=asset_id
             )
             user = log.args.user
-            block_number = log.blockNumber
 
             if (
                 user not in latest_collateral_disabled[asset_id]
-                or block_number > latest_collateral_disabled[asset_id][user]
+                or is_latest_log(log, latest_collateral_disabled[asset_id][user])
             ):
-                latest_collateral_disabled[asset_id][user] = block_number
+                latest_collateral_disabled[asset_id][user] = log
 
         instances_to_update = []
         for asset_id in latest_collateral_disabled:
@@ -817,21 +811,26 @@ class aaveAdapter(BalanceUtils):
                 asset_id=asset.id
             )
             for user_reserve in user_reserves:
-                block_number = (
-                    latest_collateral_disabled[asset_id][user_reserve.address]
-                )
+                log = latest_collateral_disabled[asset_id][user_reserve.address]
+                block_number = log.blockNumber
                 if (
                     user_reserve.collateral_is_enabled_updated_at_block
-                    or block_number > user_reserve.collateral_is_enabled_updated_at_block
+                    or block_number >= user_reserve.collateral_is_enabled_updated_at_block
                 ):
                     user_reserve.collateral_is_enabled_updated_at_block = block_number
                     user_reserve.collateral_is_enabled = False
                     user_reserve.collateral_amount_live = Decimal("0.0")
+                    user_reserve.collateral_amount_live_with_liquidation_threshold = Decimal("0.0")
                     instances_to_update.append(user_reserve)
 
         model_class.objects.bulk_update(
             instances_to_update,
-            fields=['collateral_is_enabled', 'collateral_is_enabled_updated_at_block'],
+            fields=[
+                'collateral_is_enabled',
+                'collateral_is_enabled_updated_at_block',
+                'collateral_amount_live',
+                'collateral_amount_live_with_liquidation_threshold'
+            ],
             batch_size=1000
         )
 
@@ -848,13 +847,12 @@ class aaveAdapter(BalanceUtils):
                 token_address=asset_id
             )
             user = log.args.user
-            block_number = log.blockNumber
 
             if (
                 user not in latest_collateral_enabled[asset_id]
-                or block_number > latest_collateral_enabled[asset_id][user]
+                or is_latest_log(log, latest_collateral_enabled[asset_id][user])
             ):
-                latest_collateral_enabled[asset_id][user] = block_number
+                latest_collateral_enabled[asset_id][user] = log
 
         instances_to_update = []
         for asset_id in latest_collateral_enabled:
@@ -864,22 +862,118 @@ class aaveAdapter(BalanceUtils):
                 protocol=event.protocol,
                 address__in=users,
                 asset_id=asset.id
-            )
+            ).select_related('asset')
+
             for user_reserve in user_reserves:
-                block_number = (
-                    latest_collateral_enabled[asset_id][user_reserve.address]
-                )
+                log = latest_collateral_enabled[asset_id][user_reserve.address]
+                block_number = log.blockNumber
                 if (
                     user_reserve.collateral_is_enabled_updated_at_block
-                    or block_number > user_reserve.collateral_is_enabled_updated_at_block
+                    or block_number >= user_reserve.collateral_is_enabled_updated_at_block
                 ):
                     user_reserve.collateral_is_enabled_updated_at_block = block_number
                     user_reserve.collateral_is_enabled = True
                     user_reserve.collateral_amount_live = user_reserve.get_scaled_balance("collateral")
+
+                    if user_reserve.emode_category == 0:
+                        user_reserve.collateral_amount_live_with_liquidation_threshold = (
+                            user_reserve.collateral_amount_live
+                            * user_reserve.asset.liquidation_threshold
+                        )
+                    else:
+                        user_reserve.collateral_amount_live_with_liquidation_threshold = (
+                            user_reserve.collateral_amount_live
+                            * user_reserve.asset.emode_liquidation_threshold
+                        )
+
                     instances_to_update.append(user_reserve)
 
         model_class.objects.bulk_update(
             instances_to_update,
-            fields=['collateral_is_enabled', 'collateral_is_enabled_updated_at_block'],
+            fields=[
+                'collateral_is_enabled',
+                'collateral_is_enabled_updated_at_block',
+                'collateral_amount_live',
+                'collateral_amount_live_with_liquidation_threshold'
+            ],
             batch_size=1000
         )
+
+    @classmethod
+    def parse_UserEModeSet(cls, event: Event, logs: List[Dict]):
+        model_class = event.get_model_class()
+        latest_emode_categories = defaultdict(dict)
+
+        for log in logs:
+            user = log.args.user
+
+            if user not in latest_emode_categories:
+                latest_emode_categories[user] = log
+            elif is_latest_log(log, latest_emode_categories[user]):
+                latest_emode_categories[user] = log
+
+        # Get existing records
+        existing_users = set(model_class.objects.filter(
+            network=event.network,
+            protocol=event.protocol,
+            address__in=list(latest_emode_categories.keys())
+        ).values_list('address', flat=True))
+
+        # Create new records for users that don't exist
+        # new_instances = []
+        # for user, user_data in latest_emode_categories.items():
+        #     if user not in existing_users:
+        #         new_instance = model_class(
+        #             network=event.network,
+        #             protocol=event.protocol,
+        #             address=user,
+        #             emode_category=user_data.args.categoryId,
+        #             emode_category_updated_at_block=user_data.blockNumber
+        #         )
+        #         new_instances.append(new_instance)
+
+        # if new_instances:
+        #     model_class.objects.bulk_create(new_instances)
+
+        # Update existing records
+        instances_to_update = []
+        user_reserves = model_class.objects.filter(
+            network=event.network,
+            protocol=event.protocol,
+            address__in=existing_users
+        ).select_related('asset')
+
+        for user_reserve in user_reserves:
+            user_data = latest_emode_categories[user_reserve.address]
+            if (
+                not user_reserve.emode_category_updated_at_block
+                or user_data.blockNumber >= user_reserve.emode_category_updated_at_block
+            ):
+                user_reserve.emode_category = user_data.args.categoryId
+                user_reserve.emode_category_updated_at_block = user_data.blockNumber
+                user_reserve.collateral_amount_live = user_reserve.get_scaled_balance("collateral")
+
+                if user_reserve.emode_category == 0:
+                    user_reserve.collateral_amount_live_with_liquidation_threshold = (
+                        user_reserve.collateral_amount_live
+                        * user_reserve.asset.liquidation_threshold
+                    )
+                else:
+                    user_reserve.collateral_amount_live_with_liquidation_threshold = (
+                        user_reserve.collateral_amount_live
+                        * user_reserve.asset.emode_liquidation_threshold
+                    )
+
+                instances_to_update.append(user_reserve)
+
+        if instances_to_update:
+            model_class.objects.bulk_update(
+                instances_to_update,
+                fields=[
+                    'emode_category',
+                    'emode_category_updated_at_block',
+                    'collateral_amount_live',
+                    'collateral_amount_live_with_liquidation_threshold'
+                ],
+                batch_size=1000
+            )

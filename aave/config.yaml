@@ -60,6 +60,9 @@ events:
   - name: "ReserveUsedAsCollateralEnabled"
     model_class: "aave.models.AaveBalanceLog"
 
+  - name: "UserEModeSet"
+    model_class: "aave.models.AaveBalanceLog"
+
 networks:
   - network: "arbitrum"
     contract_addresses:

@@ -330,6 +330,9 @@ class AaveBalanceLog(models.Model):
 
     collateral_amount = models.DecimalField(max_digits=72, decimal_places=18, default=Decimal("0.0"))
     collateral_amount_live = models.DecimalField(max_digits=72, decimal_places=18, default=Decimal("0.0"))
+    collateral_amount_live_with_liquidation_threshold = models.DecimalField(
+        max_digits=72, decimal_places=18, default=Decimal("0.0")
+    )
     collateral_amount_live_is_verified = models.BooleanField(default=None, null=True, blank=True)
     collateral_is_enabled = models.BooleanField(default=False)
     collateral_is_enabled_updated_at_block = models.PositiveBigIntegerField(default=0)
@@ -340,6 +343,11 @@ class AaveBalanceLog(models.Model):
     borrow_is_enabled = models.BooleanField(default=False)
 
     mark_for_deletion = models.BooleanField(default=False)
+
+    emode_category = models.PositiveSmallIntegerField(default=0)
+    emode_category_updated_at_block = models.PositiveBigIntegerField(default=0)
+
+    health_factor = models.DecimalField(max_digits=21, decimal_places=18, null=True, blank=True)
 
     class Meta:
         unique_together = ('network', 'protocol', 'address', 'asset')
