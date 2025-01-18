@@ -178,7 +178,7 @@ class aaveAdapter(BalanceUtils):
             defaults_list.append({
                 'asset': log.args.asset,
                 'network': event.network,
-                'liquidation_threshold': Decimal(log.args.liquidationThreshold),
+                'liquidation_threshold': Decimal(log.args.liquidationThreshold) / Decimal("10000"),
                 'liquidation_bonus': Decimal(log.args.liquidationBonus)
             })
 
@@ -441,7 +441,7 @@ class aaveAdapter(BalanceUtils):
                 network=event.network,
                 emode_category=log.args.categoryId
             ).update(
-                emode_liquidation_threshold=Decimal(log.args.liquidationThreshold),
+                emode_liquidation_threshold=Decimal(log.args.liquidationThreshold) / Decimal("10000"),
                 emode_liquidation_bonus=Decimal(log.args.liquidationBonus)
             )
 
