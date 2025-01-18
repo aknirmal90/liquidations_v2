@@ -10,7 +10,7 @@ from web3 import Web3
 
 from aave.dataprovider import AaveDataProvider
 from aave.models import AaveBalanceLog, AaveDataQualityAnalyticsReport, AaveLiquidationLog, Asset, AssetPriceLog
-from blockchains.models import Event, Network, Protocol
+from blockchains.models import Event, Network
 from liquidations_v2.celery_app import app
 from utils.constants import BALANCES_AMOUNT_ERROR_THRESHOLD_PCT, BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE
 from utils.simulation import get_simulated_health_factor
@@ -148,9 +148,9 @@ class UpdateAssetPriceTask(Task):
             )
             for asset in assetsA:
                 try:
-                    price, price_in_usdt = asset.get_price()
+                    price, price_in_nativeasset = asset.get_price()
                     asset.price = price
-                    asset.price_in_usdt = price_in_usdt
+                    asset.price_in_nativeasset = price_in_nativeasset
                     assets_to_update.append(asset)
                 except Exception as e:
                     logger.error(f"Failed to get price for asset {asset.asset}: {str(e)}")
@@ -163,16 +163,16 @@ class UpdateAssetPriceTask(Task):
             )
             for asset in assetsB:
                 try:
-                    price, price_in_usdt = asset.get_price()
+                    price, price_in_nativeasset = asset.get_price()
                     asset.price = price
-                    asset.price_in_usdt = price_in_usdt
+                    asset.price_in_nativeasset = price_in_nativeasset
                     assets_to_update.append(asset)
                 except Exception as e:
                     logger.error(f"Failed to get price for asset {asset.asset}: {str(e)}")
                     continue
 
             # Bulk save all updated assets
-            Asset.objects.bulk_update(assets_to_update, ['price', 'price_in_usdt'])
+            Asset.objects.bulk_update(assets_to_update, ['price', 'price_in_nativeasset'])
 
         if onchain_created_at:
             onchain_created_at = datetime.fromtimestamp(onchain_created_at, tz=timezone.utc)
@@ -329,14 +329,13 @@ class VerifyBalancesTask(Task):
 
     def run(self):
         """Update collateral and borrow amounts live for aave balance logs."""
-        protocol = Protocol.objects.get(name="aave")
 
         # Process networks
         networks = Network.objects.all()
         for network in networks:
-            self._process_network(network, protocol)
-            self._generate_analytics_report(network, protocol)
-            self._delete_marked_records(network, protocol)
+            self._process_network(network)
+            self._generate_analytics_report(network)
+            self._delete_marked_records(network)
 
     def is_collateral_amount_verified(self, collateral_amount_live, collateral_amount_contract, decimals):
         if (abs(collateral_amount_live - collateral_amount_contract)
@@ -359,9 +358,9 @@ class VerifyBalancesTask(Task):
             except (DivisionByZero, DivisionUndefined):
                 return False
 
-    def _delete_marked_records(self, network, protocol):
+    def _delete_marked_records(self, network):
         """Delete records marked for deletion in batches."""
-        marked_records = AaveBalanceLog.objects.filter(mark_for_deletion=True, network=network, protocol=protocol)
+        marked_records = AaveBalanceLog.objects.filter(mark_for_deletion=True, network=network)
         if not marked_records.exists():
             return
 
@@ -374,7 +373,6 @@ class VerifyBalancesTask(Task):
             batch_to_delete = AaveBalanceLog.objects.filter(
                 mark_for_deletion=True,
                 network=network,
-                protocol=protocol,
                 id__gte=start_id,
                 id__lt=end_id
             )
@@ -382,14 +380,14 @@ class VerifyBalancesTask(Task):
             if deleted_count > 0:
                 logger.info(f"Deleted batch of {deleted_count} marked records for {network.name}")
 
-    def _generate_analytics_report(self, network, protocol):
+    def _generate_analytics_report(self, network):
         """Generate analytics report for today's data."""
         today = datetime.now(timezone.utc).date()
 
-        # Get all network/protocol combinations that have balance logs
-        balance_logs = AaveBalanceLog.objects.filter(network=network, protocol=protocol)
+        # Get all networks that have balance logs
+        balance_logs = AaveBalanceLog.objects.filter(network=network)
 
-        # Get metrics for this network/protocol combination
+        # Get metrics for this network
         metrics = balance_logs.aggregate(
             collateral_verified=models.Count(
                 'id',
@@ -428,7 +426,6 @@ class VerifyBalancesTask(Task):
         # Create or update the report
         report = AaveDataQualityAnalyticsReport.objects.create(
             network=network,
-            protocol=protocol,
             date=today,
             num_collateral_verified=metrics['collateral_verified'],
             num_collateral_unverified=metrics['collateral_unverified'],
@@ -439,13 +436,12 @@ class VerifyBalancesTask(Task):
         )
 
         logger.info(
-            f"Generated analytics report for {report.network.name} - "
-            f"{report.protocol.name} on {report.date}"
+            f"Generated analytics report for {report.network.name} on {report.date}"
         )
 
-    def _process_network(self, network, protocol):
+    def _process_network(self, network):
         """Process a single network's assets and balance logs."""
-        assets = Asset.objects.filter(network=network, protocol=protocol)
+        assets = Asset.objects.filter(network=network)
         provider = AaveDataProvider(network.name)
 
         for asset in assets:

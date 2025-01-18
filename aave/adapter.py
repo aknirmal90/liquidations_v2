@@ -28,7 +28,6 @@ class BalanceUtils:
         """Update existing balance records"""
         instances_to_update = model_class.objects.filter(
             network=event.network,
-            protocol=event.protocol,
             address__in=users,
             asset_id=asset_id
         )
@@ -46,26 +45,48 @@ class BalanceUtils:
             borrow_index = liquidity_data.get('borrow')
 
             if collateral_index:
+                price_in_nativeasset = instance.asset.price_in_nativeasset or Decimal("0.0")
+                emode_liquidation_threshold = instance.asset.emode_liquidation_threshold or Decimal("0.0")
                 instance.collateral_amount += collateral_amount
                 instance.last_updated_collateral_liquidity_index = collateral_index
+                instance.collateral_amount_live = instance.get_scaled_balance("collateral")
+                instance.collateral_amount_live_with_liquidation_threshold = (
+                    instance.collateral_amount_live * instance.asset.liquidation_threshold
+                    if instance.emode_category == 0
+                    else instance.collateral_amount_live * emode_liquidation_threshold
+                )
+                instance.collateral_health_factor = (
+                    instance.collateral_amount_live_with_liquidation_threshold * price_in_nativeasset
+                )
                 collateral_update_instances.append(instance)
 
             if borrow_index:
                 instance.borrow_amount += borrow_amount
                 instance.last_updated_borrow_liquidity_index = borrow_index
+                instance.borrow_amount_live = instance.get_scaled_balance("borrow")
                 borrow_update_instances.append(instance)
 
         if collateral_update_instances:
             model_class.objects.bulk_update(
                 collateral_update_instances,
-                fields=['collateral_amount', 'last_updated_collateral_liquidity_index']
+                fields=[
+                    'collateral_amount',
+                    'last_updated_collateral_liquidity_index',
+                    'collateral_amount_live',
+                    'collateral_amount_live_with_liquidation_threshold',
+                    'collateral_health_factor'
+                ]
             )
             logger.info(f"Updated collateral for {len(collateral_update_instances)} records for asset {asset_id}")
 
         if borrow_update_instances:
             model_class.objects.bulk_update(
                 borrow_update_instances,
-                fields=['borrow_amount', 'last_updated_borrow_liquidity_index']
+                fields=[
+                    'borrow_amount',
+                    'last_updated_borrow_liquidity_index',
+                    'borrow_amount_live',
+                ]
             )
             logger.info(f"Updated borrow for {len(borrow_update_instances)} records for asset {asset_id}")
 
@@ -86,7 +107,6 @@ class BalanceUtils:
 
             instance = model_class(
                 network=event.network,
-                protocol=event.protocol,
                 address=address,
                 asset_id=asset_id
             )
@@ -94,6 +114,16 @@ class BalanceUtils:
             if collateral_index and collateral_index > 0:
                 instance.collateral_amount = collateral_amount
                 instance.collateral_amount_live = instance.get_scaled_balance("collateral")
+                emode_liquidation_threshold = instance.asset.emode_liquidation_threshold or Decimal("0.0")
+                price_in_nativeasset = instance.asset.price_in_nativeasset or Decimal("0.0")
+                instance.collateral_amount_live_with_liquidation_threshold = (
+                    instance.collateral_amount_live * instance.asset.liquidation_threshold
+                    if instance.emode_category == 0
+                    else instance.collateral_amount_live * emode_liquidation_threshold
+                )
+                instance.collateral_health_factor = (
+                    instance.collateral_amount_live_with_liquidation_threshold * price_in_nativeasset
+                )
                 instance.last_updated_collateral_liquidity_index = collateral_index
 
             if borrow_index and borrow_index > 0:
@@ -131,7 +161,7 @@ class aaveAdapter(BalanceUtils):
                 [model_class(**defaults) for defaults in defaults_list],
                 update_conflicts=True,
                 update_fields=update_fields,
-                unique_fields=['asset', 'network', 'protocol']
+                unique_fields=['asset', 'network']
             )
             UpdateAssetMetadataTask.delay()
 
@@ -148,7 +178,6 @@ class aaveAdapter(BalanceUtils):
             defaults_list.append({
                 'asset': log.args.asset,
                 'network': event.network,
-                'protocol': event.protocol,
                 'liquidation_threshold': Decimal(log.args.liquidationThreshold),
                 'liquidation_bonus': Decimal(log.args.liquidationBonus)
             })
@@ -172,7 +201,6 @@ class aaveAdapter(BalanceUtils):
             defaults_list.append({
                 'asset': log.args.asset,
                 'network': event.network,
-                'protocol': event.protocol,
                 'atoken_address': log.args.aToken,
                 'stable_debt_token_address': "0x0000000000000000000000000000000000000000",
                 'variable_debt_token_address': log.args.variableDebtToken,
@@ -200,7 +228,6 @@ class aaveAdapter(BalanceUtils):
             defaults_list.append({
                 'asset': log.args.asset,
                 'network': event.network,
-                'protocol': event.protocol,
                 'pricesource': log.args.source.lower()
             })
 
@@ -210,7 +237,6 @@ class aaveAdapter(BalanceUtils):
                 record, created = model_class.objects.update_or_create(
                     asset=defaults['asset'],
                     network=defaults['network'],
-                    protocol=defaults['protocol'],
                     defaults=defaults
                 )
 
@@ -232,7 +258,6 @@ class aaveAdapter(BalanceUtils):
             defaults_list.append({
                 'asset': log.args.asset,
                 'network': event.network,
-                'protocol': event.protocol,
                 'borrowable_in_isolation_mode': log.args.borrowable
             })
 
@@ -254,7 +279,6 @@ class aaveAdapter(BalanceUtils):
             defaults_list.append({
                 'asset': log.args.asset,
                 'network': event.network,
-                'protocol': event.protocol,
                 'emode_category': log.args.newCategoryId
             })
 
@@ -276,7 +300,6 @@ class aaveAdapter(BalanceUtils):
             defaults_list.append({
                 'asset': log.args.asset,
                 'network': event.network,
-                'protocol': event.protocol,
                 'is_reserve_paused': log.args.paused
             })
 
@@ -297,7 +320,6 @@ class aaveAdapter(BalanceUtils):
             defaults_list.append({
                 'asset': log.args.asset,
                 'network': event.network,
-                'protocol': event.protocol,
                 'reserve_factor': Decimal(log.args.newReserveFactor)
             })
 
@@ -318,7 +340,6 @@ class aaveAdapter(BalanceUtils):
             defaults_list.append({
                 'asset': log.args.asset,
                 'network': event.network,
-                'protocol': event.protocol,
                 'reserve_is_flash_loan_enabled': log.args.enabled
             })
 
@@ -339,7 +360,6 @@ class aaveAdapter(BalanceUtils):
             defaults_list.append({
                 'asset': log.args.asset,
                 'network': event.network,
-                'protocol': event.protocol,
                 'reserve_is_borrow_enabled': log.args.enabled
             })
 
@@ -360,7 +380,6 @@ class aaveAdapter(BalanceUtils):
             defaults_list.append({
                 'asset': log.args.asset,
                 'network': event.network,
-                'protocol': event.protocol,
                 'reserve_is_frozen': log.args.frozen
             })
 
@@ -381,7 +400,6 @@ class aaveAdapter(BalanceUtils):
             defaults_list.append({
                 'asset': log.args.asset,
                 'network': event.network,
-                'protocol': event.protocol,
                 'emode_category': log.args.categoryId,
                 'emode_is_collateral': log.args.collateral
             })
@@ -403,7 +421,6 @@ class aaveAdapter(BalanceUtils):
             defaults_list.append({
                 'asset': log.args.asset,
                 'network': event.network,
-                'protocol': event.protocol,
                 'emode_category': log.args.categoryId,
                 'emode_is_borrowable': log.args.borrowable
             })
@@ -422,7 +439,6 @@ class aaveAdapter(BalanceUtils):
             # Update all assets in this emode category
             model_class.objects.filter(
                 network=event.network,
-                protocol=event.protocol,
                 emode_category=log.args.categoryId
             ).update(
                 emode_liquidation_threshold=Decimal(log.args.liquidationThreshold),
@@ -436,7 +452,6 @@ class aaveAdapter(BalanceUtils):
         for log in logs:
             model_class.objects.filter(
                 network=event.network,
-                protocol=event.protocol,
                 pricesource=log.address
             ).update(
                 max_cap=Decimal(log.args.priceCap),
@@ -449,7 +464,6 @@ class aaveAdapter(BalanceUtils):
         for log in logs:
             model_class.objects.filter(
                 network=event.network,
-                protocol=event.protocol,
                 pricesource=log.address
             ).update(
                 max_cap=Decimal(log.args.snapshotRatio),
@@ -460,19 +474,16 @@ class aaveAdapter(BalanceUtils):
         model_class = event.get_model_class()
         onchain_received_at = datetime.now(timezone.utc)
 
-        protocol_name = event.protocol.name
         network_name = event.network.name
         approximate_block_timestamp = ApproximateBlockTimestamp.objects.get(network=event.network)
 
         instances = []
         for log in logs:
             collateral_asset = Asset.get_by_address(
-                protocol_name=protocol_name,
                 network_name=network_name,
                 token_address=log.args.collateralAsset
             )
             debt_asset = Asset.get_by_address(
-                protocol_name=protocol_name,
                 network_name=network_name,
                 token_address=log.args.debtAsset
             )
@@ -485,16 +496,16 @@ class aaveAdapter(BalanceUtils):
 
             try:
                 liquidated_collateral_amount_in_usd = (
-                    liquidated_collateral_amount * collateral_asset.price_in_usdt / collateral_asset.decimals
+                    liquidated_collateral_amount * collateral_asset.price_in_nativeasset / collateral_asset.decimals
                 )
                 debt_to_cover_in_usd = (
-                    debt_to_cover * debt_asset.price_in_usdt / debt_asset.decimals
+                    debt_to_cover * debt_asset.price_in_nativeasset / debt_asset.decimals
                 )
                 collateral_returned = (
                     liquidated_collateral_amount / collateral_asset.liquidation_bonus * Decimal("10000")
                 )
                 profit_in_usd = (
-                    (liquidated_collateral_amount - collateral_returned) * collateral_asset.price_in_usdt
+                    (liquidated_collateral_amount - collateral_returned) * collateral_asset.price_in_nativeasset
                     / collateral_asset.decimals
                 )
             except Exception:
@@ -504,7 +515,6 @@ class aaveAdapter(BalanceUtils):
 
             instances.append(model_class(
                 network=event.network,
-                protocol=event.protocol,
                 user=log.args.user,
                 debt_to_cover=debt_to_cover,
                 liquidated_collateral_amount=liquidated_collateral_amount,
@@ -789,7 +799,6 @@ class aaveAdapter(BalanceUtils):
         for log in logs:
             asset_id = log.args.reserve
             asset = Asset.get_by_address(
-                protocol_name=event.protocol.name,
                 network_name=event.network.name,
                 token_address=asset_id
             )
@@ -804,9 +813,13 @@ class aaveAdapter(BalanceUtils):
         instances_to_update = []
         for asset_id in latest_collateral_disabled:
             users = list(latest_collateral_disabled[asset_id].keys())
+            asset = Asset.get_by_address(
+                network_name=event.network.name,
+                token_address=asset_id
+            )
+            price_in_nativeasset = asset.price_in_nativeasset
             user_reserves = model_class.objects.filter(
                 network=event.network,
-                protocol=event.protocol,
                 address__in=users,
                 asset_id=asset.id
             )
@@ -821,6 +834,8 @@ class aaveAdapter(BalanceUtils):
                     user_reserve.collateral_is_enabled = False
                     user_reserve.collateral_amount_live = Decimal("0.0")
                     user_reserve.collateral_amount_live_with_liquidation_threshold = Decimal("0.0")
+                    user_reserve.price_in_nativeasset = price_in_nativeasset
+                    user_reserve.collateral_health_factor = Decimal("0.0")
                     instances_to_update.append(user_reserve)
 
         model_class.objects.bulk_update(
@@ -829,7 +844,9 @@ class aaveAdapter(BalanceUtils):
                 'collateral_is_enabled',
                 'collateral_is_enabled_updated_at_block',
                 'collateral_amount_live',
-                'collateral_amount_live_with_liquidation_threshold'
+                'collateral_amount_live_with_liquidation_threshold',
+                'price_in_nativeasset',
+                'collateral_health_factor'
             ],
             batch_size=1000
         )
@@ -842,7 +859,6 @@ class aaveAdapter(BalanceUtils):
         for log in logs:
             asset_id = log.args.reserve
             asset = Asset.get_by_address(
-                protocol_name=event.protocol.name,
                 network_name=event.network.name,
                 token_address=asset_id
             )
@@ -857,16 +873,20 @@ class aaveAdapter(BalanceUtils):
         instances_to_update = []
         for asset_id in latest_collateral_enabled:
             users = list(latest_collateral_enabled[asset_id].keys())
+            asset = Asset.get_by_address(
+                network_name=event.network.name,
+                token_address=asset_id
+            )
+            price_in_nativeasset = asset.price_in_nativeasset or Decimal("0.0")
             user_reserves = model_class.objects.filter(
                 network=event.network,
-                protocol=event.protocol,
                 address__in=users,
                 asset_id=asset.id
             ).select_related('asset')
-
             for user_reserve in user_reserves:
                 log = latest_collateral_enabled[asset_id][user_reserve.address]
                 block_number = log.blockNumber
+
                 if (
                     user_reserve.collateral_is_enabled_updated_at_block
                     or block_number >= user_reserve.collateral_is_enabled_updated_at_block
@@ -887,6 +907,11 @@ class aaveAdapter(BalanceUtils):
                             * emode_liquidation_threshold
                         )
 
+                    user_reserve.price_in_nativeasset = price_in_nativeasset
+                    user_reserve.collateral_health_factor = (
+                        user_reserve.collateral_amount_live_with_liquidation_threshold * price_in_nativeasset
+                    )
+
                     instances_to_update.append(user_reserve)
 
         model_class.objects.bulk_update(
@@ -895,7 +920,9 @@ class aaveAdapter(BalanceUtils):
                 'collateral_is_enabled',
                 'collateral_is_enabled_updated_at_block',
                 'collateral_amount_live',
-                'collateral_amount_live_with_liquidation_threshold'
+                'collateral_amount_live_with_liquidation_threshold',
+                'price_in_nativeasset',
+                'collateral_health_factor'
             ],
             batch_size=1000
         )
@@ -916,31 +943,15 @@ class aaveAdapter(BalanceUtils):
         # Get existing records
         existing_users = set(model_class.objects.filter(
             network=event.network,
-            protocol=event.protocol,
             address__in=list(latest_emode_categories.keys())
         ).values_list('address', flat=True))
 
-        # Create new records for users that don't exist
-        # new_instances = []
-        # for user, user_data in latest_emode_categories.items():
-        #     if user not in existing_users:
-        #         new_instance = model_class(
-        #             network=event.network,
-        #             protocol=event.protocol,
-        #             address=user,
-        #             emode_category=user_data.args.categoryId,
-        #             emode_category_updated_at_block=user_data.blockNumber
-        #         )
-        #         new_instances.append(new_instance)
+        if len(list(latest_emode_categories.values())) > 0:
+            logger.info("E-Mode info received for users with no reserves")
 
-        # if new_instances:
-        #     model_class.objects.bulk_create(new_instances)
-
-        # Update existing records
         instances_to_update = []
         user_reserves = model_class.objects.filter(
             network=event.network,
-            protocol=event.protocol,
             address__in=existing_users
         ).select_related('asset')
 
@@ -966,6 +977,11 @@ class aaveAdapter(BalanceUtils):
                         * emode_liquidation_threshold
                     )
 
+                user_reserve.price_in_nativeasset = user_reserve.asset.price_in_nativeasset or Decimal("0.0")
+                user_reserve.collateral_health_factor = (
+                    user_reserve.collateral_amount_live_with_liquidation_threshold * user_reserve.price_in_nativeasset
+                )
+
                 instances_to_update.append(user_reserve)
 
         if instances_to_update:
@@ -975,7 +991,9 @@ class aaveAdapter(BalanceUtils):
                     'emode_category',
                     'emode_category_updated_at_block',
                     'collateral_amount_live',
-                    'collateral_amount_live_with_liquidation_threshold'
+                    'collateral_amount_live_with_liquidation_threshold',
+                    'price_in_nativeasset',
+                    'collateral_health_factor'
                 ],
                 batch_size=1000
             )

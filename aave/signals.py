@@ -13,7 +13,6 @@ def update_asset_cache(sender, instance, **kwargs):
     Pre-save signal handler that updates the cache for an Asset instance.
     """
     key = Asset.get_cache_key_by_address(
-        protocol_name=instance.protocol.name,
         network_name=instance.network.name,
         token_address=instance.asset
     )
@@ -21,7 +20,6 @@ def update_asset_cache(sender, instance, **kwargs):
     cache.set(key, serialized_value)
 
     key = instance.get_a_token_cache_key(
-        protocol_id=instance.protocol.id,
         network_id=instance.network.id,
         atoken_address=instance.atoken_address
     )

@@ -37,7 +37,6 @@ from utils.admin import (
 class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
     list_display = (
         'symbol',
-        'protocol',
         'network',
         'get_asset_link',
         'is_enabled',
@@ -47,7 +46,7 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         'emode_category',
         'emode_is_collateral',
         'emode_is_borrowable',
-        'price_in_usdt',
+        'price_in_nativeasset',
         'is_reserve_paused',
         'priceA',
         'priceB',
@@ -55,7 +54,6 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         'borrow_liquidity_index',
     )
     list_filter = (
-        'protocol',
         'network',
         'is_enabled',
         'emode_category',
@@ -81,7 +79,7 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         }),
         ('Asset Information', {
             'fields': (
-                ('symbol', 'protocol', 'network'),
+                ('symbol', 'network'),
                 ('decimals', 'num_decimals'),
                 'get_asset_link',
                 ('collateral_liquidity_index', 'borrow_liquidity_index')
@@ -96,7 +94,7 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         }),
         ('Price Information', {
             'fields': (
-                ('price', 'price_in_usdt'),
+                ('price', 'price_in_nativeasset'),
                 ('get_pricesource_link', 'price_type'),
                 ('get_contractA_link', 'priceA', 'decimals_price'),
                 ('get_contractB_link', 'priceB', 'max_cap')
@@ -120,7 +118,6 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
 
     readonly_fields = (
         'symbol',
-        'protocol',
         'network',
         'decimals',
         'num_decimals',
@@ -141,7 +138,7 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         'decimals_price',
         'max_cap',
         'price',
-        'price_in_usdt',
+        'price_in_nativeasset',
         'price_type',
         'borrowable_in_isolation_mode',
         'reserve_factor',
@@ -277,7 +274,6 @@ class AaveLiquidationLogAdmin(admin.ModelAdmin):
         'id',
         'get_transaction_hash_link',
         'network',
-        'protocol',
         'block_datetime',
         'transaction_index',
         'get_liquidator_link',
@@ -328,7 +324,6 @@ class AaveLiquidationLogAdmin(admin.ModelAdmin):
 
     list_filter = (
         'network',
-        'protocol',
         'collateral_asset',
         'debt_asset',
         'db_created_at',
@@ -350,7 +345,6 @@ class AaveLiquidationLogAdmin(admin.ModelAdmin):
                 'block_height',
                 'transaction_index',
                 'network',
-                'protocol',
             )
         }),
         ('Addresses', {
@@ -390,7 +384,6 @@ class AaveLiquidationLogAdmin(admin.ModelAdmin):
         'block_height',
         'transaction_index',
         'network',
-        'protocol',
         'user',
         'liquidator',
         'collateral_asset',
@@ -429,16 +422,16 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
     list_display = (
         'id',
         'network',
-        'protocol',
         'get_address_link',
         'asset',
         'collateral_amount',
         'borrow_amount',
+        'collateral_health_factor',
+        'price_in_nativeasset'
     )
 
     list_filter = (
         'network',
-        'protocol',
         'collateral_is_enabled',
         'borrow_is_enabled',
         'collateral_amount_live_is_verified',
@@ -454,7 +447,6 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
     readonly_fields = (
         'id',
         'network',
-        'protocol',
         'get_address_link',
         'address',
         'asset',
@@ -477,6 +469,8 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         'get_borrow_indexes',
         'collateral_is_enabled_updated_at_block',
         'collateral_is_enabled',
+        'price_in_nativeasset',
+        'collateral_health_factor'
     )
 
     fieldsets = (
@@ -484,7 +478,6 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
             'fields': (
                 'get_address_link',
                 'network',
-                'protocol',
                 'asset',
                 ('get_collateral_indexes', 'get_borrow_indexes'),
                 ('collateral_is_enabled_updated_at_block', 'collateral_is_enabled'),
@@ -855,7 +848,6 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
     list_display = (
         'date',
         'network',
-        'protocol',
         'get_collateral_verification_rate',
         'get_borrow_verification_rate',
         'num_collateral_verified',
@@ -868,14 +860,12 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
 
     list_filter = (
         'network',
-        'protocol',
         'date',
     )
 
     readonly_fields = (
         'date',
         'network',
-        'protocol',
         'num_collateral_verified',
         'num_collateral_unverified',
         'num_collateral_deleted',
@@ -891,7 +881,6 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
             'fields': (
                 'date',
                 'network',
-                'protocol',
             )
         }),
         ('Collateral Metrics', {

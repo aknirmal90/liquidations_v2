@@ -13,11 +13,13 @@ from aave.models import (
     AaveTransferEvent,
     AaveWithdrawEvent,
 )
-from blockchains.models import Event
+from blockchains.models import Event, Protocol
 from config.models import Configuration
 from utils.admin import get_explorer_address_url, get_explorer_transaction_url
 from utils.constants import EVM_NULL_ADDRESS
 from utils.encoding import add_0x_prefix, get_topic_0
+
+aave_protocol = Protocol.objects.get(name="aave")
 
 
 class AaveMintEventInline(TabularInlinePaginated):
@@ -244,7 +246,6 @@ def address_to_topic(address: str):
 
 def get_burn_events_for_address(balance_log: AaveBalanceLog, type="collateral"):
     event = Event.objects.get(
-        protocol=balance_log.protocol,
         network=balance_log.network,
         name="Burn"
     )
@@ -295,7 +296,6 @@ def get_burn_events_for_address(balance_log: AaveBalanceLog, type="collateral"):
 
 def get_mint_events_for_address(balance_log: AaveBalanceLog, type="collateral"):
     event = Event.objects.get(
-        protocol=balance_log.protocol,
         network=balance_log.network,
         name="Mint"
     )
@@ -345,7 +345,7 @@ def get_mint_events_for_address(balance_log: AaveBalanceLog, type="collateral"):
 
 
 def get_transfer_events_for_address(balance_log: AaveBalanceLog):
-    event_abi = balance_log.protocol.get_evm_event_abi("Supply")
+    event_abi = aave_protocol.get_evm_event_abi("Supply")
     event_topic_0 = get_topic_0(event_abi)
     rpc_adapter = balance_log.network.rpc_adapter
     atoken = balance_log.asset.atoken_address
@@ -408,7 +408,7 @@ def get_transfer_events_for_address(balance_log: AaveBalanceLog):
 
 
 def get_supply_events_for_address(balance_log: AaveBalanceLog):
-    event_abi = balance_log.protocol.get_evm_event_abi("Supply")
+    event_abi = aave_protocol.get_evm_event_abi("Supply")
     event_topic_0 = get_topic_0(event_abi)
     rpc_adapter = balance_log.network.rpc_adapter
     AaveSupplyEvent.objects.filter(balance_log=balance_log).delete()
@@ -446,7 +446,7 @@ def get_supply_events_for_address(balance_log: AaveBalanceLog):
 
 
 def get_withdraw_events_for_address(balance_log: AaveBalanceLog):
-    event_abi = balance_log.protocol.get_evm_event_abi("Withdraw")
+    event_abi = aave_protocol.get_evm_event_abi("Withdraw")
     event_topic_0 = get_topic_0(event_abi)
     rpc_adapter = balance_log.network.rpc_adapter
     AaveWithdrawEvent.objects.filter(balance_log=balance_log).delete()
@@ -485,7 +485,7 @@ def get_withdraw_events_for_address(balance_log: AaveBalanceLog):
 
 
 def get_borrow_events_for_address(balance_log: AaveBalanceLog):
-    event_abi = balance_log.protocol.get_evm_event_abi("Borrow")
+    event_abi = aave_protocol.get_evm_event_abi("Borrow")
     event_topic_0 = get_topic_0(event_abi)
     rpc_adapter = balance_log.network.rpc_adapter
     AaveBorrowEvent.objects.filter(balance_log=balance_log).delete()
@@ -529,7 +529,7 @@ def get_borrow_events_for_address(balance_log: AaveBalanceLog):
 
 
 def get_repay_events_for_address(balance_log: AaveBalanceLog):
-    event_abi = balance_log.protocol.get_evm_event_abi("Repay")
+    event_abi = aave_protocol.get_evm_event_abi("Repay")
     event_topic_0 = get_topic_0(event_abi)
     rpc_adapter = balance_log.network.rpc_adapter
     AaveRepayEvent.objects.filter(balance_log=balance_log).delete()
@@ -571,7 +571,7 @@ def get_repay_events_for_address(balance_log: AaveBalanceLog):
 
 
 def get_liquidation_call_events_for_address(balance_log: AaveBalanceLog):
-    event_abi = balance_log.protocol.get_evm_event_abi("LiquidationCall")
+    event_abi = aave_protocol.get_evm_event_abi("LiquidationCall")
     event_topic_0 = get_topic_0(event_abi)
     rpc_adapter = balance_log.network.rpc_adapter
     AaveLiquidationCallEvent.objects.filter(balance_log=balance_log).delete()

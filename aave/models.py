@@ -6,7 +6,7 @@ from django.core.cache import cache
 from django.core.serializers import deserialize, serialize
 from django.db import models
 
-from blockchains.models import Network, Protocol
+from blockchains.models import Network
 from utils.tokens import EvmTokenRetriever
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 class Asset(models.Model):
 
     asset = models.CharField(max_length=255, null=False, blank=False)
-    protocol = models.ForeignKey(Protocol, on_delete=models.PROTECT, null=False)
     network = models.ForeignKey(Network, on_delete=models.PROTECT, null=False)
 
     atoken_address = models.CharField(max_length=255, null=True, blank=True)
@@ -84,8 +83,8 @@ class Asset(models.Model):
     price = models.DecimalField(
         max_digits=72, decimal_places=10, null=True, blank=True
     )
-    price_in_usdt = models.DecimalField(
-        max_digits=72, decimal_places=2, null=True, blank=True
+    price_in_nativeasset = models.DecimalField(
+        max_digits=72, decimal_places=8, null=True, blank=True
     )
 
     emode_category = models.PositiveSmallIntegerField(default=0)
@@ -104,31 +103,30 @@ class Asset(models.Model):
     emode_is_borrowable = models.BooleanField(default=False)
 
     def __str__(self) -> str:
-        return f"{self.symbol} on {self.protocol}"
+        return f"{self.symbol}"
 
     class Meta:
-        unique_together = ('network', 'protocol', 'asset')
+        unique_together = ('network', 'asset')
         app_label = 'aave'
 
     @classmethod
-    def get_cache_key_by_address(cls, protocol_name: str, network_name: str, token_address: str):
-        return f"asset-aave-{protocol_name}-{network_name}-{token_address}"
+    def get_cache_key_by_address(cls, network_name: str, token_address: str):
+        return f"asset-aave-{network_name}-{token_address}"
 
     @classmethod
     def get_cache_key_by_id(cls, id: int):
         return f"asset-aave-{id}"
 
     @classmethod
-    def get_a_token_cache_key(cls, protocol_id: int, network_id: int, atoken_address: str):
-        return f"asset-a-token-aave-{protocol_id}-{network_id}-{atoken_address}"
+    def get_a_token_cache_key(cls, network_id: int, atoken_address: str):
+        return f"asset-a-token-aave-{network_id}-{atoken_address}"
 
     @classmethod
-    def get_by_address(cls, protocol_name: str, network_name: str, token_address: str):
-        if protocol_name is None or network_name is None or token_address is None:
+    def get_by_address(cls, network_name: str, token_address: str):
+        if network_name is None or token_address is None:
             return
 
         key = cls.get_cache_key_by_address(
-            protocol_name=protocol_name,
             network_name=network_name,
             token_address=token_address
         )
@@ -141,7 +139,6 @@ class Asset(models.Model):
                 token = cls.objects.get(
                     asset__iexact=token_address,
                     network__name=network_name,
-                    protocol__name=protocol_name
                 )
                 deserialized_value = serialize("json", [token])
                 cache.set(key, deserialized_value)
@@ -149,11 +146,9 @@ class Asset(models.Model):
             except cls.DoesNotExist:
                 token_retriever = EvmTokenRetriever(network_name=network_name, token_address=token_address)
                 network = Network.get_network_by_name(network_name)
-                protocol = Protocol.get_protocol_by_name(protocol_name)
                 asset_instance, is_created = cls.objects.get_or_create(
                     asset=token_retriever.token_address,
                     network=network.id,
-                    protocol=protocol.id
                 )
                 asset_instance.symbol = token_retriever.symbol
                 asset_instance.num_decimals = token_retriever.num_decimals
@@ -186,9 +181,9 @@ class Asset(models.Model):
             and self.priceA is not None
         ):
             price = self.priceA
-            price_in_usdt = price / self.decimals_price
+            price_in_nativeasset = price / self.decimals_price
             # normalize by decimal places to get USDT price on ARB
-            return price, price_in_usdt
+            return price, price_in_nativeasset
 
         elif self.max_cap is None:
             return None, None
@@ -197,9 +192,9 @@ class Asset(models.Model):
             price = self.priceA
             if price > self.max_cap:
                 price = self.max_cap
-            price_in_usdt = price / self.decimals_price
+            price_in_nativeasset = price / self.decimals_price
             # Max Cap is stored in max_cap
-            return price, price_in_usdt
+            return price, price_in_nativeasset
 
         elif self.price_type == Asset.PriceType.RATIO:
             price = self.priceA
@@ -210,8 +205,8 @@ class Asset(models.Model):
             # cap for ratio is stored in max_cap
 
             price = price * ratio
-            price_in_usdt = price / self.decimals_price
-            return price, price_in_usdt
+            price_in_nativeasset = price / self.decimals_price
+            return price, price_in_nativeasset
 
         return None, None
 
@@ -240,7 +235,6 @@ class AssetPriceLog(models.Model):
 
 class AaveLiquidationLog(models.Model):
     network = models.ForeignKey('blockchains.Network', on_delete=models.PROTECT)
-    protocol = models.ForeignKey('blockchains.Protocol', on_delete=models.PROTECT)
 
     user = models.CharField(max_length=42)
     debt_to_cover = models.DecimalField(max_digits=72, decimal_places=0, null=True, blank=True)
@@ -310,7 +304,7 @@ class AaveLiquidationLog(models.Model):
         verbose_name = 'Aave Liquidation Log'
         verbose_name_plural = 'Aave Liquidation Logs'
         indexes = [
-            models.Index(fields=['network', 'protocol', 'user']),
+            models.Index(fields=['network', 'user']),
         ]
 
     def __str__(self):
@@ -319,9 +313,11 @@ class AaveLiquidationLog(models.Model):
 
 class AaveBalanceLog(models.Model):
     network = models.ForeignKey('blockchains.Network', on_delete=models.PROTECT)
-    protocol = models.ForeignKey('blockchains.Protocol', on_delete=models.PROTECT)
     address = models.CharField(max_length=42, db_index=True)
     asset = models.ForeignKey('aave.Asset', on_delete=models.PROTECT)
+    price_in_nativeasset = models.DecimalField(
+        max_digits=72, decimal_places=8, null=True, blank=True
+    )
 
     last_updated_collateral_liquidity_index = models.DecimalField(
         max_digits=72, decimal_places=0, default=Decimal("0.0")
@@ -336,6 +332,7 @@ class AaveBalanceLog(models.Model):
     collateral_amount_live_is_verified = models.BooleanField(default=None, null=True, blank=True)
     collateral_is_enabled = models.BooleanField(default=False)
     collateral_is_enabled_updated_at_block = models.PositiveBigIntegerField(default=0)
+    collateral_health_factor = models.DecimalField(max_digits=72, decimal_places=0, default=Decimal("0.0"))
 
     borrow_amount = models.DecimalField(max_digits=72, decimal_places=18, default=Decimal("0.0"))
     borrow_amount_live = models.DecimalField(max_digits=72, decimal_places=18, default=Decimal("0.0"))
@@ -347,14 +344,13 @@ class AaveBalanceLog(models.Model):
     emode_category = models.PositiveSmallIntegerField(default=0)
     emode_category_updated_at_block = models.PositiveBigIntegerField(default=0)
 
-    health_factor = models.DecimalField(max_digits=21, decimal_places=18, null=True, blank=True)
+    user = models.ForeignKey('aave.AaveUser', on_delete=models.PROTECT, null=True, blank=True)
 
     class Meta:
-        unique_together = ('network', 'protocol', 'address', 'asset')
+        unique_together = ('network', 'address', 'asset')
         app_label = 'aave'
         indexes = [
-            models.Index(fields=['network', 'protocol', 'address', 'asset']),
-            models.Index(fields=['network', 'protocol', 'asset']),
+            models.Index(fields=['network', 'address', 'asset']),
         ]
 
     def is_collateral_liquidity_index_updated(self):
@@ -510,7 +506,6 @@ class AaveWithdrawEvent(models.Model):
 
 class AaveDataQualityAnalyticsReport(models.Model):
     network = models.ForeignKey('blockchains.Network', on_delete=models.PROTECT)
-    protocol = models.ForeignKey('blockchains.Protocol', on_delete=models.PROTECT)
     date = models.DateField(db_index=True)
 
     num_collateral_verified = models.PositiveIntegerField(default=0)
@@ -521,7 +516,7 @@ class AaveDataQualityAnalyticsReport(models.Model):
     num_borrow_deleted = models.PositiveIntegerField(default=0)
 
     def __str__(self):
-        return f"{self.network} - {self.protocol} - {self.date}"
+        return f"{self.network} - {self.date}"
 
 
 class AaveBorrowEvent(models.Model):
@@ -584,3 +579,9 @@ class AaveLiquidationCallEvent(models.Model):
         verbose_name = 'Aave Liquidation Call Event'
         verbose_name_plural = 'Aave Liquidation Call Events'
         unique_together = ('transaction_hash', 'block_height', 'log_index', 'balance_log')
+
+
+class AaveUser(models.Model):
+    network = models.ForeignKey('blockchains.Network', on_delete=models.PROTECT)
+    address = models.CharField(max_length=42, db_index=True)
+    health_factor = models.DecimalField(max_digits=21, decimal_places=18, null=True, blank=True)

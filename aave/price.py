@@ -106,7 +106,7 @@ class PriceConfigurer:
             'decimals_price': Decimal(10 ** decimals),
             'max_cap': None,
             'price': constant_price,
-            'price_in_usdt': constant_price / Decimal(10 ** decimals)
+            'price_in_nativeasset': constant_price / Decimal(10 ** decimals)
         }
 
     def handle_aggregator(self):
@@ -120,7 +120,7 @@ class PriceConfigurer:
             'decimals_price': Decimal(10 ** decimals),
             'max_cap': None,
             'price': None,
-            'price_in_usdt': None
+            'price_in_nativeasset': None
         }
 
     def handle_capped_price(self):
@@ -135,7 +135,7 @@ class PriceConfigurer:
             'decimals_price': Decimal(10 ** decimals),
             'max_cap': None,
             'price': None,
-            'price_in_usdt': None
+            'price_in_nativeasset': None
         }
 
     def handle_ratio_price(self):
@@ -154,5 +154,5 @@ class PriceConfigurer:
             'decimals_price': Decimal(10 ** decimals) * Decimal(10 ** ratio_decimals),
             'max_cap': None,
             'price': None,
-            'price_in_usdt': None
+            'price_in_nativeasset': None
         }
