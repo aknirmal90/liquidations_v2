@@ -881,9 +881,10 @@ class aaveAdapter(BalanceUtils):
                             * user_reserve.asset.liquidation_threshold
                         )
                     else:
+                        emode_liquidation_threshold = user_reserve.asset.emode_liquidation_threshold or Decimal("0.0")
                         user_reserve.collateral_amount_live_with_liquidation_threshold = (
                             user_reserve.collateral_amount_live
-                            * user_reserve.asset.emode_liquidation_threshold
+                            * emode_liquidation_threshold
                         )
 
                     instances_to_update.append(user_reserve)
@@ -959,9 +960,10 @@ class aaveAdapter(BalanceUtils):
                         * user_reserve.asset.liquidation_threshold
                     )
                 else:
+                    emode_liquidation_threshold = user_reserve.asset.emode_liquidation_threshold or Decimal("0.0")
                     user_reserve.collateral_amount_live_with_liquidation_threshold = (
                         user_reserve.collateral_amount_live
-                        * user_reserve.asset.emode_liquidation_threshold
+                        * emode_liquidation_threshold
                     )
 
                 instances_to_update.append(user_reserve)
