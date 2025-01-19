@@ -9,22 +9,7 @@ events:
   - name: "AssetSourceUpdated"
     model_class: "aave.models.Asset"
 
-  - name: "BorrowableInIsolationChanged"
-    model_class: "aave.models.Asset"
-
   - name: "EModeAssetCategoryChanged"
-    model_class: "aave.models.Asset"
-
-  - name: "ReserveFactorChanged"
-    model_class: "aave.models.Asset"
-
-  - name: "ReserveFlashLoaning"
-    model_class: "aave.models.Asset"
-
-  - name: "ReserveBorrowing"
-    model_class: "aave.models.Asset"
-
-  - name: "ReserveFrozen"
     model_class: "aave.models.Asset"
 
   - name: "AssetCollateralInEModeChanged"

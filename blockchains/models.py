@@ -43,19 +43,23 @@ class Protocol(models.Model):
 
     @classmethod
     def get_protocol_by_name(cls, protocol_name: str):
-        if protocol_name is None:
-            return
+        """
+        Always return the protocol instance from cache (deserialized).
+        """
+        if not protocol_name:
+            return None
 
         key = cls.get_cache_key(protocol_name=protocol_name)
         serialized_value = cache.get(key)
 
-        if serialized_value:
-            return next(deserialize("json", serialized_value)).object
-        else:
+        if not serialized_value:
+            # If not in cache, fetch from DB and store it
             protocol = cls.objects.get(name=protocol_name)
-            deserialized_value = serialize("json", [protocol])
-            cache.set(key, deserialized_value)
-            return protocol
+            serialized_value = serialize("json", [protocol])
+            cache.set(key, serialized_value)
+
+        # Always deserialize to return the same 'cached style' object
+        return next(deserialize("json", serialized_value)).object
 
 
 class Network(models.Model):
@@ -86,35 +90,39 @@ class Network(models.Model):
 
     @classmethod
     def get_network_by_name(cls, network_name: str):
-        if network_name is None:
-            return
+        """
+        Unified approach that always returns from deserialized cache object.
+        """
+        if not network_name:
+            return None
 
         key = cls.get_cache_key_by_name(network_name=network_name)
         serialized_value = cache.get(key)
 
-        if serialized_value:
-            return next(deserialize("json", serialized_value)).object
-        else:
+        if not serialized_value:
             network = cls.objects.get(name=network_name)
-            deserialized_value = serialize("json", [network])
-            cache.set(key, deserialized_value)
-            return network
+            serialized_value = serialize("json", [network])
+            cache.set(key, serialized_value)
+
+        return next(deserialize("json", serialized_value)).object
 
     @classmethod
     def get_network_by_id(cls, id: int):
+        """
+        Unified approach that always returns from deserialized cache object.
+        """
         if id is None:
-            return
+            return None
 
         key = cls.get_cache_key_by_id(id=id)
         serialized_value = cache.get(key)
 
-        if serialized_value:
-            return next(deserialize("json", serialized_value)).object
-        else:
+        if not serialized_value:
             network = cls.objects.get(id=id)
-            deserialized_value = serialize("json", [network])
-            cache.set(key, deserialized_value)
-            return network
+            serialized_value = serialize("json", [network])
+            cache.set(key, serialized_value)
+
+        return next(deserialize("json", serialized_value)).object
 
 
 class Event(models.Model):

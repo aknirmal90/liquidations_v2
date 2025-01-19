@@ -1,5 +1,5 @@
 from django.apps import AppConfig
-from django.db.models.signals import pre_save
+from django.db.models.signals import post_save
 
 
 class BlockchainsConfig(AppConfig):
@@ -10,5 +10,5 @@ class BlockchainsConfig(AppConfig):
         from blockchains.models import Network, Protocol
         from blockchains.signals import update_network_cache, update_protocol_cache
 
-        pre_save.connect(update_protocol_cache, sender=Protocol)
-        pre_save.connect(update_network_cache, sender=Network)
+        post_save.connect(update_protocol_cache, sender=Protocol)
+        post_save.connect(update_network_cache, sender=Network)
