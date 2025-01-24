@@ -25,13 +25,12 @@ jobs:
       - run:
           name: Start Background Services
           command: |
-            docker-compose -f docker-compose-circleci.yml up -d
+            docker-compose -f docker-compose-circleci.yml up
 
       - run:
           name: Run Tests
           command: |
-            pwd
-            ls -la
+            ./local test
           environment:
             DOPPLER_TOKEN: ${DOPPLER_TOKEN}
             CI: "true"
