@@ -4,6 +4,7 @@
 import os
 import subprocess
 import sys
+import time
 
 import click
 
@@ -157,8 +158,23 @@ def test(test_path):
     """
     container_id = get_docker_container_id("webserver")
     if not container_id:
-        click.echo("No container with 'webserver' in the name is running. Please run 'start'.")
-        sys.exit(1)
+        click.echo("No webserver container found. Starting services...")
+        # Start services in background with -d flag
+        subprocess.Popen(["./local", "start"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        # Wait for services to come up
+        max_attempts = 30
+        attempt = 0
+        while attempt < max_attempts:
+            container_id = get_docker_container_id("webserver")
+            if container_id:
+                break
+            time.sleep(5)
+            attempt += 1
+
+        if not container_id:
+            click.echo("Webserver container failed to start after 60 seconds")
+            sys.exit(1)
 
     click.echo("Running tests in webserver container...")
     # Remove -it flags for non-interactive environments
