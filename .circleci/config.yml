@@ -46,10 +46,10 @@ jobs:
             DOPPLER_TOKEN: ${DOPPLER_TOKEN}
 
       - store_test_results:
-          path: ${CIRCLE_TEST_REPORTS}/pytest
+          path: pytest
 
       - store_artifacts:
-          path: ${CIRCLE_TEST_REPORTS}/coverage
+          path: coverage
           destination: coverage-report
 
 workflows:
