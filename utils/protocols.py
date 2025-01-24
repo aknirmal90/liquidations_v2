@@ -1,5 +1,7 @@
 from aave.adapter import aaveAdapter
 
-Adapters = {
-    'aave': aaveAdapter
-}
+
+def get_adapters():
+    return {
+        'aave': aaveAdapter
+    }

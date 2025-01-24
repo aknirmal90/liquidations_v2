@@ -155,7 +155,8 @@ def test(test_path):
         sys.exit(1)
 
     click.echo("Running tests in webserver container...")
-    cmd = "pytest --cov=. -v"
+    # cmd = "pytest --cov=. -v"
+    cmd = "pytest -v"
     if test_path:
         cmd = f"{cmd} {test_path}"
     subprocess.run(["docker", "exec", container_id, "doppler", "run", "--command", cmd], check=False)

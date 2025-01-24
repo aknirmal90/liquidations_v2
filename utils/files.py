@@ -5,7 +5,7 @@ import os
 import yaml
 
 
-def parse_yaml(file_path):
+def parse_yaml(file_path: str) -> dict | None:
     """
     Parse the given YAML file and return a dictionary.
 
@@ -15,16 +15,16 @@ def parse_yaml(file_path):
     Returns:
         dict: Parsed contents of the YAML file.
     """
-    with open(file_path, "r") as file:
+    with open(file=file_path, mode="r") as file:
         try:
-            data = yaml.safe_load(file)
+            data = yaml.safe_load(stream=file)
             return data
         except yaml.YAMLError as exc:
             print(f"Error parsing YAML file: {exc}")
             return None
 
 
-def parse_json(file_path):
+def parse_json(file_path: str) -> dict | None:
     """
     Parse the given JSON file and return a dictionary.
 
@@ -34,16 +34,16 @@ def parse_json(file_path):
     Returns:
         dict: Parsed contents of the JSON file.
     """
-    with open(file_path, "r") as file:
+    with open(file=file_path, mode="r") as file:
         try:
-            data = json.load(file)
+            data = json.load(fp=file)
             return data
         except json.JSONDecodeError as exc:
             print(f"Error parsing JSON file: {exc}")
             return None
 
 
-def get_clazz_object(absolute_path):
+def get_clazz_object(absolute_path: str) -> type | None:
     """
     Retrieve a class object from its absolute import path.
 
@@ -57,8 +57,8 @@ def get_clazz_object(absolute_path):
     Example:
         get_clazz_object('package.module.ClassName')
     """
-    module_path, clz = absolute_path.rsplit(".", 1)
-    module = importlib.import_module(module_path)
+    module_path, clz = absolute_path.rsplit(sep=".", maxsplit=1)
+    module = importlib.import_module(name=module_path)
     return getattr(module, clz)
 
 
@@ -78,8 +78,8 @@ def save_json(folder_path: str, file_name: str, data: dict) -> None:
     file_path = os.path.join(folder_path, file_name)
 
     # Create the directory if it doesn't exist
-    os.makedirs(folder_path, exist_ok=True)
+    os.makedirs(name=folder_path, exist_ok=True)
 
     # Write the dictionary data to the file as JSON with improved formatting
-    with open(file_path, 'w') as json_file:
-        json.dump(data, json_file, indent=4, separators=(',', ': '), ensure_ascii=False)
+    with open(file=file_path, mode="w") as json_file:
+        json.dump(obj=data, fp=json_file, indent=4, separators=(",", ": "), ensure_ascii=False)

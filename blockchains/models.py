@@ -1,10 +1,12 @@
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from django.core.cache import cache
 from django.core.serializers import deserialize, serialize
 from django.db import models
 
+from utils.exceptions import ABINotFoundError, ConfigFileNotFoundError, EventABINotFoundError
 from utils.files import get_clazz_object, parse_json, parse_yaml
+from utils.rpc import EVMRpcAdapter
 
 
 class Protocol(models.Model):
@@ -15,34 +17,37 @@ class Protocol(models.Model):
         return f"{self.name}"
 
     @property
-    def config_path(self):
+    def config_path(self) -> str:
         return f"{self.name}/config.yaml"
 
     @property
-    def config(self):
-        return parse_yaml(self.config_path)
+    def config(self) -> Any | None:
+        try:
+            return parse_yaml(file_path=self.config_path)
+        except FileNotFoundError:
+            raise ConfigFileNotFoundError(file_path=self.config_path)
 
     @property
-    def evm_abi(self):
+    def evm_abi(self) -> Any | None:
         abi_path = f"{self.name}/abi.json"
-        return parse_json(abi_path)
+        try:
+            return parse_json(file_path=abi_path)
+        except FileNotFoundError:
+            raise ABINotFoundError(file_path=abi_path)
 
-    def get_evm_event_abi(self, name: str):
-        if not name:
-            return
-
+    def get_evm_event_abi(self, name: str) -> None | Any:
         for item in self.evm_abi:
             if item.get("type") == "event" and item.get("name") == name:
                 return item
 
-        raise ValueError(f"ABI not found for Name: {name}")
+        raise EventABINotFoundError(event_name=name)
 
     @classmethod
-    def get_cache_key(cls, protocol_name: str):
+    def get_cache_key(cls, protocol_name: str) -> str:
         return f"protocol-{protocol_name}"
 
     @classmethod
-    def get_protocol_by_name(cls, protocol_name: str):
+    def get_protocol_by_name(cls, protocol_name: str) -> None | Any:
         """
         Always return the protocol instance from cache (deserialized).
         """
@@ -50,16 +55,16 @@ class Protocol(models.Model):
             return None
 
         key = cls.get_cache_key(protocol_name=protocol_name)
-        serialized_value = cache.get(key)
+        serialized_value = cache.get(key=key)
 
         if not serialized_value:
             # If not in cache, fetch from DB and store it
             protocol = cls.objects.get(name=protocol_name)
-            serialized_value = serialize("json", [protocol])
-            cache.set(key, serialized_value)
+            serialized_value = serialize(format="json", queryset=[protocol])
+            cache.set(key=key, value=serialized_value)
 
         # Always deserialize to return the same 'cached style' object
-        return next(deserialize("json", serialized_value)).object
+        return next(deserialize(format="json", stream_or_string=serialized_value)).object
 
 
 class Network(models.Model):
@@ -72,24 +77,24 @@ class Network(models.Model):
 
     latest_block = models.BigIntegerField(null=True, blank=True, default=0)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.name}"
 
     @property
-    def rpc_adapter(self):
-        from utils.rpc import Adapters as NetworkAdapters
-        return NetworkAdapters[self.name]
+    def rpc_adapter(self) -> EVMRpcAdapter:
+        from utils.rpc import get_adapters
+        return get_adapters()[self.name]
 
     @classmethod
-    def get_cache_key_by_name(cls, network_name: str):
+    def get_cache_key_by_name(cls, network_name: str) -> str:
         return f"network-{network_name}"
 
     @classmethod
-    def get_cache_key_by_id(cls, id: int):
+    def get_cache_key_by_id(cls, id: int) -> str:
         return f"network-{id}"
 
     @classmethod
-    def get_network_by_name(cls, network_name: str):
+    def get_network_by_name(cls, network_name: str) -> None | Any:
         """
         Unified approach that always returns from deserialized cache object.
         """
@@ -97,32 +102,33 @@ class Network(models.Model):
             return None
 
         key = cls.get_cache_key_by_name(network_name=network_name)
-        serialized_value = cache.get(key)
+        serialized_value = cache.get(key=key)
 
         if not serialized_value:
             network = cls.objects.get(name=network_name)
-            serialized_value = serialize("json", [network])
-            cache.set(key, serialized_value)
+            serialized_value = serialize(format="json", queryset=[network])
+            cache.set(key=key, value=serialized_value)
 
-        return next(deserialize("json", serialized_value)).object
+        return next(deserialize(format="json", stream_or_string=serialized_value)).object
 
     @classmethod
     def get_network_by_id(cls, id: int):
         """
         Unified approach that always returns from deserialized cache object.
+        `id` here refers to the primary key of the network.
         """
         if id is None:
             return None
 
         key = cls.get_cache_key_by_id(id=id)
-        serialized_value = cache.get(key)
+        serialized_value = cache.get(key=key)
 
         if not serialized_value:
             network = cls.objects.get(id=id)
-            serialized_value = serialize("json", [network])
-            cache.set(key, serialized_value)
+            serialized_value = serialize(format="json", queryset=[network])
+            cache.set(key=key, value=serialized_value)
 
-        return next(deserialize("json", serialized_value)).object
+        return next(deserialize(format="json", stream_or_string=serialized_value)).object
 
 
 class Event(models.Model):
@@ -156,8 +162,8 @@ class Event(models.Model):
         return get_clazz_object(self.model_class)
 
     def get_adapter(self):
-        from utils.protocols import Adapters as ProtocolAdapters
-        return ProtocolAdapters[self.protocol.name]
+        from utils.protocols import get_adapters
+        return get_adapters()[self.protocol.name]
 
 
 class Contract(models.Model):

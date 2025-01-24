@@ -1,25 +1,71 @@
+from unittest.mock import patch
+
 import pytest
 from django.test import TestCase
 
 from blockchains.models import ApproximateBlockTimestamp, Contract, Event, Network, Protocol
+from utils.exceptions import ABINotFoundError, ConfigFileNotFoundError, EventABINotFoundError
 
 
 @pytest.mark.django_db
 class TestProtocolModel(TestCase):
-    def test_protocol_defaults(self):
+    """Tests for the Protocol model."""
+
+    def test_protocol_creation_and_properties(self) -> None:
+        """Test protocol creation, defaults, and config/abi behavior with missing files."""
         protocol = Protocol.objects.create(name="test_protocol")
+
+        # Test defaults
         assert protocol.name == "test_protocol"
         assert protocol.is_enabled is False
         assert protocol.config_path == "test_protocol/config.yaml"
+        assert str(object=protocol) == "test_protocol"
 
-    def test_protocol_str(self):
+        # Test missing files
+        with pytest.raises(expected_exception=ConfigFileNotFoundError):
+            _ = protocol.config
+
+        with pytest.raises(expected_exception=ABINotFoundError):
+            _ = protocol.evm_abi
+
+    def test_get_evm_event_abi_behavior(self) -> None:
+        """Test the get_evm_event_abi method's different scenarios."""
         protocol = Protocol.objects.create(name="test_protocol")
-        assert str(protocol) == "test_protocol"
+
+        mock_abi = [
+            {"type": "event", "name": "test_event"},
+            {"type": "event", "name": "other_event"}
+        ]
+
+        with patch('blockchains.models.Protocol.evm_abi', new=mock_abi):
+            # Test successful event retrieval
+            event_abi = protocol.get_evm_event_abi(name="test_event")
+            assert event_abi == {"type": "event", "name": "test_event"}
+
+            # Test missing event raises EventABINotFoundError
+            with pytest.raises(expected_exception=EventABINotFoundError):
+                protocol.get_evm_event_abi(name="non_existent_event")
+
+    def test_get_protocol_by_name_caching(self) -> None:
+        """Test the protocol caching functionality."""
+        # Test empty name returns None
+        assert Protocol.get_protocol_by_name(protocol_name="") is None
+
+        # Test protocol retrieval and caching
+        protocol = Protocol.objects.create(name="test_protocol")
+        cached_protocol = Protocol.get_protocol_by_name(protocol_name="test_protocol")
+        assert cached_protocol.name == protocol.name
+        assert cached_protocol.is_enabled == protocol.is_enabled
+
+        protocol.is_enabled = True
+        protocol.save()
+        cached_protocol = Protocol.get_protocol_by_name(protocol_name="test_protocol")
+        assert cached_protocol.is_enabled == protocol.is_enabled
 
 
 @pytest.mark.django_db
 class TestNetworkModel(TestCase):
-    def test_network_defaults(self):
+    def test_network_defaults(self) -> None:
         network = Network.objects.create(name="test_network")
         assert network.name == "test_network"
         assert network.rpc is None
@@ -28,9 +74,66 @@ class TestNetworkModel(TestCase):
         assert network.wss_sequencer_oregon is None
         assert network.latest_block == 0
 
-    def test_network_str(self):
+    def test_network_str(self) -> None:
         network = Network.objects.create(name="test_network")
-        assert str(network) == "test_network"
+        assert str(object=network) == "test_network"
+
+    def test_get_network_by_name_caching(self) -> None:
+        """Test the network caching functionality."""
+        # Test empty name returns None
+        assert Network.get_network_by_name(network_name="") is None
+
+        # Test network retrieval and caching
+        network = Network.objects.create(name="test_network", chain_id=1)
+        cached_network = Network.get_network_by_name(network_name="test_network")
+        assert cached_network.name == network.name
+        assert cached_network.chain_id == network.chain_id
+
+        # Test cache updates when model is updated
+        network.chain_id = 2
+        network.save()
+        cached_network = Network.get_network_by_name(network_name="test_network")
+        assert cached_network.chain_id == network.chain_id
+
+    def test_network_properties(self) -> None:
+        """Test network properties and configurations."""
+        network = Network.objects.create(
+            name="test_network",
+            rpc="https://test.rpc",
+            chain_id=1,
+            wss_infura="wss://test.infura",
+            wss_sequencer_oregon="wss://test.sequencer"
+        )
+
+        # Test all properties are set correctly
+        assert network.rpc == "https://test.rpc"
+        assert network.chain_id == 1
+        assert network.wss_infura == "wss://test.infura"
+        assert network.wss_sequencer_oregon == "wss://test.sequencer"
+
+        # Test latest block updates
+        network.latest_block = 1000
+        network.save()
+        assert network.latest_block == 1000
+
+    def test_get_network_by_id(self) -> None:
+        """Test retrieving network by chain ID."""
+        # Test non-existent chain ID returns None
+        with pytest.raises(expected_exception=Network.DoesNotExist):
+            Network.get_network_by_id(id=999)
+
+        # Create and test retrieval
+        network = Network.objects.create(name="test_network", chain_id=1)
+        retrieved_network = Network.get_network_by_id(id=network.id)
+        assert retrieved_network is not None
+        assert retrieved_network.name == network.name
+        assert retrieved_network.chain_id == network.chain_id
+
+        # Test cache updates when model is updated
+        network.chain_id = 2
+        network.save()
+        cached_network = Network.get_network_by_id(id=network.id)
+        assert cached_network.chain_id == network.chain_id
 
 
 @pytest.mark.django_db
