@@ -62,52 +62,6 @@ services:
         stdin_open: true
         tty: true
 
-    websocket:
-        restart: always
-        build:
-            context: .
-            dockerfile: Dockerfile-circleci
-            args:
-                - DOPPLER_TOKEN=$DOPPLER_TOKEN
-        command: /start-websocket-transactions arbitrum infura
-        environment:
-            DOPPLER_TOKEN: $DOPPLER_TOKEN
-        depends_on:
-            redis:
-                condition: service_healthy
-            postgres:
-                condition: service_healthy
-        volumes:
-            - .:/code
-        deploy:
-            resources:
-                limits:
-                    cpus: '0.5'
-                    memory: 500M
-
-    # sequencer:
-    #     restart: always
-    #     build:
-    #         context: .
-    #         dockerfile: Dockerfile
-    #         args:
-    #             - DOPPLER_TOKEN=$DOPPLER_TOKEN
-    #     command: /start-sequencer arbitrum sequencer_oregon
-    #     environment:
-    #         DOPPLER_TOKEN: $DOPPLER_TOKEN
-    #     depends_on:
-    #         redis:
-    #             condition: service_healthy
-    #         postgres:
-    #             condition: service_healthy
-    #     volumes:
-    #         - .:/code
-    #     deploy:
-    #         resources:
-    #             limits:
-    #                 cpus: '0.5'
-    #                 memory: 500M
-
     celery:
         build:
             context: .
@@ -147,21 +101,6 @@ services:
                 limits:
                     cpus: '4'
                     memory: 2G
-
-    celerybeat:
-        build:
-            context: .
-            dockerfile: Dockerfile
-            cache_from:
-                - aknirmal90/liquidations_v2
-            args:
-                - DOPPLER_TOKEN=$DOPPLER_TOKEN
-        command: /start-celery-beat
-        environment:
-            DOPPLER_TOKEN: $DOPPLER_TOKEN
-        depends_on:
-            webserver:
-                condition: service_healthy
 
 volumes:
     postgres_data:
