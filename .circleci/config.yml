@@ -1,0 +1,37 @@
+version: 2.1
+
+jobs:
+  test:
+    docker:
+      - image: cimg/python:3.9
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Install Dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y python3-pip
+            pip install click
+
+            # Install Docker Compose
+            sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+
+            # Install Doppler CLI
+            (curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh || wget -t 3 -qO- https://cli.doppler.com/install.sh) | sudo sh
+
+      - run:
+          name: Run Tests
+          command: |
+            chmod +x ./local
+            ./local test
+          environment:
+            DOPPLER_TOKEN: ${DOPPLER_TOKEN}
+            CI: "true"
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - test
