@@ -36,7 +36,7 @@ jobs:
             max_attempts=30
             attempt=0
             while [ $attempt -lt $max_attempts ]; do
-              if curl -s http://localhost:8000/health/ | grep -q '"status":"ok"'; then
+              if [ "$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health/)" = "200" ]; then
                 echo "Services are healthy"
                 break
               fi
