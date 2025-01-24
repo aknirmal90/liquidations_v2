@@ -31,11 +31,9 @@ jobs:
           name: Run Tests
           command: |
             mkdir -p test-results
-            pip install pytest-django==4.9.0 pytest-cov==6.0.0
-            pytest -vv --junit-xml=test-results/test_results.xml
+            ./local test --junit-xml=test-results/test_results.xml
           environment:
             DOPPLER_TOKEN: ${DOPPLER_TOKEN}
-            CI: "true"
 
       - store_test_results:
           path: test-results
