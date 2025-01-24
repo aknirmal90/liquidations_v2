@@ -22,11 +22,6 @@ jobs:
             (curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh || wget -t 3 -qO- https://cli.doppler.com/install.sh) | sudo sh
 
       - run:
-          name: Build Docker Image
-          command: |
-            docker build -t liquidations .
-
-      - run:
           name: Start Services
           command: |
             ./local start
