@@ -25,7 +25,10 @@ jobs:
       - run:
           name: Start Services
           command: |
-            docker-compose up postgres redis celery celery-prices webserver
+            docker-compose up postgres redis celery celery-prices
+            python manage.py migrate
+            python manage.py collectstatic --noinput
+            python manage.py runserver 8000
 
       - run:
           name: Run Tests
