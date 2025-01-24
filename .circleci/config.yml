@@ -22,11 +22,19 @@ jobs:
             (curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh || wget -t 3 -qO- https://cli.doppler.com/install.sh) | sudo sh
 
       - run:
-          name: Start Services and Wait for Health Check
+          name: Build Docker Image
           command: |
-            docker compose up -d
+            docker build -t liquidations .
 
-            # Wait for services to be healthy
+      - run:
+          name: Start Services
+          command: |
+            docker-compose up -d
+            # ... or if ./local wraps these steps, run ./local start
+
+      - run:
+          name: Wait for Health Check
+          command: |
             max_attempts=30
             attempt=0
             while [ $attempt -lt $max_attempts ]; do
@@ -47,7 +55,7 @@ jobs:
       - run:
           name: Run Tests
           command: |
-            ./local test
+            docker-compose exec web pytest
           environment:
             DOPPLER_TOKEN: ${DOPPLER_TOKEN}
             CI: "true"
