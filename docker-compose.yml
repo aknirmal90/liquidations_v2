@@ -54,7 +54,6 @@ services:
                 condition: service_healthy
         volumes:
             - .:/code
-        working_dir: /code
         deploy:
             resources:
                 limits:

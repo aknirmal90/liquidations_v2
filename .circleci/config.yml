@@ -24,8 +24,7 @@ jobs:
       - run:
           name: Start Services and Wait for Health Check
           command: |
-            chmod +x ./local
-            ./local start
+            docker compose up -d
 
             # Wait for services to be healthy
             max_attempts=30
