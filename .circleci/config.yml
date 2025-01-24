@@ -25,7 +25,7 @@ jobs:
       - run:
           name: Start Services
           command: |
-            ./local start
+            docker-compose up postgres redis celery celery-prices webserver
 
       - run:
           name: Run Tests
