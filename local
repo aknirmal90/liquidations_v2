@@ -151,7 +151,8 @@ def attach():
 
 @cli.command()
 @click.argument('test_path', required=False)
-def test(test_path):
+@click.option('--junit-xml', help='Path to store JUnit XML test results')
+def test(test_path, junit_xml):
     """
     Runs pytest with coverage in the webserver container using Doppler.
     If test_path is specified, only runs tests in that path.
@@ -181,6 +182,8 @@ def test(test_path):
     cmd = "pytest -v"
     if test_path:
         cmd = f"{cmd} {test_path}"
+    if junit_xml:
+        cmd = f"{cmd} --junit-xml={junit_xml}"
 
     # Add --no-tty flag for CI environments
     subprocess.run(["docker", "exec", container_id, "doppler", "run", "--command", cmd], check=False)
