@@ -54,7 +54,8 @@ services:
                 condition: service_healthy
         volumes:
             - .:/code
-            - /home/circleci/code/test-results:/home/circleci/code/test-results
+            - /home/circleci/code/coverage:/home/circleci/code/coverage
+            - /home/circleci/code/pytest:/home/circleci/code/pytest
         deploy:
             resources:
                 limits:
