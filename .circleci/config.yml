@@ -29,8 +29,7 @@ jobs:
       - run:
           name: Start Services
           command: |
-            docker-compose up -d
-            # ... or if ./local wraps these steps, run ./local start
+            ./local start
 
       - run:
           name: Wait for Health Check
