@@ -54,7 +54,7 @@ services:
                 condition: service_healthy
         volumes:
             - .:/code
-            - ./test-results:/code/test-results
+            - ./test-results:/home/circleci/code/test-results
         deploy:
             resources:
                 limits:
