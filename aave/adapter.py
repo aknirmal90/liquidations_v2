@@ -247,27 +247,6 @@ class aaveAdapter(BalanceUtils):
                 logger.error(f"Failed to process record for {defaults['asset']}: {str(e)}")
 
     @classmethod
-    def parse_BorrowableInIsolationChanged(cls, event: Event, logs: List[Dict]):
-        model_class = event.get_model_class()
-        defaults_list = []
-
-        # Get most recent logs only
-        latest_logs = cls.dedupe_logs(logs)
-
-        for log in latest_logs.values():
-            defaults_list.append({
-                'asset': log.args.asset,
-                'network': event.network,
-                'borrowable_in_isolation_mode': log.args.borrowable
-            })
-
-        cls._bulk_create_and_update_metadata(
-            model_class,
-            defaults_list,
-            ['borrowable_in_isolation_mode']
-        )
-
-    @classmethod
     def parse_EModeAssetCategoryChanged(cls, event: Event, logs: List[Dict]):
         model_class = event.get_model_class()
         defaults_list = []
@@ -289,107 +268,6 @@ class aaveAdapter(BalanceUtils):
         )
 
     @classmethod
-    def parse_ReservePaused(cls, event: Event, logs: List[Dict]):
-        model_class = event.get_model_class()
-        defaults_list = []
-
-        # Get most recent logs only
-        latest_logs = cls.dedupe_logs(logs)
-
-        for log in latest_logs.values():
-            defaults_list.append({
-                'asset': log.args.asset,
-                'network': event.network,
-                'is_reserve_paused': log.args.paused
-            })
-
-        cls._bulk_create_and_update_metadata(
-            model_class,
-            defaults_list,
-            ['is_reserve_paused']
-        )
-
-    @classmethod
-    def parse_ReserveFactorChanged(cls, event: Event, logs: List[Dict]):
-        model_class = event.get_model_class()
-        defaults_list = []
-
-        latest_logs = cls.dedupe_logs(logs)
-
-        for log in latest_logs.values():
-            defaults_list.append({
-                'asset': log.args.asset,
-                'network': event.network,
-                'reserve_factor': Decimal(log.args.newReserveFactor)
-            })
-
-        cls._bulk_create_and_update_metadata(
-            model_class,
-            defaults_list,
-            ['reserve_factor']
-        )
-
-    @classmethod
-    def parse_ReserveFlashLoaning(cls, event: Event, logs: List[Dict]):
-        model_class = event.get_model_class()
-        defaults_list = []
-
-        latest_logs = cls.dedupe_logs(logs)
-
-        for log in latest_logs.values():
-            defaults_list.append({
-                'asset': log.args.asset,
-                'network': event.network,
-                'reserve_is_flash_loan_enabled': log.args.enabled
-            })
-
-        cls._bulk_create_and_update_metadata(
-            model_class,
-            defaults_list,
-            ['reserve_is_flash_loan_enabled']
-        )
-
-    @classmethod
-    def parse_ReserveBorrowing(cls, event: Event, logs: List[Dict]):
-        model_class = event.get_model_class()
-        defaults_list = []
-
-        latest_logs = cls.dedupe_logs(logs)
-
-        for log in latest_logs.values():
-            defaults_list.append({
-                'asset': log.args.asset,
-                'network': event.network,
-                'reserve_is_borrow_enabled': log.args.enabled
-            })
-
-        cls._bulk_create_and_update_metadata(
-            model_class,
-            defaults_list,
-            ['reserve_is_borrow_enabled']
-        )
-
-    @classmethod
-    def parse_ReserveFrozen(cls, event: Event, logs: List[Dict]):
-        model_class = event.get_model_class()
-        defaults_list = []
-
-        latest_logs = cls.dedupe_logs(logs)
-
-        for log in latest_logs.values():
-            defaults_list.append({
-                'asset': log.args.asset,
-                'network': event.network,
-                'reserve_is_frozen': log.args.frozen
-            })
-
-        cls._bulk_create_and_update_metadata(
-            model_class,
-            defaults_list,
-            ['reserve_is_frozen']
-        )
-
-    @classmethod
     def parse_AssetCollateralInEModeChanged(cls, event: Event, logs: List[Dict]):
         model_class = event.get_model_class()
         defaults_list = []
@@ -401,13 +279,12 @@ class aaveAdapter(BalanceUtils):
                 'asset': log.args.asset,
                 'network': event.network,
                 'emode_category': log.args.categoryId,
-                'emode_is_collateral': log.args.collateral
             })
 
         cls._bulk_create_and_update_metadata(
             model_class,
             defaults_list,
-            ['emode_category', 'emode_is_collateral']
+            ['emode_category']
         )
 
     @classmethod
@@ -422,13 +299,12 @@ class aaveAdapter(BalanceUtils):
                 'asset': log.args.asset,
                 'network': event.network,
                 'emode_category': log.args.categoryId,
-                'emode_is_borrowable': log.args.borrowable
             })
 
         cls._bulk_create_and_update_metadata(
             model_class,
             defaults_list,
-            ['emode_category', 'emode_is_borrowable']
+            ['emode_category']
         )
 
     @classmethod

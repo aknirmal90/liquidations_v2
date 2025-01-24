@@ -7,3 +7,4 @@ dump.rdb
 liquidations_v2/staticfiles/*
 .vscode/*
 *.sqlite3
+.coverage

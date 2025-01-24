@@ -26,15 +26,15 @@ logger = logging.getLogger(__name__)
 class InitializeAppTask(Task):
     def run(self):
         logger.info("Starting InitializeAppTask")
-        protocols = parse_yaml("protocols.yaml")
-        networks = parse_yaml("networks.yaml")
+        protocols = parse_yaml(file_path="protocols.yaml")
+        networks = parse_yaml(file_path="networks.yaml")
 
-        self.create_protocol_instances(protocols)
-        self.create_network_instances(networks)
+        self.create_protocol_instances(protocols=protocols)
+        self.create_network_instances(networks=networks)
 
         protocol_instances = Protocol.objects.all()
         for protocol in protocol_instances:
-            self.create_protocol_events(protocol)
+            self.create_protocol_events(protocol=protocol)
 
         logger.info("Completed InitializeAppTask")
 
@@ -238,6 +238,10 @@ class BaseSynchronizeTask(Task):
         rpc_adapter = network.rpc_adapter
         global_to_block = rpc_adapter.block_height
         global_from_block = min(event.last_synced_block for event in network_events)
+        if global_from_block != 0:
+            global_from_block += 1
+            # Data has been synced until here, so we start from the next block
+
         EVENTS_ARRAY_THRESHOLD_SIZE = 5000
 
         if global_from_block >= global_to_block:
@@ -288,9 +292,9 @@ class BaseSynchronizeTask(Task):
                     end_block=iter_to_block,
                 )
 
-                event_dicts = self.process_raw_event_dicts(raw_event_dicts, event_abis)
+                event_dicts = self.process_raw_event_dicts(raw_event_dicts=raw_event_dicts, event_abis=event_abis)
                 # cleaned_event_dicts = self.clean_event_logs(network_events, event_dicts)
-                self.handle_event_logs(network_events, event_dicts)
+                self.handle_event_logs(network_events=network_events, cleaned_event_dicts=event_dicts)
 
                 if iter_to_block >= global_to_block:
                     self.update_last_synced_block(network_events, global_to_block)
@@ -302,7 +306,7 @@ class BaseSynchronizeTask(Task):
                 else:
                     iter_delta = min(iter_to_block - iter_from_block, rpc_adapter.max_blockrange_size_for_events)
                     self.update_last_synced_block(network_events, iter_to_block)
-                    iter_from_block = iter_to_block
+                    iter_from_block = iter_to_block + 1
 
                     if len(event_dicts) >= EVENTS_ARRAY_THRESHOLD_SIZE:
                         iter_to_block += int(iter_delta / 2)

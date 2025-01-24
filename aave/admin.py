@@ -41,45 +41,27 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         'get_asset_link',
         'is_enabled',
         'get_pricesource_link',
-        'reserve_is_frozen',
-        'reserve_is_borrow_enabled',
         'emode_category',
-        'emode_is_collateral',
-        'emode_is_borrowable',
         'price_in_nativeasset',
-        'is_reserve_paused',
         'priceA',
         'priceB',
-        'collateral_liquidity_index',
-        'borrow_liquidity_index',
+        'liquidation_threshold',
+        'liquidation_bonus',
+        'emode_liquidation_threshold',
+        'emode_liquidation_bonus',
     )
     list_filter = (
         'network',
         'is_enabled',
         'emode_category',
-        'is_reserve_paused',
-        'borrowable_in_isolation_mode',
-        'reserve_is_frozen',
-        'reserve_is_borrow_enabled',
-        'reserve_is_flash_loan_enabled',
-        'emode_is_collateral',
-        'emode_is_borrowable',
         'price_type',
     )
 
     fieldsets = (
-        ('Status', {
-            'fields': (
-                'is_enabled',
-                'is_reserve_paused',
-                'reserve_is_frozen',
-                'reserve_is_borrow_enabled',
-                'reserve_is_flash_loan_enabled',
-            )
-        }),
         ('Asset Information', {
             'fields': (
                 ('symbol', 'network'),
+                'is_enabled',
                 ('decimals', 'num_decimals'),
                 'get_asset_link',
                 ('collateral_liquidity_index', 'borrow_liquidity_index')
@@ -102,15 +84,8 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         }),
         ('Risk Parameters', {
             'fields': (
-                'reserve_factor',
-                'borrowable_in_isolation_mode',
-                ('liquidation_threshold', 'liquidation_bonus')
-            )
-        }),
-        ('E-Mode Configuration', {
-            'fields': (
+                ('liquidation_threshold', 'liquidation_bonus'),
                 'emode_category',
-                ('emode_is_collateral', 'emode_is_borrowable'),
                 ('emode_liquidation_threshold', 'emode_liquidation_bonus')
             )
         }),
@@ -140,14 +115,6 @@ class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         'price',
         'price_in_nativeasset',
         'price_type',
-        'borrowable_in_isolation_mode',
-        'reserve_factor',
-        'reserve_is_flash_loan_enabled',
-        'reserve_is_borrow_enabled',
-        'reserve_is_frozen',
-        'emode_is_collateral',
-        'emode_is_borrowable',
-        'is_reserve_paused',
         'borrow_liquidity_index',
         'collateral_liquidity_index'
     )

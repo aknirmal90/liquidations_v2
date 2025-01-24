@@ -24,9 +24,9 @@ class Asset(models.Model):
     collateral_liquidity_index = models.DecimalField(max_digits=72, decimal_places=0, default=Decimal("0.0"))
     borrow_liquidity_index = models.DecimalField(max_digits=72, decimal_places=0, default=Decimal("0.0"))
 
-    symbol = models.CharField(max_length=255)
+    symbol = models.CharField(max_length=255, null=True, blank=True)
     num_decimals = models.DecimalField(
-        default=Decimal("1"), max_digits=3, decimal_places=0
+        default=Decimal("0"), max_digits=3, decimal_places=0
     )
     decimals = models.DecimalField(max_digits=72, decimal_places=0, default=Decimal("0"))
     is_enabled = models.BooleanField(default=False)
@@ -88,19 +88,6 @@ class Asset(models.Model):
     )
 
     emode_category = models.PositiveSmallIntegerField(default=0)
-    borrowable_in_isolation_mode = models.BooleanField(default=False)
-    is_reserve_paused = models.BooleanField(default=False)
-
-    reserve_factor = models.DecimalField(
-        max_digits=12, decimal_places=6, null=True, blank=True
-    )
-    reserve_is_flash_loan_enabled = models.BooleanField(default=True)
-    reserve_is_collateral_enabled = models.BooleanField(default=True)
-    reserve_is_borrow_enabled = models.BooleanField(default=True)
-    reserve_is_frozen = models.BooleanField(default=False)
-
-    emode_is_collateral = models.BooleanField(default=False)
-    emode_is_borrowable = models.BooleanField(default=False)
 
     def __str__(self) -> str:
         return f"{self.symbol}"
@@ -108,6 +95,28 @@ class Asset(models.Model):
     class Meta:
         unique_together = ('network', 'asset')
         app_label = 'aave'
+
+    @classmethod
+    def _deserialize_from_cache(cls, key: str):
+        """
+        Internal helper for loading a single Asset from cache (serialized JSON).
+        Returns None if not found, otherwise returns the deserialized Asset object.
+        """
+        serialized_value = cache.get(key)
+        if serialized_value:
+            return next(deserialize("json", serialized_value)).object
+        return None
+
+    @classmethod
+    def _serialize_and_cache(cls, key: str, asset_instance):
+        """
+        Internal helper for serializing a single Asset instance to JSON
+        and storing it in cache.
+        Returns the asset_instance for convenience.
+        """
+        serialized_value = serialize("json", [asset_instance])
+        cache.set(key, serialized_value)
+        return asset_instance
 
     @classmethod
     def get_cache_key_by_address(cls, network_name: str, token_address: str):
@@ -123,91 +132,133 @@ class Asset(models.Model):
 
     @classmethod
     def get_by_address(cls, network_name: str, token_address: str):
+        """
+        Fetches an Asset by address and network from cache if possible,
+        otherwise creates or loads from DB, then caches before returning.
+        """
         if network_name is None or token_address is None:
-            return
+            return None
 
-        key = cls.get_cache_key_by_address(
-            network_name=network_name,
-            token_address=token_address
-        )
-        serialized_value = cache.get(key)
+        key = cls.get_cache_key_by_address(network_name, token_address)
 
-        if serialized_value:
-            return next(deserialize("json", serialized_value)).object
-        else:
-            try:
-                token = cls.objects.get(
-                    asset__iexact=token_address,
-                    network__name=network_name,
-                )
-                deserialized_value = serialize("json", [token])
-                cache.set(key, deserialized_value)
-                return token
-            except cls.DoesNotExist:
-                token_retriever = EvmTokenRetriever(network_name=network_name, token_address=token_address)
-                network = Network.get_network_by_name(network_name)
-                asset_instance, is_created = cls.objects.get_or_create(
-                    asset=token_retriever.token_address,
-                    network=network.id,
-                )
-                asset_instance.symbol = token_retriever.symbol
-                asset_instance.num_decimals = token_retriever.num_decimals
-                asset_instance.decimals = math.pow(10, token_retriever.num_decimals)
-                asset_instance.save()
+        # Re-use our internal helper to attempt a cache load
+        cached_asset = cls._deserialize_from_cache(key)
+        if cached_asset:
+            return cached_asset
 
-                serialized_value = serialize("json", [asset_instance])
-                cache.set(key, serialized_value)
-                return asset_instance
+        # Not in cache, so load from DB or create if needed
+        try:
+            token = cls.objects.get(
+                asset__iexact=token_address,
+                network__name=network_name,
+            )
+        except cls.DoesNotExist:
+            # If not found, use EvmTokenRetriever to create the record
+            token_retriever = EvmTokenRetriever(network_name=network_name, token_address=token_address)
+            network = Network.get_network_by_name(network_name)
+            token, _ = cls.objects.get_or_create(
+                asset=token_retriever.token_address,
+                network=network.id,
+            )
+            token.symbol = token_retriever.symbol
+            token.num_decimals = token_retriever.num_decimals
+            token.decimals = math.pow(10, token_retriever.num_decimals)
+            token.save()
+
+        # Cache the found/created token and return
+        return cls._serialize_and_cache(key, token)
 
     @classmethod
     def get_by_id(cls, id: int):
+        """
+        Fetches an Asset by primary key from cache if possible,
+        otherwise loads from DB, then re-caches.
+        """
         if id is None:
-            return
+            return None
 
-        key = cls.get_cache_key_by_id(id=id)
-        serialized_value = cache.get(key)
+        key = cls.get_cache_key_by_id(id)
+        cached_asset = cls._deserialize_from_cache(key)
+        if cached_asset:
+            return cached_asset
 
-        if serialized_value:
-            return next(deserialize("json", serialized_value)).object
-        else:
-            asset = cls.objects.get(id=id)
-            deserialized_value = serialize("json", [asset])
-            cache.set(key, deserialized_value)
-            return asset
+        # Not in cache, load from DB
+        asset = cls.objects.get(id=id)
+        return cls._serialize_and_cache(key, asset)
+
+    def _clamp_value(self, value: Decimal, maximum: Decimal) -> Decimal:
+        """Clamp the given value to the maximum cap if it exceeds it."""
+        if maximum is not None and value > maximum:
+            return maximum
+        return value
+
+    def _to_native_asset_price(self, price: Decimal) -> Decimal:
+        """
+        Convert a 'raw' price (an integer or big decimal) to a
+        normalized price, dividing by self.decimals_price.
+        """
+        if not self.decimals_price or self.decimals_price == 0:
+            return Decimal("0")
+        return price / self.decimals_price
+
+    def _compute_price_constant_or_aggregator(self) -> tuple[Decimal, Decimal]:
+        """
+        Logic for CONSTANT or AGGREGATOR price type:
+         - We just return priceA as price
+         - Then convert to native using decimals_price
+        """
+        if self.priceA is None:
+            return None, None
+        price = self.priceA
+        price_in_nativeasset = self._to_native_asset_price(price)
+        return price, price_in_nativeasset
+
+    def _compute_price_max_capped(self) -> tuple[Decimal, Decimal]:
+        """
+        Logic for MAX_CAPPED price type:
+         - Price is priceA, but clamped so it can't exceed max_cap
+         - Then convert to native using decimals_price
+        """
+        if self.priceA is None or self.max_cap is None:
+            return None, None
+        price_clamped = self._clamp_value(self.priceA, self.max_cap)
+        price_in_nativeasset = self._to_native_asset_price(price_clamped)
+        return price_clamped, price_in_nativeasset
+
+    def _compute_price_ratio(self) -> tuple[Decimal, Decimal]:
+        """
+        Logic for RATIO price type:
+         - Price starts as priceA, multiplied by ratio from priceB
+         - Ratio is clamped by self.max_cap
+         - Then convert to native using decimals_price
+        """
+        if self.priceA is None or self.priceB is None or self.max_cap is None:
+            return None, None
+        ratio_clamped = self._clamp_value(self.priceB, self.max_cap)
+        price = self.priceA * ratio_clamped
+        price_in_nativeasset = self._to_native_asset_price(price)
+        return price, price_in_nativeasset
 
     def get_price(self):
-        if (
-            self.price_type in (Asset.PriceType.CONSTANT, Asset.PriceType.AGGREGATOR)
-            and self.priceA is not None
-        ):
-            price = self.priceA
-            price_in_nativeasset = price / self.decimals_price
-            # normalize by decimal places to get USDT price on ARB
-            return price, price_in_nativeasset
-
-        elif self.max_cap is None:
+        """
+        A refactored get_price method that delegates to smaller,
+        more focused helper methods based on price_type.
+        """
+        # If there's no max_cap or relevant pricing data, or if price_type is None:
+        if not self.price_type:
             return None, None
 
-        elif self.price_type == Asset.PriceType.MAX_CAPPED:
-            price = self.priceA
-            if price > self.max_cap:
-                price = self.max_cap
-            price_in_nativeasset = price / self.decimals_price
-            # Max Cap is stored in max_cap
-            return price, price_in_nativeasset
+        handlers = {
+            self.PriceType.CONSTANT: self._compute_price_constant_or_aggregator,
+            self.PriceType.AGGREGATOR: self._compute_price_constant_or_aggregator,
+            self.PriceType.MAX_CAPPED: self._compute_price_max_capped,
+            self.PriceType.RATIO: self._compute_price_ratio,
+        }
 
-        elif self.price_type == Asset.PriceType.RATIO:
-            price = self.priceA
-            ratio = self.priceB
-            if ratio > self.max_cap:
-                ratio = self.max_cap
-            # current value of ratio is stored in priceB, and max
-            # cap for ratio is stored in max_cap
-
-            price = price * ratio
-            price_in_nativeasset = price / self.decimals_price
-            return price, price_in_nativeasset
-
+        # If the price_type is known, call its handler; else return None.
+        handler = handlers.get(self.price_type)
+        if handler:
+            return handler()
         return None, None
 
 
