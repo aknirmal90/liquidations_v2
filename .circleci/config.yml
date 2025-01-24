@@ -24,8 +24,12 @@ jobs:
       - run:
           name: Start Services
           command: |
-            ls -la
-            ./local start
+            docker-compose up -d postgres
+            docker-compose up -d redis
+            docker-compose up -d web
+            docker-compose up -d celery-beat
+            docker-compose up -d celery-default
+            docker-compose up -d celery-prices
 
       - run:
           name: Wait for Health Check
