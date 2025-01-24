@@ -4,7 +4,7 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-doppler run --command "python manage.py migrate"
-doppler run --command "python manage.py collectstatic --noinput"
+doppler run --command "python ./manage.py migrate"
+doppler run --command "python ./manage.py collectstatic --noinput"
 
-doppler run --command "python manage.py runserver 0.0.0.0:8000"
+doppler run --command "python ./manage.py runserver 0.0.0.0:8000"
