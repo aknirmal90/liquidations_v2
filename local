@@ -152,7 +152,9 @@ def attach():
 @cli.command()
 @click.argument('test_path', required=False)
 @click.option('--junit-xml', help='Path to store JUnit XML test results')
-def test(test_path, junit_xml):
+@click.option('--cov', is_flag=True, help='Enable coverage reporting')
+@click.option('--cov-report', help='Coverage report type and destination (e.g. html:coverage)')
+def test(test_path, junit_xml, cov, cov_report):
     """
     Runs pytest with coverage in the webserver container using Doppler.
     If test_path is specified, only runs tests in that path.
@@ -179,11 +181,15 @@ def test(test_path, junit_xml):
 
     click.echo("Running tests in webserver container...")
     # Remove -it flags for non-interactive environments
-    cmd = "pytest -v"
+    cmd = "pytest -vv"
     if test_path:
         cmd = f"{cmd} {test_path}"
     if junit_xml:
         cmd = f"{cmd} --junit-xml={junit_xml}"
+    if cov:
+        cmd = f"{cmd} --cov"
+        if cov_report:
+            cmd = f"{cmd} --cov-report={cov_report}"
 
     # Add --no-tty flag for CI environments
     subprocess.run(["docker", "exec", container_id, "doppler", "run", "--command", cmd], check=False)

@@ -28,15 +28,20 @@ jobs:
             docker-compose -f docker-compose-circleci.yml up -d
 
       - run:
-          name: Run Tests
+          name: Run Tests with Coverage
           command: |
             mkdir -p test-results
-            ./local test --junit-xml=test-results/test_results.xml
+            mkdir -p coverage
+            ./local test --junit-xml=test-results/test_results.xml --cov --cov-report=html:coverage --cov-report=xml:coverage/coverage.xml
           environment:
             DOPPLER_TOKEN: ${DOPPLER_TOKEN}
 
       - store_test_results:
           path: test-results
+
+      - store_artifacts:
+          path: coverage
+          destination: coverage-report
 
 workflows:
   version: 2
