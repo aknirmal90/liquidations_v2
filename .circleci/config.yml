@@ -25,7 +25,7 @@ jobs:
       - run:
           name: Start Background Services
           command: |
-            docker-compose -f docker-compose-circleci.yml up
+            docker-compose -f docker-compose-circleci.yml up -d
 
       - run:
           name: Run Tests
