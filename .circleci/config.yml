@@ -25,14 +25,7 @@ jobs:
       - run:
           name: Start Background Services
           command: |
-            docker-compose up -d postgres redis celery celery-prices
-
-      - run:
-          name: Start Webserver
-          command: |
-            python manage.py migrate
-            python manage.py collectstatic --noinput
-            python manage.py runserver 8000
+            docker-compose -f docker-compose-circleci.yml up -d --env DOPPLER_TOKEN=${DOPPLER_TOKEN}
 
       - run:
           name: Run Tests
