@@ -4,7 +4,6 @@ jobs:
   test:
     docker:
       - image: cimg/python:3.9
-    working_directory: ~/code
     steps:
       - checkout
       - setup_remote_docker
@@ -23,24 +22,34 @@ jobs:
             (curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh || wget -t 3 -qO- https://cli.doppler.com/install.sh) | sudo sh
 
       - run:
+          name: Create Test Results Directory
+          command: |
+            mkdir -p ${CIRCLE_TEST_REPORTS}/pytest
+            mkdir -p ${CIRCLE_TEST_REPORTS}/coverage
+
+      - run:
           name: Start Background Services
           command: |
-            docker-compose -f docker-compose-circleci.yml up -d
+            # Mount the test results directory into the container
+            CIRCLE_TEST_REPORTS=${CIRCLE_TEST_REPORTS} docker-compose -f docker-compose-circleci.yml up -d
 
       - run:
           name: Run Tests with Coverage
           command: |
-            mkdir -p test-results
-            mkdir -p coverage
-            ./local test --junit-xml=test-results/test_results.xml --cov --cov-report=html:coverage --cov-report=xml:coverage/coverage.xml
+            # Test results will be written to the mounted volume
+            ./local test \
+              --junit-xml=${CIRCLE_TEST_REPORTS}/pytest/test_results.xml \
+              --cov \
+              --cov-report=html:${CIRCLE_TEST_REPORTS}/coverage \
+              --cov-report=xml:${CIRCLE_TEST_REPORTS}/coverage/coverage.xml
           environment:
             DOPPLER_TOKEN: ${DOPPLER_TOKEN}
 
       - store_test_results:
-          path: test-results
+          path: ${CIRCLE_TEST_REPORTS}/pytest
 
       - store_artifacts:
-          path: coverage
+          path: ${CIRCLE_TEST_REPORTS}/coverage
           destination: coverage-report
 
 workflows:
