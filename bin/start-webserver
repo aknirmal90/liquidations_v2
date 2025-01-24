@@ -4,7 +4,7 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-doppler run --command "python ./manage.py migrate"
-doppler run --command "python ./manage.py collectstatic --noinput"
+doppler run --command "python manage.py migrate"
+doppler run --command "python manage.py collectstatic --noinput"
 
 doppler run --command "gunicorn --bind :${PORT} --timeout 30 --workers 2 liquidations_v2.wsgi --log-level debug"

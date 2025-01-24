@@ -24,6 +24,9 @@ jobs:
       - run:
           name: Start Services
           command: |
+            pwd
+            cd /code/
+            pwd
             ./local start
 
       - run:
