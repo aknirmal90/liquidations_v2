@@ -30,10 +30,13 @@ jobs:
       - run:
           name: Run Tests
           command: |
-            ./local test
+            ./local test --junit-xml=test_results.xml
           environment:
             DOPPLER_TOKEN: ${DOPPLER_TOKEN}
             CI: "true"
+
+      - store_test_results:
+          path: test_results.xml
 
 workflows:
   version: 2
