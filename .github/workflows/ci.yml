@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip curl
+          pip install click requests
+
+          # Install Docker Compose
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+
+          # Install Doppler CLI
+          (curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh || wget -t 3 -qO- https://cli.doppler.com/install.sh) | sudo sh
+
+      - name: Create Test Results Directory
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/pytest
+          mkdir -p $GITHUB_WORKSPACE/coverage
+
+      - name: Start Background Services
+        run: |
+          docker-compose -f docker-compose-circleci.yml up -d
+
+      - name: Run Tests with Coverage
+        run: |
+          ./local test \
+            --junit-xml=$GITHUB_WORKSPACE/pytest/test_results.xml \
+            --cov \
+            --cov-report=html:$GITHUB_WORKSPACE/coverage \
+            --cov-report=xml:$GITHUB_WORKSPACE/coverage/coverage.xml
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+
+      - name: Upload Pytest Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: pytest-results
+          path: pytest
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: coverage
