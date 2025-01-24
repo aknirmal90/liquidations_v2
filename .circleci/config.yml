@@ -11,8 +11,8 @@ jobs:
           name: Install Dependencies
           command: |
             sudo apt-get update
-            sudo apt-get install -y python3-pip
-            pip install click
+            sudo apt-get install -y python3-pip curl
+            pip install click requests
 
             # Install Docker Compose
             sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -22,9 +22,32 @@ jobs:
             (curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh || wget -t 3 -qO- https://cli.doppler.com/install.sh) | sudo sh
 
       - run:
-          name: Run Tests
+          name: Start Services and Wait for Health Check
           command: |
             chmod +x ./local
+            ./local start
+
+            # Wait for services to be healthy
+            max_attempts=30
+            attempt=0
+            while [ $attempt -lt $max_attempts ]; do
+              if curl -s http://localhost:8000/health/ | grep -q '"status":"ok"'; then
+                echo "Services are healthy"
+                break
+              fi
+              echo "Waiting for services to be healthy..."
+              sleep 5
+              attempt=$((attempt + 1))
+            done
+
+            if [ $attempt -eq $max_attempts ]; then
+              echo "Services failed to become healthy after 150 seconds"
+              exit 1
+            fi
+
+      - run:
+          name: Run Tests
+          command: |
             ./local test
           environment:
             DOPPLER_TOKEN: ${DOPPLER_TOKEN}
