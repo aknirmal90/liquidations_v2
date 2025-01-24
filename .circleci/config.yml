@@ -31,29 +31,9 @@ jobs:
             docker-compose up -d celery-prices
 
       - run:
-          name: Wait for Health Check
-          command: |
-            max_attempts=30
-            attempt=0
-            while [ $attempt -lt $max_attempts ]; do
-              if [ "$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health/)" = "200" ]; then
-                echo "Services are healthy"
-                break
-              fi
-              echo "Waiting for services to be healthy..."
-              sleep 5
-              attempt=$((attempt + 1))
-            done
-
-            if [ $attempt -eq $max_attempts ]; then
-              echo "Services failed to become healthy after 150 seconds"
-              exit 1
-            fi
-
-      - run:
           name: Run Tests
           command: |
-            docker-compose exec web pytest
+            ./local test
           environment:
             DOPPLER_TOKEN: ${DOPPLER_TOKEN}
             CI: "true"
