@@ -26,9 +26,9 @@ jobs:
           command: |
             docker-compose up -d postgres
             docker-compose up -d redis
-            docker-compose up -d webserver
             docker-compose up -d celery
             docker-compose up -d celery-prices
+            docker-compose up webserver
 
       - run:
           name: Run Tests
