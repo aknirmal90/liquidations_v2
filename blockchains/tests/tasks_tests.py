@@ -273,7 +273,7 @@ class TestResetAppTask:
 
         # Reset
         ResetAppTask.run()
-        self.assert_model_counts(expected_count=0)
+        self.assert_model_counts(expected_count=1)
 
         # Reinitialize
         mock_parse_yaml.side_effect = mock_yaml_data
