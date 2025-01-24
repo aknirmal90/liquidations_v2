@@ -159,74 +159,11 @@ class Event(models.Model):
         return self.network.latest_block - self.last_synced_block
 
     def get_model_class(self):
-        return get_clazz_object(self.model_class)
+        return get_clazz_object(absolute_path=self.model_class)
 
     def get_adapter(self):
         from utils.protocols import get_adapters
         return get_adapters()[self.protocol.name]
-
-
-class Contract(models.Model):
-    contract_address = models.CharField(max_length=256, null=False)
-    network = models.ForeignKey(
-        "blockchains.Network",
-        null=True,
-        on_delete=models.PROTECT,
-        related_name="contracts"
-    )
-    protocol = models.ForeignKey(
-        "blockchains.Protocol",
-        null=True,
-        on_delete=models.PROTECT,
-        related_name="contracts"
-    )
-    is_enabled = models.BooleanField(default=True)
-
-    def __str__(self) -> str:
-        return f"{self.contract_address} for {self.protocol} on {self.network}"
-
-    @property
-    def abi(self):
-        return self.protocol.abi
-
-    @classmethod
-    def get_cache_key(cls, network_name: str, contract_address: str, protocol_id: int):
-        return f"contract-{network_name}-{contract_address}-{protocol_id}"
-
-    @classmethod
-    def get(cls, network_name: str, contract_address: str, protocol_id: int):
-        if network_name is None or contract_address is None or protocol_id is None:
-            return
-
-        key = cls.get_cache_key(
-            network_name=network_name,
-            contract_address=contract_address,
-            protocol_id=protocol_id
-        )
-        serialized_value = cache.get(key)
-
-        if serialized_value:
-            return next(deserialize("json", serialized_value)).object
-        else:
-            try:
-                contract = cls.objects.get(
-                    contract_address=contract_address,
-                    network__network_name=network_name,
-                    protocol_id=protocol_id
-                )
-                deserialized_value = serialize("json", [contract])
-                cache.set(key, deserialized_value)
-                return contract
-            except cls.DoesNotExist:
-                network = Network.objects.get(network_name=network_name)
-                contract_instance, is_created = Contract.objects.get_or_create(
-                    network=network,
-                    contract_address=contract_address,
-                    protocol_id=protocol_id
-                )
-                serialized_value = serialize("json", [contract_instance])
-                cache.set(key, serialized_value)
-                return contract_instance
 
 
 class ApproximateBlockTimestamp(models.Model):

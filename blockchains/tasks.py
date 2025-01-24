@@ -26,15 +26,15 @@ logger = logging.getLogger(__name__)
 class InitializeAppTask(Task):
     def run(self):
         logger.info("Starting InitializeAppTask")
-        protocols = parse_yaml("protocols.yaml")
-        networks = parse_yaml("networks.yaml")
+        protocols = parse_yaml(file_path="protocols.yaml")
+        networks = parse_yaml(file_path="networks.yaml")
 
-        self.create_protocol_instances(protocols)
-        self.create_network_instances(networks)
+        self.create_protocol_instances(protocols=protocols)
+        self.create_network_instances(networks=networks)
 
         protocol_instances = Protocol.objects.all()
         for protocol in protocol_instances:
-            self.create_protocol_events(protocol)
+            self.create_protocol_events(protocol=protocol)
 
         logger.info("Completed InitializeAppTask")
 

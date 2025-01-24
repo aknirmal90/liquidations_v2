@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 from django.test import TestCase
 
-from blockchains.models import ApproximateBlockTimestamp, Contract, Event, Network, Protocol
+from blockchains.models import ApproximateBlockTimestamp, Event, Network, Protocol
 from utils.exceptions import ABINotFoundError, ConfigFileNotFoundError, EventABINotFoundError
 
 
@@ -162,25 +162,6 @@ class TestEventModel(TestCase):
     def test_blocks_to_sync_with_none_values(self):
         self.event.last_synced_block = None
         assert self.event.blocks_to_sync is None
-
-
-@pytest.mark.django_db
-class TestContractModel(TestCase):
-    def setUp(self):
-        self.protocol = Protocol.objects.create(name="test_protocol")
-        self.network = Network.objects.create(name="test_network")
-        self.contract = Contract.objects.create(
-            contract_address="0x123",
-            network=self.network,
-            protocol=self.protocol
-        )
-
-    def test_contract_defaults(self):
-        assert self.contract.is_enabled is True
-        assert self.contract.contract_address == "0x123"
-
-    def test_contract_str(self):
-        assert str(self.contract) == "0x123 for test_protocol on test_network"
 
 
 @pytest.mark.django_db
