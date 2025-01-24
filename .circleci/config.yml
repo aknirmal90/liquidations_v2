@@ -23,9 +23,13 @@ jobs:
             (curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh || wget -t 3 -qO- https://cli.doppler.com/install.sh) | sudo sh
 
       - run:
-          name: Start Services
+          name: Start Background Services
           command: |
-            docker-compose up postgres redis celery celery-prices
+            docker-compose up -d postgres redis celery celery-prices
+
+      - run:
+          name: Start Webserver
+          command: |
             python manage.py migrate
             python manage.py collectstatic --noinput
             python manage.py runserver 8000
