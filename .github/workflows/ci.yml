@@ -34,7 +34,7 @@ jobs:
 
       - name: Run Tests with Coverage
         run: |
-          docker-compose -f docker-compose.yml up -d
+          docker-compose -f docker-compose.yml up -d --wait --wait-timeout 60
           ./local test \
             --junit-xml=$GITHUB_WORKSPACE/pytest/test_results.xml \
             --cov \
