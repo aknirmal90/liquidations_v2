@@ -183,11 +183,7 @@ def test(test_path):
         cmd = f"{cmd} {test_path}"
 
     # Add --no-tty flag for CI environments
-    is_ci = os.environ.get('CI', 'false').lower() == 'true'
-    if is_ci:
-        subprocess.run(["docker", "exec", container_id, "doppler", "run", "--no-tty", "--command", cmd], check=False)
-    else:
-        subprocess.run(["docker", "exec", container_id, "doppler", "run", "--command", cmd], check=False)
+    subprocess.run(["docker", "exec", container_id, "doppler", "run", "--command", cmd], check=False)
 
 
 if __name__ == "__main__":
