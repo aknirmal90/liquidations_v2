@@ -14,6 +14,11 @@ jobs:
         run: |
           sudo sh -c "$(curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh || wget -t 3 -qO- https://cli.doppler.com/install.sh)"
 
+      - name: Start Local Development Environment
+        run: |
+          chmod +x ./local
+          ./local start
+
       - name: Run Tests with Docker Compose
         uses: adambirds/docker-compose-action@v1.5.0
         with:
