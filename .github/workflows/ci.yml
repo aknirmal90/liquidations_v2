@@ -18,6 +18,8 @@ jobs:
         run: |
           chmod +x ./local
           ./local start
+        env:
+          DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
 
       - name: Run Tests with Docker Compose
         uses: adambirds/docker-compose-action@v1.5.0
