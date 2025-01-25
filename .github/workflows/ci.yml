@@ -44,20 +44,7 @@ jobs:
           # Wait for services to be ready (optional but recommended)
           sleep 10
 
-          docker-compose \
-            -f docker-compose-circleci.yml \
-            run \
-            --rm \
-            -e DOPPLER_TOKEN=${{ vars.DOPPLER_TOKEN }} \
-            webserver \
-            doppler \
-            run \
-            --token=${{ vars.DOPPLER_TOKEN }} \
-            --command "pytest \
-              --junitxml=junit/test-results.xml \
-              --cov=app \
-              --cov-report=xml:coverage.xml \
-              --cov-report=html:coverage-report"
+          ./local start
 
       - name: Store Test Results
         uses: actions/upload-artifact@v3
