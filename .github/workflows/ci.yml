@@ -16,7 +16,7 @@ jobs:
 
       - name: Start Local Development Environment
         run: |
-          docker compose up postgres redis celery celery-prices -d --wait --wait-timeout 200
+          docker compose up postgres redis -d --wait --wait-timeout 200
         env:
           DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
 
