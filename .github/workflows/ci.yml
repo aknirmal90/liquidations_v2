@@ -5,18 +5,13 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     container:
       image: cimg/python:3.9
       options: --user root # Run container with root privileges to access Docker socket
 
     steps:
       - uses: actions/checkout@v3
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
 
       - name: Install Dependencies
         run: |
