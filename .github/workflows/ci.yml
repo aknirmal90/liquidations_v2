@@ -43,6 +43,14 @@ jobs:
           junitxml-path: pytest.xml
           hide-comment: false
 
+      - name: Create Coverage Comment
+        uses: MishaKav/pytest-coverage-comment@main
+        if: github.event_name == 'pull_request'
+        with:
+          pytest-coverage-path: pytest-coverage.txt
+          junitxml-path: pytest.xml
+          hide-comment: false
+
       - name: Update Readme with Coverage Html
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
