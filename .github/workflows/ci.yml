@@ -34,7 +34,7 @@ jobs:
         run: |
           # Start services and wait for readiness
           docker-compose -f docker-compose-circleci.yml up -d
-          docker-compose -f docker-compose-circleci.yml run --rm web \
+          docker-compose -f docker-compose-circleci.yml run --rm webserver \
             pytest --junitxml=junit/test-results.xml \
                    --cov=app \
                    --cov-report=xml:coverage.xml \
