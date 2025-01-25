@@ -373,7 +373,10 @@ class AaveBalanceLog(models.Model):
     last_updated_collateral_liquidity_index = models.DecimalField(
         max_digits=72, decimal_places=0, default=Decimal("0.0")
     )
+    collateral_liquidity_index_verified = models.BooleanField(default=None, null=True, blank=True)
+
     last_updated_borrow_liquidity_index = models.DecimalField(max_digits=72, decimal_places=0, default=Decimal("0.0"))
+    borrow_liquidity_index_verified = models.BooleanField(default=None, null=True, blank=True)
 
     collateral_amount = models.DecimalField(max_digits=72, decimal_places=18, default=Decimal("0.0"))
     collateral_amount_live = models.DecimalField(max_digits=72, decimal_places=18, default=Decimal("0.0"))
