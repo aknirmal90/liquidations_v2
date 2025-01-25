@@ -22,6 +22,7 @@ jobs:
 
       - name: Run Tests
         run: |
+          export DOPPLER_TOKEN=${{ vars.DOPPLER_TOKEN }}
           doppler run --command "pytest -v"
         env:
           DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
