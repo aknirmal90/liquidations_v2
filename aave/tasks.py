@@ -452,7 +452,7 @@ class VerifyBalancesTask(Task):
         balances = AaveBalanceLog.objects.filter(asset=asset)
         for i in range(0, len(balances), 100):
             batch = balances[i:i + 100]
-            self._process_balance_batch(batch, asset, provider)
+            self._process_balance_batch(batch=batch, asset=asset, provider=provider)
 
     def _process_balance_batch(self, batch, asset, provider):
         """Process a batch of balance logs."""
@@ -464,23 +464,39 @@ class VerifyBalancesTask(Task):
         )
         logger.info(f"Retrieved user reserve data from provider for {len(user_reserves)} users")
 
+        previous_indexes = []
+        if asset.atoken_address:
+            previous_indexes = provider.getPreviousIndex(
+                contract_address=asset.atoken_address,
+                users=[obj.address for obj in batch]
+            )
+            logger.info(f"Retrieved previous indexes from provider for {len(previous_indexes)} users")
+
         updated_batch = self._update_batch_verification(
             batch=batch,
             user_reserves=user_reserves,
         )
-        logger.info("Updated batch verification status")
+        logger.info("Updated batch verification status (collateral, borrow amounts).")
 
-        # Bulk update the batch
+        if previous_indexes:
+            updated_batch = self._update_batch_indexes_verification(
+                batch=updated_batch,
+                previous_indexes=previous_indexes
+            )
+            logger.info("Updated batch index verification status.")
+
         AaveBalanceLog.objects.bulk_update(
-            updated_batch,
-            [
+            objs=updated_batch,
+            fields=[
                 'collateral_amount_live_is_verified',
                 'collateral_amount_live',
                 'borrow_amount_live_is_verified',
                 'borrow_amount_live',
                 'mark_for_deletion',
                 'collateral_amount',
-                'borrow_amount'
+                'borrow_amount',
+                'collateral_liquidity_index_verified',
+                'borrow_liquidity_index_verified'
             ]
         )
         logger.info(f"Successfully updated verification status for {len(batch)} balance logs")
@@ -501,14 +517,14 @@ class VerifyBalancesTask(Task):
             db_user_reserve.borrow_amount_live = borrow_amount_live
 
             db_user_reserve.collateral_amount_live_is_verified = self.is_collateral_amount_verified(
-                db_user_reserve.collateral_amount,
-                collateral_amount_contract,
-                decimals
+                collateral_amount_live=db_user_reserve.collateral_amount,
+                collateral_amount_contract=collateral_amount_contract,
+                decimals=decimals
             )
             db_user_reserve.borrow_amount_live_is_verified = self.is_borrow_amount_verified(
-                db_user_reserve.borrow_amount,
-                borrow_amount_contract,
-                decimals
+                borrow_amount_live=db_user_reserve.borrow_amount,
+                borrow_amount_contract=borrow_amount_contract,
+                decimals=decimals
             )
 
             # If both balances are 0, mark for deletion
@@ -535,6 +551,35 @@ class VerifyBalancesTask(Task):
                 db_user_reserve.borrow_amount_live = db_user_reserve.get_scaled_balance("borrow")
 
             updated_batch.append(db_user_reserve)
+        return updated_batch
+
+    def _update_batch_indexes_verification(self, batch, previous_indexes):
+        """
+        Compare the contract's getPreviousIndex values to our DB index fields
+        and mark them as verified or not.
+        """
+        updated_batch = []
+        for i, contract_response in enumerate(previous_indexes):
+            db_log = batch[i]
+
+            # contract_response["result"] might be a single index value or a structure
+            # depending on your contract's ABI. Here we assume it's just one bigint/hex.
+            contract_index = Decimal(contract_response['result']['index'])
+
+            # Compare to your stored last_updated_collateral_liquidity_index (or whichever index you want)
+            if db_log.last_updated_collateral_liquidity_index == contract_index:
+                db_log.collateral_liquidity_index_verified = True
+            else:
+                db_log.collateral_liquidity_index_verified = False
+
+            # If you also track a borrow index or stable index, do similar comparisons:
+            # if db_log.last_updated_borrow_liquidity_index == some_other_contract_value:
+            #     db_log.borrow_liquidity_index_verified = True
+            # else:
+            #     db_log.borrow_liquidity_index_verified = False
+
+            updated_batch.append(db_log)
+
         return updated_batch
 
 
