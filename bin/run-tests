@@ -14,7 +14,7 @@ while ! curl -s -f -o /dev/null -w "%{http_code}" http://localhost:8000/health |
         exit 1
     fi
     echo "Attempt $attempt of $max_attempts: Webserver not ready yet, waiting..."
-    sleep 2
+    sleep 5
     ((attempt++))
 done
 echo "Webserver is ready!"
