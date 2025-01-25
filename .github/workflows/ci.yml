@@ -22,6 +22,7 @@ jobs:
           down-flags: "--volumes"
           test-container: "webserver"
           test-command: "/run-tests"
+          wait-timeout: "300" # 5 minutes timeout for containers to be ready
         env:
           DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
 
