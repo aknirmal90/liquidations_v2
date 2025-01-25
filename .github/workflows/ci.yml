@@ -6,6 +6,7 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-22.04
+    environment: circleci
 
     steps:
       - uses: actions/checkout@v4
@@ -17,12 +18,8 @@ jobs:
       - name: Start Local Development Environment
         run: |
           docker compose up postgres redis -d --wait --wait-timeout 200
-        env:
-          DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
 
       - name: Run Tests
         run: |
-          export DOPPLER_TOKEN=${{ vars.DOPPLER_TOKEN }}
+          export DOPPLER_TOKEN=${DOPPLER_TOKEN}
           doppler run --command "pytest -v"
-        env:
-          DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
