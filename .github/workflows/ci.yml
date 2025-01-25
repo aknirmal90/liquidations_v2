@@ -16,31 +16,12 @@ jobs:
 
       - name: Start Local Development Environment
         run: |
-          docker compose up -d --wait --wait-timeout 200
+          docker compose up postgres redis celery celery-prices -d --wait --wait-timeout 200
         env:
           DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
 
-      - name: Run Tests with Docker Compose
-        uses: adambirds/docker-compose-action@v1.5.0
-        with:
-          compose-file: "docker-compose.yml"
-          up-flags: "--build"
-          down-flags: "--volumes"
-          test-container: "webserver"
-          test-command: "/run-tests"
+      - name: Run Tests
+        run: |
+          doppler run --command "pytest -v"
         env:
           DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
-
-      - name: Store Test Results
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-results
-          path: |
-            junit/test-results.xml
-            coverage.xml
-
-      - name: Store Coverage Report
-        uses: actions/upload-artifact@v3
-        with:
-          name: coverage-report
-          path: coverage-report

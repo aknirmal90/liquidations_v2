@@ -25,8 +25,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config("SECRET_KEY")
 
+SERVER_ENV = config("SERVER_ENV", default="local")
+
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = SERVER_ENV == "local"
 
 ALLOWED_HOSTS = config("DJANGO_ALLOWED_HOSTS", cast=Csv())
 
@@ -161,7 +163,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_HEADERS = default_headers + ("access-control-allow-origin",)
 
-if config("SERVER_ENV") == "prod":
+if SERVER_ENV == "prod":
 
     SECURE_SSL_REDIRECT = True
 
