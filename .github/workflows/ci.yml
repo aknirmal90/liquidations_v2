@@ -60,8 +60,7 @@ jobs:
           echo "Not Success Test Info - ${{ steps.coverageComment.outputs.notSuccessTestInfo }}"
 
           if [ "${{ steps.coverageComment.outputs.failures }}" != "0" ]; then
-            echo "Test failures detected!"
-            exit 1
+            core.setFailed("Test failures detected!")
           fi
 
       - name: Create Coverage PR Comment
