@@ -32,16 +32,23 @@ jobs:
 
       - name: Run Tests with Coverage
         run: |
+          # Export Doppler token as environment variable
+          export DOPPLER_TOKEN=${{ vars.DOPPLER_TOKEN }}
+
           # Start services and wait for readiness
-          DOPPLER_TOKEN=${{ vars.DOPPLER_TOKEN }} docker-compose \
+          docker-compose \
             -f docker-compose-circleci.yml \
             up \
             -d
+
+          # Wait for services to be ready (optional but recommended)
+          sleep 10
 
           docker-compose \
             -f docker-compose-circleci.yml \
             run \
             --rm \
+            -e DOPPLER_TOKEN=${{ vars.DOPPLER_TOKEN }} \
             webserver \
             doppler \
             run \
@@ -51,8 +58,6 @@ jobs:
               --cov=app \
               --cov-report=xml:coverage.xml \
               --cov-report=html:coverage-report"
-        env:
-          DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
 
       - name: Store Test Results
         uses: actions/upload-artifact@v3
