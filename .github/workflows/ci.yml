@@ -23,12 +23,12 @@ jobs:
         run: |
           export DOPPLER_TOKEN=${DOPPLER_TOKEN}
           pip install -r requirements.txt
-          doppler run --command "pytest -v --junitxml=pytest.xml --cov-report=term-missing:skip-covered --cov=. | tee pytest-coverage.txt"
+          doppler run --command "pytest -v --junitxml=pytest.xml hide-report: true --cov-report=term-missing:skip-covered --cov=. | tee pytest-coverage.txt"
         env:
           DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
 
       - name: Pytest coverage comment
         uses: MishaKav/pytest-coverage-comment@main
         with:
-          pytest-coverage-path: ./pytest-coverage.txt
-          junitxml-path: ./pytest.xml
+          pytest-coverage-path: pytest-coverage.txt
+          junitxml-path: pytest.xml
