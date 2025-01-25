@@ -59,7 +59,7 @@ jobs:
 
           echo "Not Success Test Info - ${{ steps.coverageComment.outputs.notSuccessTestInfo }}"
 
-          if [ "${{ steps.coverageComment.outputs.failures }}" != "0" ]; then
+          if [ "${{ steps.coverageComment.outputs.failures }}" != 0 ]; then
             core.setFailed("Test failures detected!")
           fi
 
