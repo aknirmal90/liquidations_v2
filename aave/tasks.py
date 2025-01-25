@@ -366,7 +366,6 @@ class VerifyBalancesTask(Task):
 
         min_id = marked_records.order_by('id').first().id
         max_id = marked_records.order_by('-id').first().id
-        min_id = max_id - 10000
 
         batch_size = 10000
         for start_id in range(min_id, max_id + 1, batch_size):
