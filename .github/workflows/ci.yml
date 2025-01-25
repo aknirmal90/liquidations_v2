@@ -17,11 +17,11 @@ jobs:
       - name: Run Tests with Docker Compose
         uses: adambirds/docker-compose-action@v1.5.0
         with:
-          compose-file: "docker-compose-circleci.yml"
+          compose-file: "docker-compose.yml"
           up-flags: "--build"
           down-flags: "--volumes"
           test-container: "webserver"
-          test-command: pytest --cov --cov-report=xml:coverage.xml --junit-xml=junit/test-results.xml
+          test-command: "/run-tests"
         env:
           DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
 

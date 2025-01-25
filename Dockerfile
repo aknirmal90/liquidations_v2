@@ -51,6 +51,10 @@ COPY ./bin/start-celery-prices /start-celery-prices
 RUN sed -i 's/\r$//g' /start-celery-prices
 RUN chmod +x /start-celery-prices
 
+COPY ./bin/run-tests /run-tests
+RUN sed -i 's/\r$//g' /run-tests
+RUN chmod +x /run-tests
+
 WORKDIR /code/
 
 CMD ["/start-webserver"]
