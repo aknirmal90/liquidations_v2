@@ -23,3 +23,4 @@ django-object-actions==4.3.0
 pytest-django==4.9.0
 pytest-cov==6.0.0
 click==8.1.7
+pytz==2024.2
