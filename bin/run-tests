@@ -4,4 +4,19 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
+# Wait for webserver to be ready
+echo "Waiting for webserver to be ready..."
+max_attempts=30
+attempt=1
+while ! curl -s -f -o /dev/null -w "%{http_code}" http://localhost:8000/health | grep -q "200"; do
+    if [ $attempt -eq $max_attempts ]; then
+        echo "Webserver failed to respond after $max_attempts attempts"
+        exit 1
+    fi
+    echo "Attempt $attempt of $max_attempts: Webserver not ready yet, waiting..."
+    sleep 2
+    ((attempt++))
+done
+echo "Webserver is ready!"
+
 doppler run --command "pytest -vv --cov --cov-report=xml:coverage.xml --junit-xml=junit/test-results.xml"
