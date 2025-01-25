@@ -21,5 +21,4 @@ jobs:
 
       - name: Run Tests
         run: |
-          export DOPPLER_TOKEN=${DOPPLER_TOKEN}
           doppler run --command "pytest -v"
