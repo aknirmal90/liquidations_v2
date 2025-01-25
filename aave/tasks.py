@@ -366,6 +366,7 @@ class VerifyBalancesTask(Task):
 
         min_id = marked_records.order_by('id').first().id
         max_id = marked_records.order_by('-id').first().id
+        min_id = max_id - 10000
 
         batch_size = 10000
         for start_id in range(min_id, max_id + 1, batch_size):
@@ -420,6 +421,22 @@ class VerifyBalancesTask(Task):
             deleted=models.Count(
                 'id',
                 filter=models.Q(mark_for_deletion=True)
+            ),
+            num_collateral_index_verified=models.Count(
+                'id',
+                filter=models.Q(collateral_liquidity_index_verified=True)
+            ),
+            num_borrow_index_verified=models.Count(
+                'id',
+                filter=models.Q(borrow_liquidity_index_verified=True)
+            ),
+            num_collateral_index_unverified=models.Count(
+                'id',
+                filter=models.Q(collateral_liquidity_index_verified=False)
+            ),
+            num_borrow_index_unverified=models.Count(
+                'id',
+                filter=models.Q(borrow_liquidity_index_verified=False)
             )
         )
 
@@ -432,7 +449,11 @@ class VerifyBalancesTask(Task):
             num_borrow_verified=metrics['borrow_verified'],
             num_borrow_unverified=metrics['borrow_unverified'],
             num_collateral_deleted=metrics['deleted'],
-            num_borrow_deleted=metrics['deleted']
+            num_borrow_deleted=metrics['deleted'],
+            num_collateral_index_verified=metrics['num_collateral_index_verified'],
+            num_borrow_index_verified=metrics['num_borrow_index_verified'],
+            num_collateral_index_unverified=metrics['num_collateral_index_unverified'],
+            num_borrow_index_unverified=metrics['num_borrow_index_unverified']
         )
 
         logger.info(
@@ -458,12 +479,6 @@ class VerifyBalancesTask(Task):
         """Process a batch of balance logs."""
         logger.info(f"Processing batch of {len(batch)} balance logs for asset {asset.symbol}")
 
-        user_reserves = provider.getUserReserveData(
-            asset.asset,
-            [obj.address for obj in batch]
-        )
-        logger.info(f"Retrieved user reserve data from provider for {len(user_reserves)} users")
-
         previous_collateral_indexes = []
         previous_borrow_indexes = []
 
@@ -482,15 +497,9 @@ class VerifyBalancesTask(Task):
             )
             logger.info(f"Retrieved previous borrow indexes from provider for {len(previous_borrow_indexes)} users")
 
-        updated_batch = self._update_batch_verification(
-            batch=batch,
-            user_reserves=user_reserves,
-        )
-        logger.info("Updated batch verification status (collateral, borrow amounts).")
-
         if previous_collateral_indexes:
             updated_batch = self._update_batch_indexes_verification(
-                batch=updated_batch,
+                batch=batch,
                 previous_indexes=previous_collateral_indexes,
                 index_type="collateral"
             )
@@ -503,6 +512,18 @@ class VerifyBalancesTask(Task):
                 index_type="borrow"
             )
             logger.info("Updated batch borrow index verification status.")
+
+        user_reserves = provider.getUserReserveData(
+            asset.asset,
+            [obj.address for obj in updated_batch]
+        )
+        logger.info(f"Retrieved user reserve data from provider for {len(user_reserves)} users")
+
+        updated_batch = self._update_batch_verification(
+            batch=batch,
+            user_reserves=user_reserves,
+        )
+        logger.info("Updated batch verification status (collateral, borrow amounts).")
 
         AaveBalanceLog.objects.bulk_update(
             objs=updated_batch,
@@ -586,7 +607,7 @@ class VerifyBalancesTask(Task):
                 setattr(db_log, f"{index_type}_liquidity_index_verified", True)
             else:
                 setattr(db_log, f"{index_type}_liquidity_index_verified", False)
-
+                setattr(db_log, f"last_updated_{index_type}_liquidity_index", contract_index)
             updated_batch.append(db_log)
 
         return updated_batch

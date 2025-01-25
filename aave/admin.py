@@ -827,6 +827,12 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
         'num_borrow_verified',
         'num_borrow_unverified',
         'num_borrow_deleted',
+        'num_collateral_index_verified',
+        'num_borrow_index_verified',
+        'num_collateral_index_unverified',
+        'num_borrow_index_unverified',
+        'get_collateral_index_verification_rate',
+        'get_borrow_index_verification_rate',
     )
 
     list_filter = (
@@ -845,6 +851,12 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
         'num_borrow_deleted',
         'get_collateral_verification_rate',
         'get_borrow_verification_rate',
+        'num_collateral_index_verified',
+        'num_borrow_index_verified',
+        'num_collateral_index_unverified',
+        'num_borrow_index_unverified',
+        'get_collateral_index_verification_rate',
+        'get_borrow_index_verification_rate',
     )
 
     fieldsets = (
@@ -856,18 +868,16 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
         }),
         ('Collateral Metrics', {
             'fields': (
-                'num_collateral_verified',
-                'num_collateral_unverified',
-                'num_collateral_deleted',
-                'get_collateral_verification_rate',
+                ('num_collateral_verified', 'num_collateral_unverified', 'num_collateral_deleted'),
+                ('num_collateral_index_verified', 'num_collateral_index_unverified'),
+                ('get_collateral_verification_rate', 'get_collateral_index_verification_rate'),
             )
         }),
         ('Borrow Metrics', {
             'fields': (
-                'num_borrow_verified',
-                'num_borrow_unverified',
-                'num_borrow_deleted',
-                'get_borrow_verification_rate',
+                ('num_borrow_verified', 'num_borrow_unverified', 'num_borrow_deleted'),
+                ('num_borrow_index_verified', 'num_borrow_index_unverified'),
+                ('get_borrow_verification_rate', 'get_borrow_index_verification_rate'),
             )
         }),
     )
@@ -889,3 +899,19 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
         rate = (obj.num_borrow_verified / total) * 100
         return f'{rate:.2f}%'
     get_borrow_verification_rate.short_description = 'Borrow Verification Rate'
+
+    def get_borrow_index_verification_rate(self, obj):
+        total = obj.num_borrow_index_verified + obj.num_borrow_index_unverified
+        if total == 0:
+            return '0%'
+        rate = (obj.num_borrow_index_verified / total) * 100
+        return f'{rate:.2f}%'
+    get_borrow_index_verification_rate.short_description = 'Borrow Index Verification Rate'
+
+    def get_collateral_index_verification_rate(self, obj):
+        total = obj.num_collateral_index_verified + obj.num_collateral_index_unverified
+        if total == 0:
+            return '0%'
+        rate = (obj.num_collateral_index_verified / total) * 100
+        return f'{rate:.2f}%'
+    get_collateral_index_verification_rate.short_description = 'Collateral Index Verification Rate'
