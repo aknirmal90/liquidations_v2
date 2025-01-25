@@ -23,7 +23,7 @@ jobs:
         run: |
           export DOPPLER_TOKEN=${DOPPLER_TOKEN}
           pip install -r requirements.txt
-          doppler run --command "pytest -v --junitxml=pytest.xml --cov-report=term-missing:skip-covered --cov=app tests/ | tee pytest-coverage.txt"
+          doppler run --command "pytest -v --junitxml=pytest.xml --cov-report=term-missing:skip-covered --cov=. | tee pytest-coverage.txt"
         env:
           DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
 
