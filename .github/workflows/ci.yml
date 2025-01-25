@@ -16,8 +16,7 @@ jobs:
 
       - name: Start Local Development Environment
         run: |
-          chmod +x ./local
-          ./local start
+          docker compose up -d --wait --wait-timeout 200
         env:
           DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
 
@@ -25,7 +24,7 @@ jobs:
         uses: adambirds/docker-compose-action@v1.5.0
         with:
           compose-file: "docker-compose.yml"
-          up-flags: "--build --wait --wait-timeout 200"
+          up-flags: "--build"
           down-flags: "--volumes"
           test-container: "webserver"
           test-command: "/run-tests"
