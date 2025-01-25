@@ -6,10 +6,12 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    container: cimg/python:3.9
+
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Python 3.9
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.9"
@@ -17,8 +19,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip curl
-          pip install click requests
+          sudo apt-get install -y curl
 
           # Install Docker Compose
           sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -27,30 +28,28 @@ jobs:
           # Install Doppler CLI
           (curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh || wget -t 3 -qO- https://cli.doppler.com/install.sh) | sudo sh
 
-      - name: Create Test Results Directory
-        run: |
-          mkdir -p $GITHUB_WORKSPACE/pytest
-          mkdir -p $GITHUB_WORKSPACE/coverage
-
       - name: Run Tests with Coverage
         run: |
-          docker-compose -f docker-compose-circleci.yml up --wait --wait-timeout 120
-          ./local test \
-            --junit-xml=$GITHUB_WORKSPACE/pytest/test_results.xml \
-            --cov \
-            --cov-report=html:$GITHUB_WORKSPACE/coverage \
-            --cov-report=xml:$GITHUB_WORKSPACE/coverage/coverage.xml
+          # Start services and wait for readiness
+          docker-compose -f docker-compose-circleci.yml up -d
+          docker-compose -f docker-compose-circleci.yml run --rm web \
+            pytest --junitxml=junit/test-results.xml \
+                   --cov=app \
+                   --cov-report=xml:coverage.xml \
+                   --cov-report=html:coverage-report
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
 
-      - name: Upload Pytest Results
+      - name: Store Test Results
         uses: actions/upload-artifact@v3
         with:
-          name: pytest-results
-          path: pytest
+          name: test-results
+          path: |
+            junit/test-results.xml
+            coverage.xml
 
-      - name: Upload Coverage Report
+      - name: Store Coverage Report
         uses: actions/upload-artifact@v3
         with:
           name: coverage-report
-          path: coverage
+          path: coverage-report
