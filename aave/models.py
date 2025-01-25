@@ -569,6 +569,11 @@ class AaveDataQualityAnalyticsReport(models.Model):
     num_collateral_deleted = models.PositiveIntegerField(default=0)
     num_borrow_deleted = models.PositiveIntegerField(default=0)
 
+    num_collateral_index_verified = models.PositiveIntegerField(default=0)
+    num_borrow_index_verified = models.PositiveIntegerField(default=0)
+    num_collateral_index_unverified = models.PositiveIntegerField(default=0)
+    num_borrow_index_unverified = models.PositiveIntegerField(default=0)
+
     def __str__(self):
         return f"{self.network} - {self.date}"
 
