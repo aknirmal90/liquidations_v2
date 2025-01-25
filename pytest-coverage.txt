@@ -1,0 +1,166 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-8.3.4, pluggy-1.5.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+django: version: 5.1.2, settings: liquidations_v2.settings (from ini)
+rootdir: /home/runner/work/liquidations_v2/liquidations_v2
+configfile: pytest.ini
+plugins: django-4.9.0, cov-6.0.0
+collecting ... collected 41 items
+
+aave/tests/models_tests.py::test_asset_default_values PASSED             [  2%]
+aave/tests/models_tests.py::test_asset_price_log_default_values PASSED   [  4%]
+aave/tests/models_tests.py::test_aave_liquidation_log_default_values PASSED [  7%]
+aave/tests/models_tests.py::test_aave_balance_log_default_values PASSED  [  9%]
+aave/tests/models_tests.py::test_aave_transfer_event_default_values PASSED [ 12%]
+aave/tests/models_tests.py::test_aave_mint_event_default_values PASSED   [ 14%]
+aave/tests/models_tests.py::test_aave_burn_event_default_values PASSED   [ 17%]
+aave/tests/models_tests.py::test_aave_supply_event_default_values PASSED [ 19%]
+aave/tests/models_tests.py::test_aave_withdraw_event_default_values PASSED [ 21%]
+aave/tests/models_tests.py::test_aave_data_quality_analytics_report_default_values PASSED [ 24%]
+aave/tests/models_tests.py::test_aave_borrow_event_default_values PASSED [ 26%]
+aave/tests/models_tests.py::test_aave_repay_event_default_values PASSED  [ 29%]
+aave/tests/models_tests.py::test_aave_liquidation_call_event_default_values PASSED [ 31%]
+aave/tests/models_tests.py::test_aave_user_default_values PASSED         [ 34%]
+blockchains/tests/models_tests.py::TestProtocolModel::test_get_evm_event_abi_behavior PASSED [ 36%]
+blockchains/tests/models_tests.py::TestProtocolModel::test_get_protocol_by_name_caching PASSED [ 39%]
+blockchains/tests/models_tests.py::TestProtocolModel::test_protocol_creation_and_properties PASSED [ 41%]
+blockchains/tests/models_tests.py::TestNetworkModel::test_get_network_by_id PASSED [ 43%]
+blockchains/tests/models_tests.py::TestNetworkModel::test_get_network_by_name_caching PASSED [ 46%]
+blockchains/tests/models_tests.py::TestNetworkModel::test_network_defaults PASSED [ 48%]
+blockchains/tests/models_tests.py::TestNetworkModel::test_network_properties PASSED [ 51%]
+blockchains/tests/models_tests.py::TestNetworkModel::test_network_str PASSED [ 53%]
+blockchains/tests/models_tests.py::TestEventModel::test_blocks_to_sync_with_none_values PASSED [ 56%]
+blockchains/tests/models_tests.py::TestEventModel::test_event_defaults PASSED [ 58%]
+blockchains/tests/models_tests.py::TestEventModel::test_event_str PASSED [ 60%]
+blockchains/tests/models_tests.py::TestApproximateBlockTimestampModel::test_approximate_block_timestamp_defaults PASSED [ 63%]
+blockchains/tests/models_tests.py::TestApproximateBlockTimestampModel::test_approximate_block_timestamp_str PASSED [ 65%]
+blockchains/tests/models_tests.py::TestApproximateBlockTimestampModel::test_get_timestamps PASSED [ 68%]
+blockchains/tests/signals_tests.py::TestSignals::test_protocol_cache_update_on_save PASSED [ 70%]
+blockchains/tests/signals_tests.py::TestSignals::test_network_cache_update_on_save PASSED [ 73%]
+blockchains/tests/tasks_tests.py::TestInitializeAppTask::test_initialize_app_creates_protocol_and_network PASSED [ 75%]
+blockchains/tests/tasks_tests.py::TestInitializeAppTask::test_initialize_app_updates_existing_protocol_and_network PASSED [ 78%]
+blockchains/tests/tasks_tests.py::TestInitializeAppTask::test_initialize_app_handles_empty_data PASSED [ 80%]
+blockchains/tests/tasks_tests.py::TestResetAppTask::test_reset_app_deletes_all_data PASSED [ 82%]
+blockchains/tests/tasks_tests.py::TestResetAppTask::test_reset_app_handles_empty_database PASSED [ 85%]
+blockchains/tests/tasks_tests.py::TestResetAppTask::test_reset_and_initialize_app PASSED [ 87%]
+blockchains/tests/tasks_tests.py::TestUpdateBlockNumberTask::test_update_block_number_task PASSED [ 90%]
+blockchains/tests/tasks_tests.py::TestEventGrouping::test_group_events_by_network PASSED [ 92%]
+blockchains/tests/tasks_tests.py::TestEventGrouping::test_group_events_by_protocol PASSED [ 95%]
+blockchains/tests/tasks_tests.py::TestStreamingSynchronizeForEventTask::test_get_queryset_filters_correctly PASSED [ 97%]
+blockchains/tests/tasks_tests.py::TestSynchronizeForEventTask::test_run_calls_both_tasks PASSED [100%]
+
+- generated xml file: /home/runner/work/liquidations_v2/liquidations_v2/pytest.xml -
+
+---------- coverage: platform linux, python 3.10.12-final-0 ----------
+Name                                                                                                                           Stmts   Miss  Cover   Missing
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+aave/adapter.py                                                                                                                  378    378     0%   1-864
+aave/admin.py                                                                                                                    235    125    47%   123, 127, 131, 135, 139, 143, 147, 169, 173-176, 180-183, 187-189, 258-260, 265-267, 272-274, 279-281, 286-288, 379, 383, 494, 499-527, 532-549, 569-586, 606-646, 687-716, 753-755, 759-766, 786-793, 874-878, 882-886
+aave/dataprovider.py                                                                                                              34     19    44%   13-16, 26-42, 51-65, 73, 82, 91, 100, 109
+aave/inlines.py                                                                                                                  270    123    54%   24, 42, 46, 50, 69, 73, 77, 96, 100, 104, 123, 127, 131, 150, 154, 158, 177, 181, 185, 204, 208, 212, 232, 236, 240, 245-246, 250-291, 300-341, 350-404, 413-444, 451-483, 490-527, 534-569, 576-615
+aave/management/commands/listen_base.py                                                                                           64     64     0%   1-118
+aave/management/commands/listen_pending_transactions.py                                                                           26     26     0%   1-66
+aave/management/commands/listen_sequencer.py                                                                                     102    102     0%   1-191
+aave/migrations/0001_initial.py                                                                                                    7      7     0%   3-14
+aave/migrations/0002_asset_atoken_address_and_more.py                                                                              4      4     0%   3-10
+aave/migrations/0003_asset_num_decimals_alter_asset_decimals.py                                                                    5      5     0%   3-11
+aave/migrations/0004_rename_address_asset_asset_and_more.py                                                                        4      4     0%   3-13
+aave/migrations/0005_alter_asset_decimals_alter_asset_num_decimals.py                                                              5      5     0%   3-11
+aave/migrations/0006_asset_price_type.py                                                                                           4      4     0%   3-10
+aave/migrations/0007_alter_asset_denominator_alter_asset_numerator_and_more.py                                                     4      4     0%   3-10
+aave/migrations/0008_alter_asset_denominator_alter_asset_numerator.py                                                              4      4     0%   3-12
+aave/migrations/0009_asset_borrowable_in_isolation_mode.py                                                                         4      4     0%   3-10
+aave/migrations/0010_asset_is_reserve_paused.py                                                                                    4      4     0%   3-10
+aave/migrations/0011_asset_reserve_factor_asset_reserve_is_borrow_enabled_and_more.py                                              4      4     0%   3-10
+aave/migrations/0012_asset_emode_is_borrowable_asset_emode_is_collateral.py                                                        4      4     0%   3-12
+aave/migrations/0013_asset_epoch_and_rounda_asset_epoch_and_roundb_and_more.py                                                     4      4     0%   3-12
+aave/migrations/0014_rename_epoch_and_rounda_asset_updated_at_db_a_and_more.py                                                     4      4     0%   3-12
+aave/migrations/0015_assetpricelog.py                                                                                              5      5     0%   3-14
+aave/migrations/0016_remove_assetpricelog_aave_assetp_asset_a_9e966b_idx_and_more.py                                               4      4     0%   3-13
+aave/migrations/0017_alter_assetpricelog_price.py                                                                                  4      4     0%   3-12
+aave/migrations/0018_assetpricelog_round_id.py                                                                                     4      4     0%   3-10
+aave/migrations/0019_assetpricelog_onchain_received_at.py                                                                          4      4     0%   3-10
+aave/migrations/0020_assetpricelog_provider.py                                                                                     4      4     0%   3-10
+aave/migrations/0021_rename_numerator_asset_decimals_price_and_more.py                                                             4      4     0%   3-10
+aave/migrations/0022_alter_asset_decimals_price_alter_asset_max_cap.py                                                             4      4     0%   3-10
+aave/migrations/0023_aaveliquidationlog.py                                                                                         5      5     0%   3-14
+aave/migrations/0024_alter_aaveliquidationlog_debt_to_cover_in_usd_and_more.py                                                     4      4     0%   3-10
+aave/migrations/0025_aaveliquidationlog_health_factor_before_one_blocks_and_more.py                                                4      4     0%   3-12
+aave/migrations/0026_aaveliquidationlog_health_factor_before_tx_before_zero_blocks_and_more.py                                     4      4     0%   3-12
+aave/migrations/0027_rename_health_factor_before_tx_before_zero_blocks_aaveliquidationlog_health_factor_before_zero_block.py       4      4     0%   3-15
+aave/migrations/0028_remove_asset_updated_at_block_heighta_and_more.py                                                             4      4     0%   3-15
+aave/migrations/0029_alter_assetpricelog_onchain_created_at.py                                                                     4      4     0%   3-10
+aave/migrations/0030_assetpricelog_processed_at.py                                                                                 4      4     0%   3-10
+aave/migrations/0031_aavebalancelog.py                                                                                             5      5     0%   3-17
+aave/migrations/0032_aaveburnevent_aavemintevent_aavetransferevent.py                                                              5      5     0%   3-11
+aave/migrations/0033_alter_aaveburnevent_unique_together_and_more.py                                                               4      4     0%   3-10
+aave/migrations/0034_rename_collateral_liquidity_index_aavebalancelog_last_updated_liquidity_index_and_more.py                     4      4     0%   3-10
+aave/migrations/0035_aavebalancelog_collateral_amount_live.py                                                                      4      4     0%   3-15
+aave/migrations/0036_aavebalancelog_aave_aaveba_network_51c4b4_idx.py                                                              4      4     0%   3-16
+aave/migrations/0037_aavebalancelog_collateral_amount_live_is_verified.py                                                          4      4     0%   3-10
+aave/migrations/0038_aavesupplyevent_aavewithdrawevent.py                                                                          5      5     0%   3-11
+aave/migrations/0039_remove_asset_interest_rate_strategy_address_and_more.py                                                       4      4     0%   3-10
+aave/migrations/0040_aavebalancelog_mark_for_deletion_and_more.py                                                                  5      5     0%   3-13
+aave/migrations/0041_alter_aaveburnevent_balance_log_and_more.py                                                                   5      5     0%   3-11
+aave/migrations/0042_aavedataqualityanalyticsreport.py                                                                             5      5     0%   3-17
+aave/migrations/0043_rename_last_updated_liquidity_index_aavebalancelog_last_updated_collateral_liquidity_index_and_more.py        4      4     0%   3-10
+aave/migrations/0044_alter_aavebalancelog_borrow_amount_and_more.py                                                                5      5     0%   3-16
+aave/migrations/0045_alter_aavebalancelog_last_updated_borrow_liquidity_index_and_more.py                                          5      5     0%   3-11
+aave/migrations/0046_aaveburnevent_type_aavemintevent_type.py                                                                      4      4     0%   3-15
+aave/migrations/0047_aaveborrowevent_aaveliquidationcallevent_and_more.py                                                          5      5     0%   3-11
+aave/migrations/0048_alter_aaveburnevent_unique_together_and_more.py                                                               4      4     0%   3-10
+aave/migrations/0049_aavebalancelog_collateral_is_enabled_updated_at_block.py                                                      4      4     0%   3-10
+aave/migrations/0050_aaveliquidationlog_block_datetime.py                                                                          4      4     0%   3-12
+aave/migrations/0051_aaveliquidationlog_profit_in_usd.py                                                                           4      4     0%   3-10
+aave/migrations/0052_aavebalancelog_collateral_amount_live_with_reserve_threshold_and_more.py                                      5      5     0%   3-11
+aave/migrations/0053_rename_collateral_amount_live_with_reserve_threshold_aavebalancelog_collateral_amount_live_with_liqu.py       4      4     0%   3-15
+aave/migrations/0054_aaveuser_and_more.py                                                                                          5      5     0%   3-17
+aave/migrations/0055_alter_aavebalancelog_price_in_nativeasset_and_more.py                                                         4      4     0%   3-12
+aave/migrations/0056_alter_aavebalancelog_collateral_health_factor.py                                                              5      5     0%   3-13
+aave/migrations/0057_remove_asset_borrowable_in_isolation_mode_and_more.py                                                         4      4     0%   3-12
+aave/migrations/0058_alter_asset_num_decimals.py                                                                                   5      5     0%   3-13
+aave/migrations/0059_alter_asset_symbol.py                                                                                         4      4     0%   3-12
+aave/models.py                                                                                                                   370     94    75%   93, 105-108, 117-119, 127, 139-169, 177-187, 191-193, 200-202, 210-214, 222-226, 235-240, 248-262, 284, 362, 408, 411, 414-436, 439-451, 570
+aave/price.py                                                                                                                     81     81     0%   1-150
+aave/tasks.py                                                                                                                    282    218    23%   47-70, 83-108, 120, 123-125, 140-192, 209-252, 263-320, 334-338, 341-349, 352-359, 363-381, 385-438, 444-448, 452-455, 459-486, 490-538, 549-561, 570-615
+blockchains/admin.py                                                                                                              33      3    91%   117, 139, 142
+blockchains/migrations/0001_initial.py                                                                                             6      6     0%   3-13
+blockchains/migrations/0002_remove_protocol_type.py                                                                                4      4     0%   3-10
+blockchains/migrations/0003_event_converter_name_event_model_class_and_more.py                                                     4      4     0%   3-10
+blockchains/migrations/0004_rename_event_abi_event_abi_and_more.py                                                                 4      4     0%   3-12
+blockchains/migrations/0005_remove_event_converter_name.py                                                                         4      4     0%   3-10
+blockchains/migrations/0006_remove_network_rpc_adapter_path.py                                                                     4      4     0%   3-10
+blockchains/migrations/0007_event_contract_addresses.py                                                                            4      4     0%   3-10
+blockchains/migrations/0008_delete_token.py                                                                                        4      4     0%   3-10
+blockchains/migrations/0009_network_wss_alter_network_rpc.py                                                                       4      4     0%   3-10
+blockchains/migrations/0010_alter_network_wss.py                                                                                   4      4     0%   3-10
+blockchains/migrations/0011_rename_wss_network_wss_infura_network_wss_alchemy_and_more.py                                          4      4     0%   3-10
+blockchains/migrations/0012_network_wss_tatum_network_wss_tenderly.py                                                              4      4     0%   3-15
+blockchains/migrations/0013_remove_network_wss_tatum.py                                                                            4      4     0%   3-10
+blockchains/migrations/0014_network_wss_chainstack.py                                                                              4      4     0%   3-10
+blockchains/migrations/0015_network_chain_id.py                                                                                    4      4     0%   3-10
+blockchains/migrations/0016_rename_wss_alchemy_network_wss_sequencer_virginia_and_more.py                                          4      4     0%   3-10
+blockchains/migrations/0017_rename_wss_sequencer_virginia_network_wss_sequencer_oregon.py                                          4      4     0%   3-15
+blockchains/migrations/0018_approximateblocktimestamp.py                                                                           5      5     0%   3-16
+blockchains/migrations/0019_delete_contract.py                                                                                     4      4     0%   3-10
+blockchains/models.py                                                                                                            124     13    90%   62-64, 108-110, 121, 128-129, 159, 162, 165-166
+blockchains/tasks.py                                                                                                             296    145    51%   171-172, 226, 229, 232, 235, 238-328, 331-347, 354-379, 385-392, 395, 404-412, 460, 464, 467, 470-482, 491, 507, 518-532, 541-567
+config/migrations/0001_initial.py                                                                                                  5      5     0%   3-12
+config/models.py                                                                                                                  26     12    54%   23, 27-37
+liquidations_v2/asgi.py                                                                                                            4      4     0%   10-16
+liquidations_v2/settings/settings_generic.py                                                                                      39      6    85%   168-180
+liquidations_v2/urls.py                                                                                                            6      6     0%   17-26
+liquidations_v2/wsgi.py                                                                                                            4      4     0%   10-16
+manage.py                                                                                                                         11     11     0%   3-22
+utils/admin.py                                                                                                                    72     57    21%   12-13, 18-19, 34-44, 56-67, 71-108, 112-149
+utils/encoding.py                                                                                                                 85     61    28%   23-24, 27-28, 52, 67-78, 83-95, 100-108, 112-118, 122-135, 140-165
+utils/files.py                                                                                                                    29     19    34%   19-24, 38-43, 60-62, 78-85
+utils/rpc.py                                                                                                                      37     11    70%   15-28, 35-38, 64, 76, 96, 117
+utils/simulation.py                                                                                                               21     15    29%   20-47, 56-75
+utils/tokens.py                                                                                                                   40     27    32%   58-74, 79-89, 94-98, 103-107
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+TOTAL                                                                                                                           3603   1964    45%
+
+26 files skipped due to complete coverage.
+
+============================== 41 passed in 2.43s ==============================
