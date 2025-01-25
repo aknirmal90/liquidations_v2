@@ -1,3 +1,6 @@
+<!-- Pytest Coverage Comment:Begin -->
+<!-- Pytest Coverage Comment:End -->
+
 ### Periodic Tasks
 
 1. Initialize
