@@ -21,7 +21,7 @@ jobs:
           up-flags: "--build"
           down-flags: "--volumes"
           test-container: "webserver"
-          test-command: "doppler run --command 'pytest -v --cov --cov-report=xml:coverage.xml --junit-xml=junit/test-results.xml' "
+          test-command: "doppler run --command pytest -v --cov --cov-report=xml:coverage.xml --junit-xml=junit/test-results.xml "
         env:
           DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
 
