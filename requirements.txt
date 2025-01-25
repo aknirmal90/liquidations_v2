@@ -1,11 +1,7 @@
-databricks-sql-connector==3.4.0
-typer==0.12.5
 pyyaml==6.0.2
 redis==5.1.1
 django-celery==3.1.17
 python-decouple==3.8
-flower==2.0.1
-pyspark==3.5.3
 django==5.1.2
 django-celery-beat==2.7.0
 psycopg2-binary==2.9.9
@@ -26,3 +22,4 @@ django-admin-inline-paginator==0.4.0
 django-object-actions==4.3.0
 pytest-django==4.9.0
 pytest-cov==6.0.0
+click==8.1.7
