@@ -37,7 +37,7 @@ jobs:
           docker-compose -f docker-compose-circleci.yml run --rm webserver \
             doppler run --command "pytest --junitxml=junit/test-results.xml --cov=app --cov-report=xml:coverage.xml --cov-report=html:coverage-report"
         env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          DOPPLER_TOKEN: ${{ vars.DOPPLER_TOKEN }}
 
       - name: Store Test Results
         uses: actions/upload-artifact@v3
