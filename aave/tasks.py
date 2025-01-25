@@ -464,13 +464,23 @@ class VerifyBalancesTask(Task):
         )
         logger.info(f"Retrieved user reserve data from provider for {len(user_reserves)} users")
 
-        previous_indexes = []
+        previous_collateral_indexes = []
+        previous_borrow_indexes = []
+
         if asset.atoken_address:
-            previous_indexes = provider.getPreviousIndex(
+            previous_collateral_indexes = provider.getPreviousIndex(
                 contract_address=asset.atoken_address,
                 users=[obj.address for obj in batch]
             )
-            logger.info(f"Retrieved previous indexes from provider for {len(previous_indexes)} users")
+            logger.info(
+                f"Retrieved previous collateral indexes from provider for {len(previous_collateral_indexes)} users")
+
+        if asset.variable_debt_token_address:
+            previous_borrow_indexes = provider.getPreviousIndex(
+                contract_address=asset.variable_debt_token_address,
+                users=[obj.address for obj in batch]
+            )
+            logger.info(f"Retrieved previous borrow indexes from provider for {len(previous_borrow_indexes)} users")
 
         updated_batch = self._update_batch_verification(
             batch=batch,
@@ -478,12 +488,21 @@ class VerifyBalancesTask(Task):
         )
         logger.info("Updated batch verification status (collateral, borrow amounts).")
 
-        if previous_indexes:
+        if previous_collateral_indexes:
             updated_batch = self._update_batch_indexes_verification(
                 batch=updated_batch,
-                previous_indexes=previous_indexes
+                previous_indexes=previous_collateral_indexes,
+                index_type="collateral"
             )
-            logger.info("Updated batch index verification status.")
+            logger.info("Updated batch collateral index verification status.")
+
+        if previous_borrow_indexes:
+            updated_batch = self._update_batch_indexes_verification(
+                batch=updated_batch,
+                previous_indexes=previous_borrow_indexes,
+                index_type="borrow"
+            )
+            logger.info("Updated batch borrow index verification status.")
 
         AaveBalanceLog.objects.bulk_update(
             objs=updated_batch,
@@ -553,7 +572,7 @@ class VerifyBalancesTask(Task):
             updated_batch.append(db_user_reserve)
         return updated_batch
 
-    def _update_batch_indexes_verification(self, batch, previous_indexes):
+    def _update_batch_indexes_verification(self, batch, previous_indexes, index_type):
         """
         Compare the contract's getPreviousIndex values to our DB index fields
         and mark them as verified or not.
@@ -561,22 +580,12 @@ class VerifyBalancesTask(Task):
         updated_batch = []
         for i, contract_response in enumerate(previous_indexes):
             db_log = batch[i]
-
-            # contract_response["result"] might be a single index value or a structure
-            # depending on your contract's ABI. Here we assume it's just one bigint/hex.
             contract_index = Decimal(contract_response['result']['index'])
 
-            # Compare to your stored last_updated_collateral_liquidity_index (or whichever index you want)
-            if db_log.last_updated_collateral_liquidity_index == contract_index:
-                db_log.collateral_liquidity_index_verified = True
+            if getattr(db_log, f"last_updated_{index_type}_liquidity_index") == contract_index:
+                setattr(db_log, f"{index_type}_liquidity_index_verified", True)
             else:
-                db_log.collateral_liquidity_index_verified = False
-
-            # If you also track a borrow index or stable index, do similar comparisons:
-            # if db_log.last_updated_borrow_liquidity_index == some_other_contract_value:
-            #     db_log.borrow_liquidity_index_verified = True
-            # else:
-            #     db_log.borrow_liquidity_index_verified = False
+                setattr(db_log, f"{index_type}_liquidity_index_verified", False)
 
             updated_batch.append(db_log)
 
