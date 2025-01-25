@@ -33,11 +33,10 @@ jobs:
       - name: Run Tests with Coverage
         run: |
           # Start services and wait for readiness
-          docker-compose \
+          DOPPLER_TOKEN=${{ vars.DOPPLER_TOKEN }} docker-compose \
             -f docker-compose-circleci.yml \
             up \
-            -d \
-            -e DOPPLER_TOKEN=${{ vars.DOPPLER_TOKEN }}
+            -d
 
           docker-compose \
             -f docker-compose-circleci.yml \
