@@ -5,49 +5,48 @@ django: version: 5.1.2, settings: liquidations_v2.settings (from ini)
 rootdir: /home/runner/work/liquidations_v2/liquidations_v2
 configfile: pytest.ini
 plugins: django-4.9.0, cov-6.0.0
-collecting ... collected 41 items
+collecting ... collected 40 items
 
 aave/tests/models_tests.py::test_asset_default_values PASSED             [  2%]
-aave/tests/models_tests.py::test_asset_price_log_default_values PASSED   [  4%]
+aave/tests/models_tests.py::test_asset_price_log_default_values PASSED   [  5%]
 aave/tests/models_tests.py::test_aave_liquidation_log_default_values PASSED [  7%]
-aave/tests/models_tests.py::test_aave_balance_log_default_values PASSED  [  9%]
+aave/tests/models_tests.py::test_aave_balance_log_default_values PASSED  [ 10%]
 aave/tests/models_tests.py::test_aave_transfer_event_default_values PASSED [ 12%]
-aave/tests/models_tests.py::test_aave_mint_event_default_values PASSED   [ 14%]
+aave/tests/models_tests.py::test_aave_mint_event_default_values PASSED   [ 15%]
 aave/tests/models_tests.py::test_aave_burn_event_default_values PASSED   [ 17%]
-aave/tests/models_tests.py::test_aave_supply_event_default_values PASSED [ 19%]
-aave/tests/models_tests.py::test_aave_withdraw_event_default_values PASSED [ 21%]
-aave/tests/models_tests.py::test_aave_data_quality_analytics_report_default_values PASSED [ 24%]
-aave/tests/models_tests.py::test_aave_borrow_event_default_values PASSED [ 26%]
-aave/tests/models_tests.py::test_aave_repay_event_default_values PASSED  [ 29%]
-aave/tests/models_tests.py::test_aave_liquidation_call_event_default_values PASSED [ 31%]
-aave/tests/models_tests.py::test_aave_user_default_values PASSED         [ 34%]
-blockchains/tests/models_tests.py::TestProtocolModel::test_get_evm_event_abi_behavior PASSED [ 36%]
-blockchains/tests/models_tests.py::TestProtocolModel::test_get_protocol_by_name_caching PASSED [ 39%]
-blockchains/tests/models_tests.py::TestProtocolModel::test_protocol_creation_and_properties PASSED [ 41%]
-blockchains/tests/models_tests.py::TestNetworkModel::test_get_network_by_id PASSED [ 43%]
-blockchains/tests/models_tests.py::TestNetworkModel::test_get_network_by_name_caching PASSED [ 46%]
-blockchains/tests/models_tests.py::TestNetworkModel::test_network_defaults PASSED [ 48%]
-blockchains/tests/models_tests.py::TestNetworkModel::test_network_properties PASSED [ 51%]
-blockchains/tests/models_tests.py::TestNetworkModel::test_network_str PASSED [ 53%]
-blockchains/tests/models_tests.py::TestEventModel::test_blocks_to_sync_with_none_values PASSED [ 56%]
-blockchains/tests/models_tests.py::TestEventModel::test_event_defaults PASSED [ 58%]
-blockchains/tests/models_tests.py::TestEventModel::test_event_str PASSED [ 60%]
-blockchains/tests/models_tests.py::TestApproximateBlockTimestampModel::test_approximate_block_timestamp_defaults PASSED [ 63%]
-blockchains/tests/models_tests.py::TestApproximateBlockTimestampModel::test_approximate_block_timestamp_str PASSED [ 65%]
-blockchains/tests/models_tests.py::TestApproximateBlockTimestampModel::test_get_timestamps PASSED [ 68%]
-blockchains/tests/signals_tests.py::TestSignals::test_protocol_cache_update_on_save PASSED [ 70%]
-blockchains/tests/signals_tests.py::TestSignals::test_network_cache_update_on_save PASSED [ 73%]
-blockchains/tests/tasks_tests.py::TestInitializeAppTask::test_initialize_app_creates_protocol_and_network PASSED [ 75%]
-blockchains/tests/tasks_tests.py::TestInitializeAppTask::test_initialize_app_updates_existing_protocol_and_network PASSED [ 78%]
-blockchains/tests/tasks_tests.py::TestInitializeAppTask::test_initialize_app_handles_empty_data PASSED [ 80%]
-blockchains/tests/tasks_tests.py::TestResetAppTask::test_reset_app_deletes_all_data PASSED [ 82%]
-blockchains/tests/tasks_tests.py::TestResetAppTask::test_reset_app_handles_empty_database PASSED [ 85%]
-blockchains/tests/tasks_tests.py::TestResetAppTask::test_reset_and_initialize_app PASSED [ 87%]
-blockchains/tests/tasks_tests.py::TestUpdateBlockNumberTask::test_update_block_number_task PASSED [ 90%]
-blockchains/tests/tasks_tests.py::TestEventGrouping::test_group_events_by_network PASSED [ 92%]
-blockchains/tests/tasks_tests.py::TestEventGrouping::test_group_events_by_protocol PASSED [ 95%]
-blockchains/tests/tasks_tests.py::TestStreamingSynchronizeForEventTask::test_get_queryset_filters_correctly PASSED [ 97%]
-blockchains/tests/tasks_tests.py::TestSynchronizeForEventTask::test_run_calls_both_tasks PASSED [100%]
+aave/tests/models_tests.py::test_aave_supply_event_default_values PASSED [ 20%]
+aave/tests/models_tests.py::test_aave_withdraw_event_default_values PASSED [ 22%]
+aave/tests/models_tests.py::test_aave_data_quality_analytics_report_default_values PASSED [ 25%]
+aave/tests/models_tests.py::test_aave_borrow_event_default_values PASSED [ 27%]
+aave/tests/models_tests.py::test_aave_repay_event_default_values PASSED  [ 30%]
+aave/tests/models_tests.py::test_aave_liquidation_call_event_default_values PASSED [ 32%]
+aave/tests/models_tests.py::test_aave_user_default_values PASSED         [ 35%]
+blockchains/tests/models_tests.py::TestProtocolModel::test_get_evm_event_abi_behavior PASSED [ 37%]
+blockchains/tests/models_tests.py::TestProtocolModel::test_get_protocol_by_name_caching PASSED [ 40%]
+blockchains/tests/models_tests.py::TestProtocolModel::test_protocol_creation_and_properties PASSED [ 42%]
+blockchains/tests/models_tests.py::TestNetworkModel::test_get_network_by_id PASSED [ 45%]
+blockchains/tests/models_tests.py::TestNetworkModel::test_get_network_by_name_caching PASSED [ 47%]
+blockchains/tests/models_tests.py::TestNetworkModel::test_network_defaults PASSED [ 50%]
+blockchains/tests/models_tests.py::TestNetworkModel::test_network_properties PASSED [ 52%]
+blockchains/tests/models_tests.py::TestNetworkModel::test_network_str PASSED [ 55%]
+blockchains/tests/models_tests.py::TestEventModel::test_blocks_to_sync_with_none_values PASSED [ 57%]
+blockchains/tests/models_tests.py::TestEventModel::test_event_defaults PASSED [ 60%]
+blockchains/tests/models_tests.py::TestEventModel::test_event_str PASSED [ 62%]
+blockchains/tests/models_tests.py::TestApproximateBlockTimestampModel::test_approximate_block_timestamp_defaults PASSED [ 65%]
+blockchains/tests/models_tests.py::TestApproximateBlockTimestampModel::test_approximate_block_timestamp_str PASSED [ 67%]
+blockchains/tests/models_tests.py::TestApproximateBlockTimestampModel::test_get_timestamps PASSED [ 70%]
+blockchains/tests/signals_tests.py::TestSignals::test_protocol_cache_update_on_save PASSED [ 72%]
+blockchains/tests/signals_tests.py::TestSignals::test_network_cache_update_on_save PASSED [ 75%]
+blockchains/tests/tasks_tests.py::TestInitializeAppTask::test_initialize_app_creates_protocol_and_network PASSED [ 77%]
+blockchains/tests/tasks_tests.py::TestInitializeAppTask::test_initialize_app_updates_existing_protocol_and_network PASSED [ 80%]
+blockchains/tests/tasks_tests.py::TestInitializeAppTask::test_initialize_app_handles_empty_data PASSED [ 82%]
+blockchains/tests/tasks_tests.py::TestResetAppTask::test_reset_app_deletes_all_data PASSED [ 85%]
+blockchains/tests/tasks_tests.py::TestResetAppTask::test_reset_app_handles_empty_database PASSED [ 87%]
+blockchains/tests/tasks_tests.py::TestResetAppTask::test_reset_and_initialize_app PASSED [ 90%]
+blockchains/tests/tasks_tests.py::TestUpdateBlockNumberTask::test_update_block_number_task PASSED [ 92%]
+blockchains/tests/tasks_tests.py::TestEventGrouping::test_group_events_by_network PASSED [ 95%]
+blockchains/tests/tasks_tests.py::TestEventGrouping::test_group_events_by_protocol PASSED [ 97%]
+blockchains/tests/tasks_tests.py::TestStreamingSynchronizeForEventTask::test_get_queryset_filters_correctly PASSED [100%]
 
 - generated xml file: /home/runner/work/liquidations_v2/liquidations_v2/pytest.xml -
 
@@ -66,7 +65,7 @@ aave/price.py                                                81     81     0%   
 aave/tasks.py                                               307    242    21%   47-70, 83-108, 120, 123-125, 140-192, 209-252, 263-320, 334-338, 341-349, 352-359, 363-381, 385-458, 464-468, 472-475, 479-541, 545-593, 600-612, 623-635, 644-689
 blockchains/admin.py                                         33      3    91%   117, 139, 142
 blockchains/models.py                                       124     13    90%   62-64, 108-110, 121, 128-129, 159, 162, 165-166
-blockchains/tasks.py                                        296    145    51%   171-172, 226, 229, 232, 235, 238-328, 331-347, 354-379, 385-392, 395, 404-412, 460, 464, 467, 470-482, 491, 507, 518-532, 541-567
+blockchains/tasks.py                                        260    130    50%   171-172, 226, 229, 232, 235, 238-328, 331-347, 354-379, 385-392, 395, 404-412, 449-463, 472-498
 config/models.py                                             26     12    54%   23, 27-37
 liquidations_v2/asgi.py                                       4      4     0%   10-16
 liquidations_v2/settings/settings_generic.py                 39      6    85%   168-180
@@ -80,8 +79,8 @@ utils/rpc.py                                                 37     11    70%   
 utils/simulation.py                                          21     15    29%   20-47, 56-75
 utils/tokens.py                                              40     27    32%   58-74, 79-89, 94-98, 103-107
 ---------------------------------------------------------------------------------------
-TOTAL                                                      3308   1658    50%
+TOTAL                                                      3263   1643    50%
 
 23 files skipped due to complete coverage.
 
-============================== 41 passed in 2.00s ==============================
+============================== 40 passed in 1.84s ==============================
