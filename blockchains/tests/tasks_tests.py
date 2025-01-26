@@ -403,7 +403,7 @@ class TestStreamingSynchronizeForEventTask:
             task = StreamingSynchronizeForEventTask
 
             # Act
-            result = task.get_queryset([event1.id, event2.id])
+            result = task.get_queryset()
 
             # Assert
             assert event1 in result
@@ -412,7 +412,7 @@ class TestStreamingSynchronizeForEventTask:
             task = BackfillSynchronizeForEventTask
 
             # Act
-            result = task.get_queryset([event1.id, event2.id])
+            result = task.get_queryset()
 
             # Assert
             assert event1 not in result
