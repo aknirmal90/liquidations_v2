@@ -418,7 +418,7 @@ class AaveBalanceLog(models.Model):
             raise ValueError(f"Invalid balance type: {type}")
 
         amount = self.collateral_amount if type == "collateral" else self.borrow_amount
-        if amount:
+        if not amount:
             return Decimal("0.0")
 
         try:
@@ -447,7 +447,7 @@ class AaveBalanceLog(models.Model):
         )
 
     def get_collateral_health_factor(self):
-        price_in_nativeasset = self.asset.price_in_nativeasset or Decimal("0.0")
+        price_in_nativeasset = self.price_in_nativeasset or Decimal("0.0")
         return (
             self.collateral_amount_live_with_liquidation_threshold * price_in_nativeasset
         )
