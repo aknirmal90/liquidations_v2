@@ -460,6 +460,7 @@ class AaveTransferEvent(models.Model):
     from_address = models.CharField(max_length=42, db_index=True)
     to_address = models.CharField(max_length=42, db_index=True)
     value = models.DecimalField(max_digits=72, decimal_places=18)
+    index = models.DecimalField(max_digits=72, decimal_places=18, null=True, blank=True)
     block_height = models.PositiveBigIntegerField()
     transaction_hash = models.CharField(max_length=66)
     transaction_index = models.PositiveIntegerField()

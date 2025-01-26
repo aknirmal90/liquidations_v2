@@ -30,7 +30,7 @@ class AaveMintEventInline(TabularInlinePaginated):
     can_delete = False
     can_add = False
     fields = [
-        'caller_link', 'on_behalf_of_link', 'value', 'balance_increase', 'transaction_hash_link',
+        'id', 'value', 'index' , 'transaction_hash_link',
         'block_height', 'transaction_index', 'log_index'
     ]
     readonly_fields = fields
@@ -57,7 +57,7 @@ class AaveBurnEventInline(TabularInlinePaginated):
     can_delete = False
     can_add = False
     fields = [
-        'target_link', 'from_address_link', 'value', 'balance_increase', 'transaction_hash_link',
+        'id', 'value', 'index', 'transaction_hash_link',
         'block_height', 'transaction_index', 'log_index'
     ]
     readonly_fields = fields
@@ -84,8 +84,8 @@ class AaveTransferEventInline(TabularInlinePaginated):
     can_delete = False
     can_add = False
     fields = [
-        'from_address_link', 'to_address_link', 'value',
-        'transaction_hash_link', 'block_height', 'transaction_index', 'log_index'
+        'id', 'value', 'index', 'transaction_hash_link',
+        'block_height', 'transaction_index', 'log_index'
     ]
     readonly_fields = fields
     ordering = ('-block_height', '-transaction_index', '-log_index')
@@ -347,7 +347,7 @@ def get_mint_events_for_address(balance_log: AaveBalanceLog, type="collateral"):
 
 
 def get_transfer_events_for_address(balance_log: AaveBalanceLog):
-    event_abi = get_aave_protocol.get_evm_event_abi("Supply")
+    event_abi = get_aave_protocol().get_evm_event_abi("Supply")
     event_topic_0 = get_topic_0(event_abi)
     rpc_adapter = balance_log.network.rpc_adapter
     atoken = balance_log.asset.atoken_address
@@ -398,7 +398,8 @@ def get_transfer_events_for_address(balance_log: AaveBalanceLog):
             transaction_index=event_data['transactionIndex'],
             log_index=event_data['logIndex'],
             block_height=event_data['blockNumber'],
-            balance_log=balance_log
+            balance_log=balance_log,
+            index=event_data["args"]["index"]
         ))
 
     AaveTransferEvent.objects.bulk_create(
@@ -410,7 +411,7 @@ def get_transfer_events_for_address(balance_log: AaveBalanceLog):
 
 
 def get_supply_events_for_address(balance_log: AaveBalanceLog):
-    event_abi = get_aave_protocol.get_evm_event_abi("Supply")
+    event_abi = get_aave_protocol().get_evm_event_abi("Supply")
     event_topic_0 = get_topic_0(event_abi)
     rpc_adapter = balance_log.network.rpc_adapter
     AaveSupplyEvent.objects.filter(balance_log=balance_log).delete()
@@ -448,7 +449,7 @@ def get_supply_events_for_address(balance_log: AaveBalanceLog):
 
 
 def get_withdraw_events_for_address(balance_log: AaveBalanceLog):
-    event_abi = get_aave_protocol.get_evm_event_abi("Withdraw")
+    event_abi = get_aave_protocol().get_evm_event_abi("Withdraw")
     event_topic_0 = get_topic_0(event_abi)
     rpc_adapter = balance_log.network.rpc_adapter
     AaveWithdrawEvent.objects.filter(balance_log=balance_log).delete()
