@@ -855,6 +855,12 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
         'num_borrow_index_unverified',
         'get_collateral_index_verification_rate',
         'get_borrow_index_verification_rate',
+        'num_emode_verified',
+        'num_emode_unverified',
+        'num_collateral_enabled_verified',
+        'num_collateral_enabled_unverified',
+        'num_all_verified',
+        'num_all_unverified',
     )
 
     list_filter = (
@@ -879,6 +885,12 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
         'num_borrow_index_unverified',
         'get_collateral_index_verification_rate',
         'get_borrow_index_verification_rate',
+        'num_emode_verified',
+        'num_emode_unverified',
+        'num_collateral_enabled_verified',
+        'num_collateral_enabled_unverified',
+        'num_all_verified',
+        'num_all_unverified',
     )
 
     fieldsets = (
@@ -888,18 +900,27 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
                 'network',
             )
         }),
+        ('Overall Metrics', {
+            'fields': (
+                ('num_all_verified', 'num_all_unverified'),
+            )
+        }),
         ('Collateral Metrics', {
             'fields': (
                 ('num_collateral_verified', 'num_collateral_unverified', 'num_collateral_deleted'),
+                'get_collateral_verification_rate',
                 ('num_collateral_index_verified', 'num_collateral_index_unverified'),
-                ('get_collateral_verification_rate', 'get_collateral_index_verification_rate'),
+                'get_collateral_index_verification_rate',
+                ('num_collateral_enabled_verified', 'num_collateral_enabled_unverified'),
+                ('num_emode_verified', 'num_emode_unverified'),
             )
         }),
         ('Borrow Metrics', {
             'fields': (
                 ('num_borrow_verified', 'num_borrow_unverified', 'num_borrow_deleted'),
+                'get_borrow_verification_rate',
                 ('num_borrow_index_verified', 'num_borrow_index_unverified'),
-                ('get_borrow_verification_rate', 'get_borrow_index_verification_rate'),
+                'get_borrow_index_verification_rate',
             )
         }),
     )

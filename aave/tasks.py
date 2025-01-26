@@ -436,7 +436,31 @@ class VerifyBalancesTask(Task):
             num_borrow_index_unverified=models.Count(
                 'id',
                 filter=models.Q(borrow_liquidity_index_verified=False)
-            )
+            ),
+            num_emode_verified=models.Count(
+                'id',
+                filter=models.Q(is_emode_verified=True)
+            ),
+            num_emode_unverified=models.Count(
+                'id',
+                filter=models.Q(is_emode_verified=False)
+            ),
+            num_collateral_enabled_verified=models.Count(
+                'id',
+                filter=models.Q(is_collateral_enabled_verified=True)
+            ),
+            num_collateral_enabled_unverified=models.Count(
+                'id',
+                filter=models.Q(is_collateral_enabled_verified=False)
+            ),
+            num_all_verified=models.Count(
+                'id',
+                filter=models.Q(is_verified=True)
+            ),
+            num_all_unverified=models.Count(
+                'id',
+                filter=models.Q(is_verified=False)
+            ),
         )
 
         # Create or update the report
