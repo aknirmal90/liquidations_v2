@@ -482,6 +482,7 @@ class VerifyBalancesTask(Task):
             db_user_reserve.is_emode_verified = (
                 contract_user_emode["result"].emodeCategoryId == db_user_reserve.emode_category
             )
+            db_user_reserve.emode_category = contract_user_emode["result"].emodeCategoryId
             updated_batch.append(db_user_reserve)
         return updated_batch
 
@@ -604,6 +605,7 @@ class VerifyBalancesTask(Task):
             db_user_reserve.is_collateral_enabled_verified = (
                 collateral_enabled_contract == db_user_reserve.collateral_is_enabled
             )
+            db_user_reserve.collateral_is_enabled = collateral_enabled_contract
 
             # If both balances are 0, mark for deletion
             if (
