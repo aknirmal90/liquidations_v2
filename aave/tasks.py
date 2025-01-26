@@ -535,7 +535,9 @@ class VerifyBalancesTask(Task):
                 'collateral_amount',
                 'borrow_amount',
                 'collateral_liquidity_index_verified',
-                'borrow_liquidity_index_verified'
+                'borrow_liquidity_index_verified',
+                'last_updated_collateral_liquidity_index',
+                'last_updated_borrow_liquidity_index'
             ]
         )
         logger.info(f"Successfully updated verification status for {len(batch)} balance logs")
