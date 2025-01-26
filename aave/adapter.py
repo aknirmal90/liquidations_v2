@@ -51,6 +51,7 @@ class BalanceUtils:
                 instance.collateral_amount_live_with_liquidation_threshold = (
                     instance.get_collateral_amount_live_with_liquidation_threshold()
                 )
+                instance.price_in_nativeasset = instance.asset.price_in_nativeasset or Decimal("0.0")
                 instance.collateral_health_factor = instance.get_collateral_health_factor()
                 collateral_update_instances.append(instance)
 
@@ -58,6 +59,7 @@ class BalanceUtils:
                 instance.borrow_amount += borrow_amount
                 instance.last_updated_borrow_liquidity_index = borrow_index
                 instance.borrow_amount_live = instance.get_scaled_balance("borrow")
+                instance.price_in_nativeasset = instance.asset.price_in_nativeasset or Decimal("0.0")
                 borrow_update_instances.append(instance)
 
         if collateral_update_instances:
@@ -111,14 +113,14 @@ class BalanceUtils:
                 instance.collateral_amount_live_with_liquidation_threshold = (
                     instance.get_collateral_amount_live_with_liquidation_threshold()
                 )
+                instance.price_in_nativeasset = instance.asset.price_in_nativeasset or Decimal("0.0")
                 instance.collateral_health_factor = instance.get_collateral_health_factor()
                 instance.last_updated_collateral_liquidity_index = collateral_index
-
             if borrow_index and borrow_index > 0:
                 instance.borrow_amount = borrow_amount
                 instance.borrow_amount_live = instance.get_scaled_balance("borrow")
                 instance.last_updated_borrow_liquidity_index = borrow_index
-
+                instance.price_in_nativeasset = instance.asset.price_in_nativeasset or Decimal("0.0")
             instances.append(instance)
 
         if instances:
