@@ -416,9 +416,8 @@ class BaseEventSynchronizeTask(BaseSynchronizeTask):
 
 
 class StreamingSynchronizeForEventTask(BaseEventSynchronizeTask):
-    def get_queryset(self, event_ids: List[int]):
+    def get_queryset(self):
         return Event.objects.filter(
-            id__in=event_ids,
             last_synced_block__gt=F("network__latest_block") - ACCEPTABLE_EVENT_BLOCK_LAG_DELAY,
             is_enabled=True
         )
@@ -430,9 +429,11 @@ StreamingSynchronizeForEventTask = app.register_task(
 
 
 class BackfillSynchronizeForEventTask(BaseEventSynchronizeTask):
-    def get_queryset(self, event_ids: List[int]):
+    expires = 6 * 60 * 60  # 6 hours in seconds
+    time_limit = 6 * 60 * 60  # 6 hours in seconds
+
+    def get_queryset(self):
         return Event.objects.filter(
-            id__in=event_ids,
             last_synced_block__lte=F("network__latest_block") - ACCEPTABLE_EVENT_BLOCK_LAG_DELAY,
             is_enabled=True
         )
@@ -441,76 +442,6 @@ class BackfillSynchronizeForEventTask(BaseEventSynchronizeTask):
 BackfillSynchronizeForEventTask = app.register_task(
     BackfillSynchronizeForEventTask()
 )
-
-
-class SynchronizeForEventTask(Task):
-    def run(self, event_ids: List[int]):
-        StreamingSynchronizeForEventTask.delay(event_ids)
-        BackfillSynchronizeForEventTask.delay(event_ids)
-
-
-SynchronizeForEventTask = app.register_task(SynchronizeForEventTask())
-
-
-class BaseSynchronizeForGroupTask(Task):
-    abstract = True
-
-    @property
-    def STREAMING_TASK(self):
-        raise NotImplementedError
-
-    @property
-    def BACKFILL_TASK(self):
-        raise NotImplementedError
-
-    def get_queryset(self):
-        raise NotImplementedError
-
-    def run(self, *args):
-        events = self.get_queryset(*args)
-        event_pks = list(events.values_list('id', flat=True))
-        self.STREAMING_TASK.delay(event_pks)
-
-        events_by_network = group_events_by_network(events)
-
-        for network, network_events in events_by_network.items():
-
-            network_events = events.filter(network=network)
-            grouped_events = group_events_by_protocol(network_events)
-            for grouped_events in grouped_events.values():
-                grouped_event_pks = [event.id for event in grouped_events]
-                self.BACKFILL_TASK.delay(grouped_event_pks)
-
-
-class SynchronizeForProtocolTask(BaseSynchronizeForGroupTask):
-    STREAMING_TASK = StreamingSynchronizeForEventTask
-
-    BACKFILL_TASK = BackfillSynchronizeForEventTask
-
-    def get_queryset(self, *args):
-        return Event.objects.filter(
-            is_enabled=True,
-            protocol__is_enabled=True,
-            protocol_id__in=args[0]
-        )
-
-
-SynchronizeForProtocolTask = app.register_task(SynchronizeForProtocolTask())
-
-
-class SynchronizeForAppTask(BaseSynchronizeForGroupTask):
-    STREAMING_TASK = StreamingSynchronizeForEventTask
-
-    BACKFILL_TASK = BackfillSynchronizeForEventTask
-
-    def get_queryset(self):
-        return Event.objects.filter(
-            is_enabled=True,
-            protocol__is_enabled=True
-        )
-
-
-SynchronizeForAppTask = app.register_task(SynchronizeForAppTask())
 
 
 class UpdateMetadataCacheTask(Task):

@@ -8,7 +8,6 @@ from blockchains.tasks import (
     InitializeAppTask,
     ResetAppTask,
     StreamingSynchronizeForEventTask,
-    SynchronizeForEventTask,
     UpdateBlockNumberTask,
     group_events_by_network,
     group_events_by_protocol,
@@ -404,7 +403,7 @@ class TestStreamingSynchronizeForEventTask:
             task = StreamingSynchronizeForEventTask
 
             # Act
-            result = task.get_queryset([event1.id, event2.id])
+            result = task.get_queryset()
 
             # Assert
             assert event1 in result
@@ -413,31 +412,11 @@ class TestStreamingSynchronizeForEventTask:
             task = BackfillSynchronizeForEventTask
 
             # Act
-            result = task.get_queryset([event1.id, event2.id])
+            result = task.get_queryset()
 
             # Assert
             assert event1 not in result
             assert event2 in result
-
-
-@pytest.mark.django_db
-class TestSynchronizeForEventTask:
-    def test_run_calls_both_tasks(self):
-        """Test that run method calls both streaming and backfill tasks"""
-        # Arrange
-        event_ids = [1, 2, 3]
-
-        with patch('blockchains.tasks.StreamingSynchronizeForEventTask.delay') as mock_streaming, \
-                patch('blockchains.tasks.BackfillSynchronizeForEventTask.delay') as mock_backfill:
-
-            task = SynchronizeForEventTask
-
-            # Act
-            task.run(event_ids)
-
-            # Assert
-            mock_streaming.assert_called_once_with(event_ids)
-            mock_backfill.assert_called_once_with(event_ids)
 
 
 # @pytest.mark.django_db
