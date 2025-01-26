@@ -400,8 +400,8 @@ class BaseSynchronizeTask(Task):
 class BaseEventSynchronizeTask(BaseSynchronizeTask):
     abstract = True
 
-    def run(self, event_ids: List[int]):
-        events = self.get_queryset(event_ids=event_ids)
+    def run(self):
+        events = self.get_queryset()
         events_by_network = group_events_by_network(events)
 
         for network, network_events in events_by_network.items():
