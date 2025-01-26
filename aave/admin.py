@@ -405,7 +405,10 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         'borrow_amount_live_is_verified',
         'mark_for_deletion',
         'collateral_liquidity_index_verified',
-        'borrow_liquidity_index_verified'
+        'borrow_liquidity_index_verified',
+        'is_verified',
+        'is_emode_verified',
+        'is_collateral_enabled_verified'
     )
 
     search_fields = (
@@ -441,7 +444,10 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         'price_in_nativeasset',
         'collateral_health_factor',
         'collateral_liquidity_index_verified',
-        'borrow_liquidity_index_verified'
+        'borrow_liquidity_index_verified',
+        'is_verified',
+        'is_emode_verified',
+        'is_collateral_enabled_verified'
     )
 
     fieldsets = (
@@ -459,7 +465,6 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
                 'collateral_amount',
                 'collateral_amount_live',
                 'get_collateral_amount_contract',
-                ('collateral_amount_live_is_verified', 'collateral_liquidity_index_verified')
             )
         }),
         ('Borrow Details', {
@@ -467,7 +472,14 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
                 'borrow_amount',
                 'borrow_amount_live',
                 'get_borrow_amount_contract',
-                ('borrow_amount_live_is_verified', 'borrow_liquidity_index_verified')
+            )
+        }),
+        ('Verification Status', {
+            'fields': (
+                'is_verified',
+                ('collateral_amount_live_is_verified', 'borrow_amount_live_is_verified'),
+                ('collateral_liquidity_index_verified', 'borrow_liquidity_index_verified'),
+                ('is_emode_verified', 'is_collateral_enabled_verified'),
             )
         }),
         ('Aggregate Event Details', {

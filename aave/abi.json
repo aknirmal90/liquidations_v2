@@ -859,5 +859,24 @@
         ],
         "name": "UserEModeSet",
         "type": "event"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "user",
+                "type": "address"
+            }
+        ],
+        "name": "getUserEMode",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "emodeCategoryId",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
     }
 ]

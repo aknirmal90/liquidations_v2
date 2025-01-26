@@ -400,6 +400,10 @@ class AaveBalanceLog(models.Model):
 
     user = models.ForeignKey('aave.AaveUser', on_delete=models.PROTECT, null=True, blank=True)
 
+    is_emode_verified = models.BooleanField(default=None, null=True, blank=True)
+    is_collateral_enabled_verified = models.BooleanField(default=None, null=True, blank=True)
+    is_verified = models.BooleanField(default=None, null=True, blank=True)
+
     class Meta:
         unique_together = ('network', 'address', 'asset')
         app_label = 'aave'

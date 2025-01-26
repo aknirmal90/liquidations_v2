@@ -13,6 +13,7 @@ class AaveDataProvider:
         self.network = Network.objects.get(name=network_name)
         self.data_provider_contract_address = Configuration.get(f"AAVE_DATA_PROVIDER_{self.network.chain_id}")
         self.price_oracle_contract_address = Configuration.get(f"AAVE_PRICE_ORACLE_{self.network.chain_id}")
+        self.pool_contract_address = Configuration.get(f"AAVE_POOL_CONTRACT_{self.network.chain_id}")
         self.abi = Protocol.objects.get(name="aave").evm_abi
 
     def _make_payload(
@@ -110,6 +111,15 @@ class AaveDataProvider:
             contract_name=None,
             contract_address=contract_address,
             function_name="getPreviousIndex",
+            params_list=[
+                [user] for user in users
+            ]
+        )
+
+    def getUserEMode(self, users: List[str]):
+        return self.get_batch_response(
+            contract_name="pool",
+            function_name="getUserEMode",
             params_list=[
                 [user] for user in users
             ]

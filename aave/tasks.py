@@ -474,43 +474,70 @@ class VerifyBalancesTask(Task):
             batch = balances[i:i + 100]
             self._process_balance_batch(batch=batch, asset=asset, provider=provider)
 
+    def _update_batch_emode_verification(self, batch, user_emodes):
+        """Update verification status for a batch of balance logs."""
+        updated_batch = []
+        for i, contract_user_emode in enumerate(user_emodes):
+            db_user_reserve = batch[i]
+            db_user_reserve.is_emode_verified = (
+                contract_user_emode["result"].emodeCategoryId == db_user_reserve.emode_category
+            )
+            updated_batch.append(db_user_reserve)
+        return updated_batch
+
+    def _update_is_verified(self, batch):
+        """Update verification status for a batch of balance logs."""
+        updated_batch = []
+        for i, user_reserve in enumerate(batch):
+            db_user_reserve = user_reserve
+            db_user_reserve.is_verified = (
+                db_user_reserve.is_emode_verified
+                and db_user_reserve.is_collateral_enabled_verified
+                and db_user_reserve.collateral_amount_live_is_verified
+                and db_user_reserve.borrow_amount_live_is_verified
+                and db_user_reserve.collateral_liquidity_index_verified
+                and db_user_reserve.borrow_liquidity_index_verified
+            )
+            updated_batch.append(db_user_reserve)
+        return updated_batch
+
     def _process_balance_batch(self, batch, asset, provider):
         """Process a batch of balance logs."""
         logger.info(f"Processing batch of {len(batch)} balance logs for asset {asset.symbol}")
 
         previous_collateral_indexes = []
         previous_borrow_indexes = []
+        user_emodes = []
 
-        if asset.atoken_address:
-            previous_collateral_indexes = provider.getPreviousIndex(
-                contract_address=asset.atoken_address,
-                users=[obj.address for obj in batch]
-            )
-            logger.info(
-                f"Retrieved previous collateral indexes from provider for {len(previous_collateral_indexes)} users")
+        user_emodes = provider.getUserEMode([obj.address for obj in batch])
+        updated_batch = self._update_batch_emode_verification(batch=batch, user_emodes=user_emodes)
 
-        if asset.variable_debt_token_address:
-            previous_borrow_indexes = provider.getPreviousIndex(
-                contract_address=asset.variable_debt_token_address,
-                users=[obj.address for obj in batch]
-            )
-            logger.info(f"Retrieved previous borrow indexes from provider for {len(previous_borrow_indexes)} users")
+        previous_collateral_indexes = provider.getPreviousIndex(
+            contract_address=asset.atoken_address,
+            users=[obj.address for obj in batch]
+        )
+        logger.info(
+            f"Retrieved previous collateral indexes from provider for {len(previous_collateral_indexes)} users")
 
-        if previous_collateral_indexes:
-            updated_batch = self._update_batch_indexes_verification(
-                batch=batch,
-                previous_indexes=previous_collateral_indexes,
-                index_type="collateral"
-            )
-            logger.info("Updated batch collateral index verification status.")
+        previous_borrow_indexes = provider.getPreviousIndex(
+            contract_address=asset.variable_debt_token_address,
+            users=[obj.address for obj in batch]
+        )
+        logger.info(f"Retrieved previous borrow indexes from provider for {len(previous_borrow_indexes)} users")
 
-        if previous_borrow_indexes:
-            updated_batch = self._update_batch_indexes_verification(
-                batch=updated_batch,
-                previous_indexes=previous_borrow_indexes,
-                index_type="borrow"
-            )
-            logger.info("Updated batch borrow index verification status.")
+        updated_batch = self._update_batch_indexes_verification(
+            batch=updated_batch,
+            previous_indexes=previous_collateral_indexes,
+            index_type="collateral"
+        )
+        logger.info("Updated batch collateral index verification status.")
+
+        updated_batch = self._update_batch_indexes_verification(
+            batch=updated_batch,
+            previous_indexes=previous_borrow_indexes,
+            index_type="borrow"
+        )
+        logger.info("Updated batch borrow index verification status.")
 
         user_reserves = provider.getUserReserveData(
             asset.asset,
@@ -523,6 +550,9 @@ class VerifyBalancesTask(Task):
             user_reserves=user_reserves,
         )
         logger.info("Updated batch verification status (collateral, borrow amounts).")
+
+        updated_batch = self._update_is_verified(batch=updated_batch)
+        logger.info("Updated batch verification status (is_verified).")
 
         AaveBalanceLog.objects.bulk_update(
             objs=updated_batch,
@@ -537,7 +567,10 @@ class VerifyBalancesTask(Task):
                 'collateral_liquidity_index_verified',
                 'borrow_liquidity_index_verified',
                 'last_updated_collateral_liquidity_index',
-                'last_updated_borrow_liquidity_index'
+                'last_updated_borrow_liquidity_index',
+                'is_emode_verified',
+                'is_collateral_enabled_verified',
+                'is_verified'
             ]
         )
         logger.info(f"Successfully updated verification status for {len(batch)} balance logs")
@@ -550,6 +583,7 @@ class VerifyBalancesTask(Task):
             decimals = db_user_reserve.asset.decimals
             collateral_amount_contract = Decimal(contract_user_reserve["result"].currentATokenBalance) / decimals
             borrow_amount_contract = Decimal(contract_user_reserve["result"].currentVariableDebt) / decimals
+            collateral_enabled_contract = contract_user_reserve["result"].usageAsCollateralEnabled
 
             collateral_amount_live = db_user_reserve.get_scaled_balance(type="collateral")
             borrow_amount_live = db_user_reserve.get_scaled_balance(type="borrow")
@@ -566,6 +600,9 @@ class VerifyBalancesTask(Task):
                 borrow_amount_live=db_user_reserve.borrow_amount,
                 borrow_amount_contract=borrow_amount_contract,
                 decimals=decimals
+            )
+            db_user_reserve.is_collateral_enabled_verified = (
+                collateral_enabled_contract == db_user_reserve.collateral_is_enabled
             )
 
             # If both balances are 0, mark for deletion
