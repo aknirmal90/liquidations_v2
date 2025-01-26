@@ -45,19 +45,13 @@ class BalanceUtils:
             borrow_index = liquidity_data.get('borrow')
 
             if collateral_index:
-                price_in_nativeasset = instance.asset.price_in_nativeasset or Decimal("0.0")
-                emode_liquidation_threshold = instance.asset.emode_liquidation_threshold or Decimal("0.0")
                 instance.collateral_amount += collateral_amount
                 instance.last_updated_collateral_liquidity_index = collateral_index
                 instance.collateral_amount_live = instance.get_scaled_balance("collateral")
                 instance.collateral_amount_live_with_liquidation_threshold = (
-                    instance.collateral_amount_live * instance.asset.liquidation_threshold
-                    if instance.emode_category == 0
-                    else instance.collateral_amount_live * emode_liquidation_threshold
+                    instance.get_collateral_amount_live_with_liquidation_threshold()
                 )
-                instance.collateral_health_factor = (
-                    instance.collateral_amount_live_with_liquidation_threshold * price_in_nativeasset
-                )
+                instance.collateral_health_factor = instance.get_collateral_health_factor()
                 collateral_update_instances.append(instance)
 
             if borrow_index:
@@ -114,16 +108,10 @@ class BalanceUtils:
             if collateral_index and collateral_index > 0:
                 instance.collateral_amount = collateral_amount
                 instance.collateral_amount_live = instance.get_scaled_balance("collateral")
-                emode_liquidation_threshold = instance.asset.emode_liquidation_threshold or Decimal("0.0")
-                price_in_nativeasset = instance.asset.price_in_nativeasset or Decimal("0.0")
                 instance.collateral_amount_live_with_liquidation_threshold = (
-                    instance.collateral_amount_live * instance.asset.liquidation_threshold
-                    if instance.emode_category == 0
-                    else instance.collateral_amount_live * emode_liquidation_threshold
+                    instance.get_collateral_amount_live_with_liquidation_threshold()
                 )
-                instance.collateral_health_factor = (
-                    instance.collateral_amount_live_with_liquidation_threshold * price_in_nativeasset
-                )
+                instance.collateral_health_factor = instance.get_collateral_health_factor()
                 instance.last_updated_collateral_liquidity_index = collateral_index
 
             if borrow_index and borrow_index > 0:
@@ -771,23 +759,11 @@ class aaveAdapter(BalanceUtils):
                     user_reserve.collateral_is_enabled = True
                     user_reserve.collateral_amount_live = user_reserve.get_scaled_balance("collateral")
 
-                    if user_reserve.emode_category == 0:
-                        user_reserve.collateral_amount_live_with_liquidation_threshold = (
-                            user_reserve.collateral_amount_live
-                            * user_reserve.asset.liquidation_threshold
-                        )
-                    else:
-                        emode_liquidation_threshold = user_reserve.asset.emode_liquidation_threshold or Decimal("0.0")
-                        user_reserve.collateral_amount_live_with_liquidation_threshold = (
-                            user_reserve.collateral_amount_live
-                            * emode_liquidation_threshold
-                        )
-
-                    user_reserve.price_in_nativeasset = price_in_nativeasset
-                    user_reserve.collateral_health_factor = (
-                        user_reserve.collateral_amount_live_with_liquidation_threshold * price_in_nativeasset
+                    user_reserve.collateral_amount_live_with_liquidation_threshold = (
+                        user_reserve.get_collateral_amount_live_with_liquidation_threshold()
                     )
-
+                    user_reserve.price_in_nativeasset = price_in_nativeasset
+                    user_reserve.collateral_health_factor = user_reserve.get_collateral_health_factor()
                     instances_to_update.append(user_reserve)
 
         model_class.objects.bulk_update(
@@ -813,7 +789,7 @@ class aaveAdapter(BalanceUtils):
 
             if user not in latest_emode_categories:
                 latest_emode_categories[user] = log
-            elif is_latest_log(log, latest_emode_categories[user]):
+            elif is_latest_log(current_log=log, latest_log=latest_emode_categories[user]):
                 latest_emode_categories[user] = log
 
         # Get existing records
@@ -841,22 +817,11 @@ class aaveAdapter(BalanceUtils):
                 user_reserve.emode_category_updated_at_block = user_data.blockNumber
                 user_reserve.collateral_amount_live = user_reserve.get_scaled_balance("collateral")
 
-                if user_reserve.emode_category == 0:
-                    user_reserve.collateral_amount_live_with_liquidation_threshold = (
-                        user_reserve.collateral_amount_live
-                        * user_reserve.asset.liquidation_threshold
-                    )
-                else:
-                    emode_liquidation_threshold = user_reserve.asset.emode_liquidation_threshold or Decimal("0.0")
-                    user_reserve.collateral_amount_live_with_liquidation_threshold = (
-                        user_reserve.collateral_amount_live
-                        * emode_liquidation_threshold
-                    )
-
-                user_reserve.price_in_nativeasset = user_reserve.asset.price_in_nativeasset or Decimal("0.0")
-                user_reserve.collateral_health_factor = (
-                    user_reserve.collateral_amount_live_with_liquidation_threshold * user_reserve.price_in_nativeasset
+                user_reserve.collateral_amount_live_with_liquidation_threshold = (
+                    user_reserve.get_collateral_amount_live_with_liquidation_threshold()
                 )
+                user_reserve.price_in_nativeasset = user_reserve.asset.price_in_nativeasset or Decimal("0.0")
+                user_reserve.collateral_health_factor = user_reserve.get_collateral_health_factor()
 
                 instances_to_update.append(user_reserve)
 
