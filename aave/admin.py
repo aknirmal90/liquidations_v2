@@ -447,7 +447,9 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         'borrow_liquidity_index_verified',
         'is_verified',
         'is_emode_verified',
-        'is_collateral_enabled_verified'
+        'is_collateral_enabled_verified',
+        'emode_category',
+        'get_emode_category'
     )
 
     fieldsets = (
@@ -456,6 +458,7 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
                 'get_address_link',
                 'network',
                 'asset',
+                'emode_category',
                 ('get_collateral_indexes', 'get_borrow_indexes'),
                 ('collateral_is_enabled_updated_at_block', 'collateral_is_enabled'),
             )
@@ -488,9 +491,10 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
                 'get_borrow_aggregate_amounts',
             )
         }),
-        ('User Reserve Data', {
+        ('Contract Data', {
             'fields': (
                 'get_user_reserve_data',
+                'get_emode_category'
             )
         })
     )
@@ -766,10 +770,16 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
     get_borrow_aggregate_amounts.short_description = 'Aggregate Borrow Event Amounts'
 
     def get_user_reserve_data(self, obj):
-        provider = AaveDataProvider(obj.network.name)
-        user_reserve = provider.getUserReserveData(obj.asset.asset, [obj.address])[0]['result']
-        return format_pretty_json(dict(user_reserve))
+        provider = AaveDataProvider(network_name=obj.network.name)
+        user_reserve = provider.getUserReserveData(reserve=obj.asset.asset, users=[obj.address])[0]['result']
+        return format_pretty_json(json_data=dict(user_reserve))
     get_user_reserve_data.short_description = 'User Reserve Data'
+
+    def get_emode_category(self, obj):
+        provider = AaveDataProvider(network_name=obj.network.name)
+        emode_category = provider.getUserEMode(users=[obj.address])[0]['result']
+        return format_pretty_json(json_data=dict(emode_category))
+    get_emode_category.short_description = 'E-Mode Category'
 
     def get_collateral_indexes(self, obj):
         provider = AaveDataProvider(obj.network.name)
@@ -845,6 +855,12 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
         'num_borrow_index_unverified',
         'get_collateral_index_verification_rate',
         'get_borrow_index_verification_rate',
+        'num_emode_verified',
+        'num_emode_unverified',
+        'num_collateral_enabled_verified',
+        'num_collateral_enabled_unverified',
+        'num_all_verified',
+        'num_all_unverified',
     )
 
     list_filter = (
@@ -869,6 +885,12 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
         'num_borrow_index_unverified',
         'get_collateral_index_verification_rate',
         'get_borrow_index_verification_rate',
+        'num_emode_verified',
+        'num_emode_unverified',
+        'num_collateral_enabled_verified',
+        'num_collateral_enabled_unverified',
+        'num_all_verified',
+        'num_all_unverified',
     )
 
     fieldsets = (
@@ -878,18 +900,27 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
                 'network',
             )
         }),
+        ('Overall Metrics', {
+            'fields': (
+                ('num_all_verified', 'num_all_unverified'),
+            )
+        }),
         ('Collateral Metrics', {
             'fields': (
                 ('num_collateral_verified', 'num_collateral_unverified', 'num_collateral_deleted'),
+                'get_collateral_verification_rate',
                 ('num_collateral_index_verified', 'num_collateral_index_unverified'),
-                ('get_collateral_verification_rate', 'get_collateral_index_verification_rate'),
+                'get_collateral_index_verification_rate',
+                ('num_collateral_enabled_verified', 'num_collateral_enabled_unverified'),
+                ('num_emode_verified', 'num_emode_unverified'),
             )
         }),
         ('Borrow Metrics', {
             'fields': (
                 ('num_borrow_verified', 'num_borrow_unverified', 'num_borrow_deleted'),
+                'get_borrow_verification_rate',
                 ('num_borrow_index_verified', 'num_borrow_index_unverified'),
-                ('get_borrow_verification_rate', 'get_borrow_index_verification_rate'),
+                'get_borrow_index_verification_rate',
             )
         }),
     )

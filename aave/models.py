@@ -593,6 +593,15 @@ class AaveDataQualityAnalyticsReport(models.Model):
     num_collateral_index_unverified = models.PositiveIntegerField(default=0)
     num_borrow_index_unverified = models.PositiveIntegerField(default=0)
 
+    num_emode_verified = models.PositiveIntegerField(default=0)
+    num_emode_unverified = models.PositiveIntegerField(default=0)
+
+    num_collateral_enabled_verified = models.PositiveIntegerField(default=0)
+    num_collateral_enabled_unverified = models.PositiveIntegerField(default=0)
+
+    num_all_verified = models.PositiveIntegerField(default=0)
+    num_all_unverified = models.PositiveIntegerField(default=0)
+
     def __str__(self):
         return f"{self.network} - {self.date}"
 

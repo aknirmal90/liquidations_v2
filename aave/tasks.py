@@ -436,7 +436,31 @@ class VerifyBalancesTask(Task):
             num_borrow_index_unverified=models.Count(
                 'id',
                 filter=models.Q(borrow_liquidity_index_verified=False)
-            )
+            ),
+            num_emode_verified=models.Count(
+                'id',
+                filter=models.Q(is_emode_verified=True)
+            ),
+            num_emode_unverified=models.Count(
+                'id',
+                filter=models.Q(is_emode_verified=False)
+            ),
+            num_collateral_enabled_verified=models.Count(
+                'id',
+                filter=models.Q(is_collateral_enabled_verified=True)
+            ),
+            num_collateral_enabled_unverified=models.Count(
+                'id',
+                filter=models.Q(is_collateral_enabled_verified=False)
+            ),
+            num_all_verified=models.Count(
+                'id',
+                filter=models.Q(is_verified=True)
+            ),
+            num_all_unverified=models.Count(
+                'id',
+                filter=models.Q(is_verified=False)
+            ),
         )
 
         # Create or update the report
@@ -482,6 +506,7 @@ class VerifyBalancesTask(Task):
             db_user_reserve.is_emode_verified = (
                 contract_user_emode["result"].emodeCategoryId == db_user_reserve.emode_category
             )
+            db_user_reserve.emode_category = contract_user_emode["result"].emodeCategoryId
             updated_batch.append(db_user_reserve)
         return updated_batch
 
@@ -604,6 +629,7 @@ class VerifyBalancesTask(Task):
             db_user_reserve.is_collateral_enabled_verified = (
                 collateral_enabled_contract == db_user_reserve.collateral_is_enabled
             )
+            db_user_reserve.collateral_is_enabled = collateral_enabled_contract
 
             # If both balances are 0, mark for deletion
             if (
