@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "click==8.1.7",
+    "clickhouse-connect>=0.8.17",
     "crispy-bootstrap4==2024.10",
     "django==5.1.2",
     "django-admin-inline-paginator==0.4.0",

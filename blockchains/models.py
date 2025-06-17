@@ -25,3 +25,28 @@ class Event(models.Model):
         if self.last_synced_block is None:
             return None
         return rpc_adapter.cached_block_height - self.last_synced_block
+
+    def _get_clickhouse_columns(self):
+        return [
+            (row["name"], self._map_evm_types_to_clickhouse_types(row["type"]))
+            for row in self.abi["inputs"]
+        ] + self._get_clickhouse_log_columns()
+
+    def _map_evm_types_to_clickhouse_types(self, evm_type: str):
+        if evm_type in ["uint256", "int256"]:
+            return "UInt64"
+        elif evm_type in ["bool"]:
+            return "Int64"
+        elif evm_type in ["address", "string"]:
+            return "String"
+        else:
+            return "String"
+
+    def _get_clickhouse_log_columns(self):
+        return [
+            ("contract_address", "String"),
+            ("block_timestamp", "UInt64"),
+            ("block_number", "UInt64"),
+            ("transaction_hash", "String"),
+            ("log_index", "UInt64"),
+        ]

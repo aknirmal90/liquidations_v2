@@ -13,6 +13,7 @@ from eth_utils import get_all_event_abis
 # from aave.tasks import ResetAssetsTask
 from blockchains.models import Event
 from liquidations_v2.celery_app import app
+from utils.clickhouse.client import clickhouse_client
 from utils.constants import (
     NETWORK_NAME,
     PROTOCOL_ABI_PATH,
@@ -50,6 +51,7 @@ class InitializeAppTask(Task):
         Logs the start and completion of the task.
         """
         logger.info(f"Starting InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}")
+        clickhouse_client.create_database()
         self.create_protocol_events()
         logger.info(
             f"Completed InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}"
@@ -70,11 +72,12 @@ class InitializeAppTask(Task):
         contract_addresses = [address.lower() for address in contract_addresses]
         event_names = protocol_config.get("events", [])
         for event_name in event_names:
-            self.create_or_get_event(
+            event = self.create_or_get_event(
                 event_abis=event_abis,
                 event_name=event_name,
                 contract_addresses=contract_addresses,
             )
+            clickhouse_client.create_event_table(event)
 
     def create_or_get_event(
         self, event_abis: Dict[str, Any], event_name: str, contract_addresses: List[str]
@@ -139,6 +142,8 @@ class ResetAppTask(Task):
         logger.info("Starting app reset...")
         # ResetAssetsTask.run()
         # Delete all Events first since they depend on Networks and Protocols
+        clickhouse_client.drop_database()
+        logger.info("Clickhouse Database dropped")
 
         events_count = Event.objects.all().count()
         Event.objects.all().delete()
@@ -146,7 +151,7 @@ class ResetAppTask(Task):
 
         # Clear cache
         cache.clear()
-        logger.info("Cache cleared")
+        logger.info("Redis Cache cleared")
 
         logger.info("App reset complete")
 
