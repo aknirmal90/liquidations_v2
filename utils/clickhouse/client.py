@@ -16,7 +16,7 @@ class ClickHouseClient:
             host=config("CLICKHOUSE_HOST"),
             port=config("CLICKHOUSE_PORT"),
             user=config("CLICKHOUSE_USER"),
-            password=config("CLICKHOUSE_PASSWORD"),
+            password=config("CLICKHOUSE_PASSWORD", default=""),
         )
         self.network_name = config("NETWORK_NAME")
         self.protocol_name = config("PROTOCOL_NAME")
