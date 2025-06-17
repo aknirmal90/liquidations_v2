@@ -44,9 +44,9 @@ class Event(models.Model):
 
     def _get_clickhouse_log_columns(self):
         return [
-            ("contract_address", "String"),
-            ("block_timestamp", "UInt64"),
-            ("block_number", "UInt64"),
-            ("transaction_hash", "String"),
-            ("log_index", "UInt64"),
+            ("address", "String"),
+            ("blockNumber", "UInt64"),
+            ("transactionHash", "String"),
+            ("transactionIndex", "UInt64"),
+            ("logIndex", "UInt64"),
         ]

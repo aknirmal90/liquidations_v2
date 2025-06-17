@@ -1,16 +1,15 @@
 import logging
-
-# from collections import defaultdict
-# from datetime import datetime
+from datetime import datetime
 from typing import Any, Dict, List
 
-# import pytz
+import pytz
 from celery import Task
 from django.core.cache import cache
 from eth_utils import get_all_event_abis
+from web3 import Web3
+from web3._utils.events import get_event_data
+from web3.exceptions import Web3RPCError
 
-# from aave.models import Asset
-# from aave.tasks import ResetAssetsTask
 from blockchains.models import Event
 from liquidations_v2.celery_app import app
 from utils.clickhouse.client import clickhouse_client
@@ -20,18 +19,9 @@ from utils.constants import (
     PROTOCOL_CONFIG_PATH,
     PROTOCOL_NAME,
 )
-
-# from utils.constants import ACCEPTABLE_EVENT_BLOCK_LAG_DELAY
-from utils.encoding import get_signature, get_topic_0
+from utils.encoding import decode_any, get_signature, get_topic_0
 from utils.files import parse_json, parse_yaml
-
-# from django.db.models import F
-# from web3 import Web3
-# from web3._utils.events import get_event_data
-# from web3.exceptions import Web3RPCError
-
-
-# from utils.rpc import get_evm_block_timestamps
+from utils.rpc import rpc_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -159,246 +149,202 @@ class ResetAppTask(Task):
 ResetAppTask = app.register_task(ResetAppTask())
 
 
-# class BaseSynchronizeTask(Task):
-#     """
-#     Syncs event logs from contracts, signatures, and block ranges for a list of event IDs.
-#     """
-#     abstract = True
-#     expires = 1 * 60  # 1 minute in seconds
-#     time_limit = 1 * 60  # 1 minute in seconds
+class ChildSynchronizeTask(Task):
+    """
+    Syncs event logs from contracts, signatures, and block ranges for a list of event IDs.
+    """
 
-#     def get_queryset(self, event_ids: List[int]):
-#         raise NotImplementedError
+    expires = 1 * 60  # 1 minute in seconds
+    time_limit = 1 * 60  # 1 minute in seconds
 
-#     def get_aave_pricesources(self, network: Network):
-#         return Asset.objects.filter(network=network).values_list('pricesource', flat=True)
+    def run(self, event_ids: List[int]):
+        network_events = Event.objects.filter(id__in=event_ids)
+        if not network_events.exists():
+            logger.warning(f"No events found for event_ids {event_ids}")
+            return
 
-#     def get_aave_atokens(self, network: Network):
-#         return Asset.objects.filter(network=network).values_list('atoken_address', flat=True)
+        global_to_block = rpc_adapter.block_height
+        global_from_block = min(event.last_synced_block for event in network_events)
+        if global_from_block != 0:
+            global_from_block += 1
+            # Data has been synced until here, so we start from the next block
 
-#     def get_aave_variable_debt_tokens(self, network: Network):
-#         return Asset.objects.filter(network=network).values_list('variable_debt_token_address', flat=True)
+        EVENTS_ARRAY_THRESHOLD_SIZE = 10_000
 
-#     def sync_events_for_network(self, network: Network, network_events: List[Event]):
-#         rpc_adapter = network.rpc_adapter
-#         global_to_block = rpc_adapter.block_height
-#         global_from_block = min(event.last_synced_block for event in network_events)
-#         if global_from_block != 0:
-#             global_from_block += 1
-#             # Data has been synced until here, so we start from the next block
+        if global_from_block >= global_to_block:
+            logger.debug(f"{NETWORK_NAME} has no new blocks. Nothing to sync.")
+            return
 
-#         EVENTS_ARRAY_THRESHOLD_SIZE = 5000
+        iter_from_block = global_from_block
+        iter_delta = min(
+            global_to_block - global_from_block,
+            rpc_adapter.max_blockrange_size_for_events,
+        )
+        iter_to_block = global_from_block + iter_delta
+        contract_addresses = list(
+            set(
+                Web3.to_checksum_address(address)
+                for event in network_events
+                for address in event.contract_addresses
+            )
+        )
+        # contract_addresses.extend([
+        #     Web3.to_checksum_address(address)
+        #     for address in self.get_aave_pricesources(network)
+        #     if address
+        # ])
+        # contract_addresses.extend([
+        #     Web3.to_checksum_address(address)
+        #     for address in self.get_aave_atokens(network)
+        #     if address
+        # ])
+        # contract_addresses.extend([
+        #     Web3.to_checksum_address(address)
+        #     for address in self.get_aave_variable_debt_tokens(network)
+        #     if address
+        # ])
 
-#         if global_from_block >= global_to_block:
-#             logger.debug(f"{network.name} has no new blocks. Nothing to sync.")
-#             return
+        while True:
+            try:
+                if (iter_from_block - iter_to_block) >= 0:
+                    break
 
-#         iter_from_block = global_from_block
-#         iter_delta = min(global_to_block - global_from_block, rpc_adapter.max_blockrange_size_for_events)
-#         iter_to_block = global_from_block + iter_delta
-#         contract_addresses = list(set(
-#             Web3.to_checksum_address(address)
-#             for event in network_events
-#             for address in event.contract_addresses
-#         ))
-#         contract_addresses.extend([
-#             Web3.to_checksum_address(address)
-#             for address in self.get_aave_pricesources(network)
-#             if address
-#         ])
-#         contract_addresses.extend([
-#             Web3.to_checksum_address(address)
-#             for address in self.get_aave_atokens(network)
-#             if address
-#         ])
-#         contract_addresses.extend([
-#             Web3.to_checksum_address(address)
-#             for address in self.get_aave_variable_debt_tokens(network)
-#             if address
-#         ])
+                logger.info(
+                    f"Event Extraction for network {NETWORK_NAME} "
+                    f"from {iter_from_block} to {iter_to_block}"
+                )
 
-#         while True:
-#             try:
-#                 if (iter_from_block - iter_to_block) >= 0:
-#                     break
+                topics = [event.topic_0 for event in network_events]
+                event_abis = {event.topic_0: event.abi for event in network_events}
 
-#                 logger.info(
-#                     f"Event Extraction for network {network.name} "
-#                     f"from {iter_from_block} to {iter_to_block}"
-#                 )
+                raw_event_dicts = rpc_adapter.extract_raw_event_data(
+                    topics=topics,
+                    contract_addresses=contract_addresses,
+                    start_block=iter_from_block,
+                    end_block=iter_to_block,
+                )
 
-#                 topics = [event.topic_0 for event in network_events]
-#                 event_abis = {event.topic_0: event.abi for event in network_events}
+                event_dicts = self.process_raw_event_dicts(
+                    raw_event_dicts=raw_event_dicts, event_abis=event_abis
+                )
+                self.handle_event_logs(
+                    network_events=network_events, event_dicts=event_dicts
+                )
 
-#                 raw_event_dicts = rpc_adapter.extract_raw_event_data(
-#                     topics=topics,
-#                     contract_addresses=contract_addresses,
-#                     start_block=iter_from_block,
-#                     end_block=iter_to_block,
-#                 )
+                if iter_to_block >= global_to_block:
+                    self.update_last_synced_block(network_events, global_to_block)
+                    logger.info(
+                        f"Event Extraction for network {NETWORK_NAME} "
+                        f"has completed from {global_from_block} to {global_to_block}"
+                    )
+                    break
+                else:
+                    iter_delta = min(
+                        iter_to_block - iter_from_block,
+                        rpc_adapter.max_blockrange_size_for_events,
+                    )
+                    self.update_last_synced_block(network_events, iter_to_block)
+                    iter_from_block = iter_to_block + 1
 
-#                 event_dicts = self.process_raw_event_dicts(raw_event_dicts=raw_event_dicts, event_abis=event_abis)
-#                 # cleaned_event_dicts = self.clean_event_logs(network_events, event_dicts)
-#                 self.handle_event_logs(network_events=network_events, cleaned_event_dicts=event_dicts)
+                    if len(event_dicts) >= EVENTS_ARRAY_THRESHOLD_SIZE:
+                        iter_to_block += int(iter_delta / 2)
+                    else:
+                        iter_to_block += min(
+                            iter_delta * 2, rpc_adapter.max_blockrange_size_for_events
+                        )
 
-#                 if iter_to_block >= global_to_block:
-#                     self.update_last_synced_block(network_events, global_to_block)
-#                     logger.info(
-#                         f"Event Extraction for network {network.name} "
-#                         f"has completed from {global_from_block} to {global_to_block}"
-#                     )
-#                     break
-#                 else:
-#                     iter_delta = min(iter_to_block - iter_from_block, rpc_adapter.max_blockrange_size_for_events)
-#                     self.update_last_synced_block(network_events, iter_to_block)
-#                     iter_from_block = iter_to_block + 1
+                    if iter_to_block >= global_to_block:
+                        iter_to_block = global_to_block
 
-#                     if len(event_dicts) >= EVENTS_ARRAY_THRESHOLD_SIZE:
-#                         iter_to_block += int(iter_delta / 2)
-#                     else:
-#                         iter_to_block += min(iter_delta * 2, rpc_adapter.max_blockrange_size_for_events)
+            except Web3RPCError as e:
+                if e.rpc_response["error"]["code"] == -32005:
+                    logger.error(e)
+                    iter_delta = iter_delta // 2
+                    iter_to_block = iter_from_block + iter_delta
 
-#                     if iter_to_block >= global_to_block:
-#                         iter_to_block = global_to_block
+                    if iter_to_block >= global_to_block:
+                        iter_to_block = global_to_block
+                else:
+                    raise e
 
-#             except Web3RPCError as e:
-#                 if e.rpc_response['error']['code'] == -32005:
-#                     logger.error(e)
-#                     iter_delta = iter_delta // 2
-#                     iter_to_block = iter_from_block + iter_delta
+    def process_raw_event_dicts(self, raw_event_dicts, event_abis):
+        event_dicts = {}
+        counter = 0
+        codec = Web3().codec
+        if not raw_event_dicts:
+            return {}
 
-#                     if iter_to_block >= global_to_block:
-#                         iter_to_block = global_to_block
-#                 else:
-#                     raise e
+        for log in raw_event_dicts:
+            counter += 1
+            topic0 = f"0x{log['topics'][0].hex()}"
+            event_abi = event_abis.get(topic0)
 
-#     def process_raw_event_dicts(self, raw_event_dicts, event_abis):
-#         event_dicts = {}
-#         counter = 0
-#         codec = Web3().codec
-#         if not raw_event_dicts:
-#             return {}
+            if event_abi:
+                event_data = decode_any(get_event_data(codec, event_abi, log))
+                if topic0 not in event_dicts:
+                    event_dicts[topic0] = []
+                event_dicts[topic0].append(event_data)
+        return event_dicts
 
-#         for log in raw_event_dicts:
-#             counter += 1
-#             topic0 = f"0x{log['topics'][0].hex()}"
-#             event_abi = event_abis.get(topic0)
+    def handle_event_logs(self, network_events: List[Event], event_dicts: List[Dict]):
+        """
+        Saves a list of events to its respective model class
+        """
+        for network_event in network_events:
+            event_logs = event_dicts.get(network_event.topic_0, [])
+            log_fields = [
+                col_name for col_name, _ in network_event._get_clickhouse_log_columns()
+            ]
+            all_fields = [
+                col_name for col_name, _ in network_event._get_clickhouse_columns()
+            ]
+            arg_fields = [field for field in all_fields if field not in log_fields]
 
-#             if event_abi:
-#                 event_data = decode_any(get_event_data(codec, event_abi, log))
-#                 if topic0 not in event_dicts:
-#                     event_dicts[topic0] = []
-#                 event_dicts[topic0].append(event_data)
-#         return event_dicts
+            if not event_logs:
+                continue
 
-#     def clean_event_logs(self, network_events, event_dicts):
-#         """
-#         Filters out events accidentally sent in or if they need to be
-#         filtered by contract address
-#         """
-#         cleaned_event_dicts = {}
-#         unique_log_comments = set()
-#         events = {event: event.topic_0 for event in network_events}
+            parsed_event_logs = []
+            for event_log in event_logs:
+                event_log_args = getattr(event_log, "args")
+                event_values = [getattr(event_log_args, field) for field in arg_fields]
+                log_values = [getattr(event_log, field) for field in log_fields]
+                parsed_event_log = event_values + log_values
+                parsed_event_logs.append(parsed_event_log)
 
-#         for event, topic0 in events.items():
-#             cleaned_event_logs = []
-#             event_logs = event_dicts.get(topic0, {})
+            clickhouse_client.insert_rows(network_event, parsed_event_logs)
+            logger.info(f"Number of records inserted: {len(event_logs)}")
 
-#             contract_addresses = event.contract_addresses
-
-#             for event_log in event_logs:
-#                 if not contract_addresses:
-#                     cleaned_event_logs.append(event_log)
-#                 else:
-#                     if event_log['address'].lower() in contract_addresses:
-#                         cleaned_event_logs.append(event_log)
-#                     else:
-#                         comment = f"Filtered out log with address: {event_log['address']} for event {event.id}"
-#                         unique_log_comments.add(comment)
-
-#             cleaned_event_dicts[event.id] = cleaned_event_logs
-
-#             for comment in unique_log_comments:
-#                 logger.info(comment)
-
-#         return cleaned_event_dicts
-
-#     def handle_event_logs(self, network_events: List[Event], cleaned_event_dicts: List[Dict]):
-#         """
-#         Saves a list of events to its respective model class
-#         """
-#         for network_event in network_events:
-#             adapter = network_event.get_adapter()
-#             func_name = f"parse_{network_event.name}"
-#             func = getattr(adapter, func_name)
-#             event_logs = cleaned_event_dicts.get(network_event.topic_0, [])
-#             if event_logs:
-#                 func(network_event, event_logs)
-#                 logger.info(f"Number of records inserted: {len(event_logs)}")
-
-#     def update_last_synced_block(self, events: List[Event], block: int):
-#         Event.objects.filter(id__in=[event.id for event in events]).update(
-#             last_synced_block=block, updated_at=datetime.now(pytz.utc)
-#         )
+    def update_last_synced_block(self, events: List[Event], block: int):
+        Event.objects.filter(id__in=[event.id for event in events]).update(
+            last_synced_block=block, updated_at=datetime.now(pytz.utc)
+        )
 
 
-# class BaseEventSynchronizeTask(BaseSynchronizeTask):
-#     abstract = True
-
-#     def run(self):
-#         events = self.get_queryset()
-#         events_by_network = group_events_by_network(events)
-
-#         for network, network_events in events_by_network.items():
-#             try:
-#                 self.sync_events_for_network(network, network_events)
-#             except Exception as e:
-#                 names = [event.name for event in network_events]
-#                 logger.error(
-#                     f"Failed to sync events for network {network.name}: {str(e)}. Events: {names}",
-#                     exc_info=True
-#                 )
+ChildSynchronizeTask = app.register_task(ChildSynchronizeTask())
 
 
-# class StreamingSynchronizeForEventTask(BaseEventSynchronizeTask):
-#     def get_queryset(self):
-#         return Event.objects.filter(
-#             last_synced_block__gt=F("network__latest_block") - ACCEPTABLE_EVENT_BLOCK_LAG_DELAY,
-#             is_enabled=True
-#         )
+class ParentSynchronizeTask(Task):
+    """
+    Syncs event logs from contracts, signatures, and block ranges for a list of event IDs.
+    """
+
+    expires = 1 * 60  # 1 minute in seconds
+    time_limit = 1 * 60  # 1 minute in seconds
+    abstract = True
+
+    def run(self):
+        events = Event.objects.filter(is_enabled=True)
+        # Group events by last_synced_block
+        events_by_block = {}
+        for event in events.iterator():
+            block = event.last_synced_block
+            if block not in events_by_block:
+                events_by_block[block] = []
+            events_by_block[block].append(event.id)
+
+        # Fire one child task per block group
+        for block, event_ids in events_by_block.items():
+            ChildSynchronizeTask.delay(event_ids=event_ids)
 
 
-# StreamingSynchronizeForEventTask = app.register_task(
-#     StreamingSynchronizeForEventTask()
-# )
-
-
-# class BackfillSynchronizeForEventTask(BaseEventSynchronizeTask):
-#     expires = 6 * 60 * 60  # 6 hours in seconds
-#     time_limit = 6 * 60 * 60  # 6 hours in seconds
-
-#     def get_queryset(self):
-#         return Event.objects.filter(
-#             last_synced_block__lte=F("network__latest_block") - ACCEPTABLE_EVENT_BLOCK_LAG_DELAY,
-#             is_enabled=True
-#         )
-
-
-# BackfillSynchronizeForEventTask = app.register_task(
-#     BackfillSynchronizeForEventTask()
-# )
-
-
-# class UpdateMetadataCacheTask(Task):
-#     def run(self):
-#         logger.info("Starting metadata cache update...")
-#         logger.info("Updating asset cache...")
-#         for asset in Asset.objects.all():
-#             logger.info(f"Caching asset {asset.asset} on {asset.network.name}")
-#             Asset.get_by_address(network_name=asset.network.name, token_address=asset.asset)
-#             Asset.get_by_id(id=asset.id)
-
-#         logger.info("Completed metadata cache update")
-
-
-# UpdateMetadataCacheTask = app.register_task(UpdateMetadataCacheTask())
+ParentSynchronizeTask = app.register_task(ParentSynchronizeTask())

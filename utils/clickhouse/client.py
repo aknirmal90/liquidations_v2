@@ -1,4 +1,5 @@
 import logging
+from typing import Dict, List
 
 import clickhouse_connect
 from decouple import config
@@ -60,6 +61,11 @@ class ClickHouseClient:
             f"DROP TABLE IF EXISTS {self.db_name}.{event.name}"
         )
         logger.info(f"Table {event.name} dropped successfully with status: {result}")
+
+    def insert_rows(self, event: Event, rows: List[Dict]):
+        logger.info(f"Inserting {len(rows)} rows into table {event.name}")
+        result = self.client.insert(f"{self.db_name}.{event.name}", rows)
+        logger.info(f"Rows inserted successfully with status: {result}")
 
 
 clickhouse_client = ClickHouseClient()
