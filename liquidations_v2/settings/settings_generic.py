@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
+
 import os
 from pathlib import Path
 
@@ -28,7 +29,7 @@ SECRET_KEY = config("SECRET_KEY")
 SERVER_ENV = config("SERVER_ENV", default="local")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = SERVER_ENV == "local"
+DEBUG = not (SERVER_ENV == "prod")
 
 ALLOWED_HOSTS = config("DJANGO_ALLOWED_HOSTS", cast=Csv())
 
@@ -48,10 +49,9 @@ INSTALLED_APPS = [
     "django_celery_beat",
     "corsheaders",
     "blockchains",
-    "config",
-    "aave",
+    # "aave",
     "django_admin_inline_paginator",
-    "django_object_actions"
+    "django_object_actions",
 ]
 
 MIDDLEWARE = [
@@ -61,7 +61,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -90,13 +90,13 @@ WSGI_APPLICATION = "liquidations_v2.wsgi.application"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('POSTGRES_DB_NAME'),
-        'USER': config('POSTGRES_DB_USER'),
-        'PASSWORD': config('POSTGRES_DB_PASSWORD'),
-        'HOST': config('POSTGRES_DB_HOST'),
-        'PORT': config('POSTGRES_DB_PORT', default='5432'),
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": config("POSTGRES_DB_NAME"),
+        "USER": config("POSTGRES_DB_USER"),
+        "PASSWORD": config("POSTGRES_DB_PASSWORD"),
+        "HOST": config("POSTGRES_DB_HOST"),
+        "PORT": config("POSTGRES_DB_PORT", default="5432"),
     }
 }
 
@@ -128,9 +128,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = '/static/'
+STATIC_URL = "/static/"
 
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Add this setting to tell Django where to look for static files
 STATICFILES_DIRS = [
@@ -164,18 +164,15 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_HEADERS = default_headers + ("access-control-allow-origin",)
 
 if SERVER_ENV == "prod":
-
     SECURE_SSL_REDIRECT = True
 
     CSRF_COOKIE_SECURE = True
 
     USE_X_FORWARDED_HOST = True
 
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-    CORS_ALLOW_ALL_ORIGINS = config(
-        "CORS_ALLOW_ALL_ORIGINS", default=False, cast=bool
-    )
+    CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=False, cast=bool)
 
     CORS_ALLOWED_ORIGINS = config(
         "CORS_ALLOWED_ORIGINS",

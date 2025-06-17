@@ -1,0 +1,35 @@
+[project]
+name = "liquidations-v2"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "click==8.1.7",
+    "crispy-bootstrap4==2024.10",
+    "django==5.1.2",
+    "django-admin-inline-paginator==0.4.0",
+    "django-admin-interface==0.29.1",
+    "django-celery==3.1.17",
+    "django-celery-beat==2.7.0",
+    "django-choices==2.0.0",
+    "django-cors-headers==4.1.0",
+    "django-object-actions==4.3.0",
+    "eth-utils==5.1.0",
+    "gunicorn==21.2.0",
+    "humanize==4.11.0",
+    "ipdb==0.13.13",
+    "ipython==8.27.0",
+    "orjson==3.10.13",
+    "pre-commit>=4.2.0",
+    "psycopg2-binary==2.9.9",
+    "pytest-cov==6.0.0",
+    "pytest-django==4.9.0",
+    "python-decouple==3.8",
+    "pytz==2024.2",
+    "pyyaml==6.0.2",
+    "redis==5.1.1",
+    "uvloop==0.21.0",
+    "web3==7.6.0",
+    "whitenoise==6.6.0",
+]

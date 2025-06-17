@@ -1,27 +1,36 @@
-FROM python:3.10-bullseye
+FROM python:3.12-slim
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONFAULTHANDLER=1
+ENV UV_LINK_MODE=copy
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_SYSTEM_PYTHON=1
+ENV UV_NO_CACHE=1
 
-ENV PYTHONUNBUFFERED 1
-
-# Install build-essential with -y to skip prompt
 RUN apt-get update \
-    && apt-get install -y build-essential apt-transport-https ca-certificates curl gnupg vim screen \
-    && curl -sLf --retry 3 --tlsv1.2 --proto "=https" 'https://packages.doppler.com/public/cli/gpg.DE2A7741A397C129.key' \
-    | gpg --dearmor -o /usr/share/keyrings/doppler-archive-keyring.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/doppler-archive-keyring.gpg] https://packages.doppler.com/public/cli/deb/debian any-version main" \
-    | tee /etc/apt/sources.list.d/doppler-cli.list \
     && apt-get update \
-    && apt-get install -y doppler \
+    # dependencies for building Python packages
+    && apt-get install -y build-essential \
+    # psycopg2 dependencies with newer libpq
+    && apt-get install -y libpq5 libpq-dev \
+    # Translations dependencies
+    && apt-get install -y gettext curl \
+    # Git
+    && apt-get install -y git \
+    # Chrome and its dependencies
+    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /code/
+WORKDIR /app
 
-COPY requirements.txt /code/
+COPY pyproject.toml uv.lock ./
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN uv venv --python /usr/local/bin/python
+RUN uv sync --frozen --no-install-project --no-dev
 
-COPY . /code/
+ENV PATH="/app/.venv/bin:$PATH"
 
 COPY ./bin/start-webserver /start-webserver
 RUN sed -i 's/\r$//g' /start-webserver
@@ -43,18 +52,15 @@ COPY ./bin/start-websocket-transactions /start-websocket-transactions
 RUN sed -i 's/\r$//g' /start-websocket-transactions
 RUN chmod +x /start-websocket-transactions
 
-COPY ./bin/start-sequencer /start-sequencer
-RUN sed -i 's/\r$//g' /start-sequencer
-RUN chmod +x /start-sequencer
-
 COPY ./bin/start-celery-prices /start-celery-prices
 RUN sed -i 's/\r$//g' /start-celery-prices
 RUN chmod +x /start-celery-prices
 
-COPY ./bin/run-tests /run-tests
-RUN sed -i 's/\r$//g' /run-tests
-RUN chmod +x /run-tests
+# install doppler
+RUN (curl -Ls https://cli.doppler.com/install.sh || wget -qO- https://cli.doppler.com/install.sh) | sh
 
-WORKDIR /code/
+EXPOSE 8000
 
-CMD ["/start-webserver"]
+COPY . /app
+
+CMD ["doppler", "run", "--", "/start-webserver"]

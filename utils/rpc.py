@@ -3,7 +3,11 @@ from typing import Dict, List, Optional
 
 import requests
 import urllib3
+from decouple import config
+from django.core.cache import cache
 from web3 import Web3
+
+from utils.constants import NETWORK_NAME
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -11,43 +15,37 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logger = logging.getLogger(__name__)
 
 
-def get_evm_block_timestamps(network, blocks: List[int]) -> Dict:
+def get_evm_block_timestamps(blocks: List[int]) -> Dict:
     batch_request = [
         {
             "jsonrpc": "2.0",
             "method": "eth_getBlockByNumber",
             "params": [hex(b), False],
-            "id": i
+            "id": i,
         }
         for i, b in enumerate(iterable=blocks)
     ]
 
     # Send batch request and get responses
-    response = requests.post(url=network.rpc, json=batch_request)
+    response = requests.post(url=config("NETWORK_RPC"), json=batch_request)
     responses = response.json()
     return {
-        int(response['result']['number'], base=16): int(response['result']['timestamp'], base=16)
+        int(response["result"]["number"], base=16): int(
+            response["result"]["timestamp"], base=16
+        )
         for response in responses
     }
 
 
-def get_block_timestamps(network, blocks: List[int]) -> Dict:
-    from blockchains.models import ApproximateBlockTimestamp
-
-    approximate_block_timestamp = ApproximateBlockTimestamp.objects.get(network=network)
-    return approximate_block_timestamp.get_timestamps(blocks=blocks)
-
-
 class EVMRpcAdapter:
-    def __init__(self, network: str) -> None:
-        from blockchains.models import Network
-
-        self.network = Network.objects.get(name=network)
-        self.rpc_url = self.network.rpc
-        self.client = Web3(provider=Web3.HTTPProvider(
-            endpoint_uri=self.rpc_url,
-            request_kwargs={'timeout': 15, 'verify': False}
-        ))
+    def __init__(self) -> None:
+        self.rpc_url = config("NETWORK_RPC")
+        self.client = Web3(
+            provider=Web3.HTTPProvider(
+                endpoint_uri=self.rpc_url,
+                request_kwargs={"timeout": 15, "verify": False},
+            )
+        )
 
     @property
     def block_height(self):
@@ -60,8 +58,16 @@ class EVMRpcAdapter:
         return self.client.eth.block_number
 
     @property
+    def cached_block_height(self):
+        cached_block_height = cache.get(f"block_height_{NETWORK_NAME}")
+        if cached_block_height is None:
+            cached_block_height = self.block_height
+            cache.set(f"block_height_{NETWORK_NAME}", cached_block_height, timeout=5)
+        return cached_block_height
+
+    @property
     def max_blockrange_size_for_events(self) -> int:
-        return 1_000_000
+        return config("MAX_BLOCKRANGE_SIZE_FOR_EVENTS", cast=int, default=1_000_000)
 
     def get_raw_transaction(self, transaction_id: str) -> Dict:
         """
@@ -100,7 +106,7 @@ class EVMRpcAdapter:
                 "topics": [
                     topics,
                 ],
-                "address": contract_addresses
+                "address": contract_addresses,
             }
         )
 
@@ -117,9 +123,4 @@ class EVMRpcAdapter:
         return self.client.eth.get_code(address).hex()
 
 
-def get_adapters():
-    from blockchains.models import Network
-    return {
-        network.name: EVMRpcAdapter(network=network)
-        for network in Network.objects.all()
-    }
+rpc_adapter = EVMRpcAdapter()

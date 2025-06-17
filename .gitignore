@@ -4,7 +4,12 @@ bridges/*/samples/*
 dump.rdb
 *.log
 .DS_Store
-liquidations_v2/staticfiles/*
-.vscode/*
-*.sqlite3
-.coverage
+merkle_erp/staticfiles/*
+.env
+.pytest_cache
+.ruff_cache
+.venv
+*.csv
+.env
+celerybeat-schedule.db
+staticfiles/*

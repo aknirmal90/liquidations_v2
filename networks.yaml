@@ -1,5 +1,0 @@
-- name: arbitrum
-  rpc: https://arbitrum-mainnet.infura.io/v3/462361faca234b7f871c6c4a77ca51d0
-  chain_id: 42161
-  wss_infura: wss://arbitrum-mainnet.infura.io/ws/v3/462361faca234b7f871c6c4a77ca51d0
-  wss_sequencer_oregon: wss://arb1.arbitrum.io/feed
