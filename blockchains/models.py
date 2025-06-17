@@ -33,7 +33,20 @@ class Event(models.Model):
         ] + self._get_clickhouse_log_columns()
 
     def _map_evm_types_to_clickhouse_types(self, evm_type: str):
-        if evm_type in ["uint256", "int256"]:
+        if evm_type in [
+            "uint256",
+            "int256",
+            "uint128",
+            "int128",
+            "uint64",
+            "int64",
+            "uint32",
+            "int32",
+            "uint16",
+            "int16",
+            "uint8",
+            "int8",
+        ]:
             return "UInt64"
         elif evm_type in ["bool"]:
             return "Int64"
