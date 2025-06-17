@@ -87,6 +87,9 @@ def decode_any(data: Any) -> AttributeDict:
     if isinstance(data, (str, bytes, HexBytes)):
         return decode_hex(data)
 
+    elif isinstance(data, bool):
+        return int(data)
+
     # If the data is a list, apply decoding recursively to each element
     elif isinstance(data, list):
         return AttributeDict({str(i): decode_any(item) for i, item in enumerate(data)})
