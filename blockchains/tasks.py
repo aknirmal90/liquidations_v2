@@ -154,8 +154,8 @@ class ChildSynchronizeTask(Task):
     Syncs event logs from contracts, signatures, and block ranges for a list of event IDs.
     """
 
-    expires = 1 * 60  # 1 minute in seconds
-    time_limit = 1 * 60  # 1 minute in seconds
+    expires = 120 * 60  # 2 hours in seconds
+    time_limit = 120 * 60  # 2 hours in seconds
 
     def run(self, event_ids: List[int]):
         network_events = Event.objects.filter(id__in=event_ids)
@@ -328,9 +328,8 @@ class ParentSynchronizeTask(Task):
     Syncs event logs from contracts, signatures, and block ranges for a list of event IDs.
     """
 
-    expires = 1 * 60  # 1 minute in seconds
-    time_limit = 1 * 60  # 1 minute in seconds
-    abstract = True
+    expires = 1 * 60  # 2 hours in seconds
+    time_limit = 1 * 60  # 2 hours in seconds
 
     def run(self):
         events = Event.objects.filter(is_enabled=True)
