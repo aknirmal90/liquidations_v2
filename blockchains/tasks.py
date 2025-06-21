@@ -1,9 +1,11 @@
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, List
 
 import pytz
 from celery import Task
+from django.conf import settings
 from django.core.cache import cache
 from eth_utils import get_all_event_abis
 from web3 import Web3
@@ -20,6 +22,7 @@ from utils.constants import (
     PROTOCOL_NAME,
 )
 from utils.encoding import decode_any, get_signature, get_topic_0
+from utils.explorers import get_token_metadata_clickhouse_schema
 from utils.files import parse_json, parse_yaml
 from utils.rpc import rpc_adapter
 
@@ -43,8 +46,34 @@ class InitializeAppTask(Task):
         logger.info(f"Starting InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}")
         clickhouse_client.create_database()
         self.create_protocol_events()
+        self.create_token_metadata_table()
+        self.create_materialized_views()
         logger.info(
             f"Completed InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}"
+        )
+
+    def create_materialized_views(self):
+        """Create materialized views in Clickhouse."""
+        MATERIALIZED_VIEWS_PATH = os.path.join(
+            os.path.dirname(settings.BASE_DIR), "blockchains", "mv_queries"
+        )
+        files = os.listdir(MATERIALIZED_VIEWS_PATH)
+        files.sort()
+
+        for filename in files:
+            if not filename.endswith(".sql"):
+                continue
+
+            with open(os.path.join(MATERIALIZED_VIEWS_PATH, filename), "r") as file:
+                query = file.read()
+                logger.info(f"Executing query: {filename}")
+                clickhouse_client.execute_query(query)
+
+    def create_token_metadata_table(self):
+        """Create the token metadata table in Clickhouse."""
+        clickhouse_client.create_table(
+            "TokenMetadata",
+            get_token_metadata_clickhouse_schema(),
         )
 
     def create_protocol_events(self):
@@ -311,7 +340,10 @@ class ChildSynchronizeTask(Task):
                 parsed_event_log = event_values + log_values
                 parsed_event_logs.append(parsed_event_log)
 
-            clickhouse_client.insert_rows(network_event, parsed_event_logs)
+            clickhouse_client.insert_event_logs(network_event, parsed_event_logs)
+            clickhouse_client.optimize_table(network_event.name)
+            network_event.logs_count += len(event_logs)
+            network_event.save()
             logger.info(f"Number of records inserted: {len(event_logs)}")
 
     def update_last_synced_block(self, events: List[Event], block: int):

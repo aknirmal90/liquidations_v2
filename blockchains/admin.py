@@ -16,6 +16,7 @@ class EventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         "is_enabled",
         "last_synced_block",
         "blocks_to_sync",
+        "logs_count",
         "get_contracts_display",
         "updated_at",
     )
@@ -26,7 +27,10 @@ class EventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
 
     fieldsets = (
         ("Basic Information", {"fields": ("name", "is_enabled")}),
-        ("Sync Status", {"fields": ("last_synced_block", "blocks_to_sync")}),
+        (
+            "Sync Status",
+            {"fields": ("last_synced_block", "blocks_to_sync", "logs_count")},
+        ),
         (
             "Event Details",
             {"fields": ("signature", "topic_0", "abi_display", "contract_addresses")},
@@ -44,6 +48,7 @@ class EventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         "topic_0",
         "abi_display",
         "contract_addresses",
+        "logs_count",
         "is_enabled",
         "get_contracts_display",
     )

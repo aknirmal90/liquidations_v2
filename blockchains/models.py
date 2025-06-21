@@ -16,6 +16,7 @@ class Event(models.Model):
     topic_0 = models.CharField(max_length=256, null=False)
 
     contract_addresses = models.JSONField(null=True)
+    logs_count = models.PositiveBigIntegerField(default=0)
 
     def __str__(self):
         return f"{self.name}"
