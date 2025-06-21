@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "bokeh>=3.4.0",
     "click==8.1.7",
     "clickhouse-connect>=0.8.17",
     "crispy-bootstrap4==2024.10",

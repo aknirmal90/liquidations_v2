@@ -81,7 +81,9 @@ class ClickHouseClient:
     def select_event_rows(self, event: Event):
         return self.select_rows(event.name)
 
-    def execute_query(self, query: str):
+    def execute_query(self, query: str, parameters: Dict = None):
+        if parameters:
+            return self.client.query(query, parameters=parameters)
         return self.client.query(query)
 
     def optimize_table(self, table_name: str):

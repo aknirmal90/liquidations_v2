@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "django_celery_beat",
     "corsheaders",
     "blockchains",
+    "dashboard",
     # "aave",
     "django_admin_inline_paginator",
     "django_object_actions",
@@ -178,3 +179,7 @@ if SERVER_ENV == "prod":
         "CORS_ALLOWED_ORIGINS",
         cast=Csv(),
     )
+
+# Authentication settings
+LOGIN_URL = "/admin/login/"
+LOGIN_REDIRECT_URL = "/dashboard/"
