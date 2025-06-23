@@ -1,19 +1,83 @@
 # Aave Asset Dashboard
 
-A beautiful and modern web dashboard for exploring Aave protocol assets with detailed configuration information and visualizations.
+A comprehensive dashboard for monitoring Aave protocol assets, including detailed configuration information and real-time price data.
 
 ## Features
 
-- **Asset List View**: Browse all assets in the Aave protocol with key metrics in a single-column layout
-- **Asset Detail View**: Detailed information for each asset including:
-  - Configuration parameters (LTV, Liquidation Threshold, Liquidation Bonus)
-  - E-Mode settings
-  - Token metadata
-  - Interactive Bokeh visualizations
-- **Search Functionality**: Filter assets by name or symbol
-- **Responsive Design**: Modern UI that works on desktop and mobile
-- **Real-time Data**: Connected to ClickHouse database for live data
-- **Authentication Required**: All views are protected behind login
+### Overview Tab
+- **Asset Configuration Details**: Complete view of LTV, liquidation thresholds, and bonuses for both collateral and E-Mode
+- **Token Information**: Name, symbol, decimals, and protocol details
+- **Token Addresses**: All associated contract addresses (asset, aToken, debt tokens, interest rate strategy)
+- **Configuration Charts**: Visual comparison of collateral vs E-Mode parameters
+- **Historical Events**: Timeline of asset-related events
+
+### Prices Tab (New!)
+- **Current Price**: Real-time price from `aave_ethereum.LatestRawPriceEvent`
+- **Asset Source**: Price oracle source information
+- **Average Block Time**: Calculated from the last 1000 price records
+- **Price History Chart**: Interactive timeseries visualization of historical prices
+- **Price Distribution**: Histogram showing price distribution patterns
+- **Asset Source Updates**: Table of all `AssetSourceUpdated` events for the asset
+
+## Data Sources
+
+### Price Data
+- **Current Price**: `aave_ethereum.LatestRawPriceEvent`
+- **Historical Prices**: `aave_ethereum.RawPriceEvent` (last 1000 records)
+- **Asset Source Events**: `aave_ethereum.AssetSourceUpdated`
+
+### Asset Configuration
+- **Asset Details**: `aave_ethereum.view_LatestAssetConfiguration`
+
+## Technical Implementation
+
+### Backend (Django Views)
+- **Enhanced `asset_detail` view**: Fetches comprehensive price and configuration data
+- **Price Calculations**: Average block time calculation from historical data
+- **Data Validation**: Robust error handling for price data processing
+- **Bokeh Visualizations**: Interactive charts for price history and distribution
+
+### Frontend (Bootstrap + Custom CSS)
+- **Tabbed Interface**: Clean separation between Overview and Prices
+- **Responsive Design**: Mobile-friendly layout
+- **Interactive Charts**: Hover tools and zoom capabilities
+- **Modern UI**: Gradient backgrounds and glass-morphism effects
+
+### Key Functions
+- `calculate_average_block_time()`: Analyzes time differences between consecutive price updates
+- `create_price_plots()`: Generates Bokeh visualizations for price data
+- `create_asset_plots()`: Creates configuration comparison charts
+
+## Usage
+
+1. Navigate to the asset list page
+2. Click on any asset to view its details
+3. Use the tabs to switch between Overview and Prices views
+4. Interact with charts using hover, zoom, and pan tools
+5. View detailed price metrics and asset source information
+
+## Dependencies
+
+- Django 4.x
+- Bokeh (for interactive charts)
+- NumPy (for statistical calculations)
+- Bootstrap 5.3.0
+- Font Awesome 6.4.0
+
+## Data Quality Features
+
+- **Price Validation**: Only positive, non-null prices are included
+- **Timestamp Processing**: Robust handling of various timestamp formats
+- **Error Handling**: Graceful degradation when data is unavailable
+- **Performance**: Optimized queries with appropriate limits
+
+## Future Enhancements
+
+- Price alerts and notifications
+- Comparative analysis between assets
+- Export functionality for price data
+- Real-time price updates via WebSocket
+- Advanced statistical analysis (volatility, correlation)
 
 ## URLs
 
