@@ -17,21 +17,11 @@ class CLSynchronicityPriceAdapterPegToBaseAssetSource(BaseEthereumAssetSource):
 
     @property
     def asset_to_peg_source_address(self):
-        cache_key = self.local_cache_key("asset_to_peg_source")
-        asset_to_peg_source = cache.get(cache_key)
-        if asset_to_peg_source is None:
-            asset_to_peg_source = self.call_function("ASSET_TO_PEG")
-            cache.set(cache_key, asset_to_peg_source)
-        return asset_to_peg_source
+        return self._get_cached_property("ASSET_TO_PEG")
 
     @property
     def peg_to_base_source_address(self):
-        cache_key = self.local_cache_key("peg_to_base_source")
-        peg_to_base_source = cache.get(cache_key)
-        if peg_to_base_source is None:
-            peg_to_base_source = self.call_function("PEG_TO_BASE")
-            cache.set(cache_key, peg_to_base_source)
-        return peg_to_base_source
+        return self._get_cached_property("PEG_TO_BASE")
 
     @property
     def events(self):

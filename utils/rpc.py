@@ -5,6 +5,7 @@ import urllib3
 from decouple import config
 from django.core.cache import cache
 from web3 import Web3
+from web3.middleware import validation
 
 from utils.constants import (
     NETWORK_BLOCK_TIME,
@@ -12,6 +13,9 @@ from utils.constants import (
     NETWORK_REFERENCE_BLOCK,
     NETWORK_REFERENCE_TIMESTAMP,
 )
+
+# This disables all method validations, including chainId checks
+validation.METHODS_TO_VALIDATE = []
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 

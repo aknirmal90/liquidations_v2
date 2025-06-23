@@ -14,12 +14,7 @@ class WstETHSynchronicityPriceAdapterAssetSource(BaseEthereumAssetSource):
 
     @property
     def underlying_asset_source_address(self):
-        cache_key = self.local_cache_key("underlying_asset_source")
-        underlying_asset_source = cache.get(cache_key)
-        if underlying_asset_source is None:
-            underlying_asset_source = self.call_function("ETH_TO_BASE")
-            cache.set(cache_key, underlying_asset_source)
-        return underlying_asset_source
+        return self._get_cached_property("ETH_TO_BASE")
 
     @property
     def events(self):
@@ -35,7 +30,7 @@ class WstETHSynchronicityPriceAdapterAssetSource(BaseEthereumAssetSource):
     def get_event_price(self, event: dict) -> int:
         # This implementation necessarily requires the asset cap event to sync first to
         # get historially correct prices.
-        underlying_price = self.get_event_price_from_underlying(event)
+        underlying_price = self.underlying_asset_source.get_event_price(event)
         ratio = self.get_ratio()
         return int((underlying_price * ratio) / (10**self.RATIO_DECIMALS))
 

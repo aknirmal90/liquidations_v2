@@ -39,6 +39,9 @@ class BaseEthereumAssetSource:
                 address=Web3.to_checksum_address(self.asset_source), abi=self.abi
             )
 
+        logger.info(
+            f"Calling function {function_name} with args {args} and kwargs {kwargs}"
+        )
         return self.contract.functions[function_name](*args, **kwargs).call()
 
     @property

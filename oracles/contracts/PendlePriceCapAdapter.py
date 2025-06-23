@@ -15,12 +15,7 @@ class PendlePriceCapAdapterAssetSource(BaseEthereumAssetSource):
 
     @property
     def underlying_asset_source_address(self):
-        cache_key = self.local_cache_key("underlying_asset_source")
-        underlying_asset_source = cache.get(cache_key)
-        if underlying_asset_source is None:
-            underlying_asset_source = self.call_function("ASSET_TO_USD_AGGREGATOR")
-            cache.set(cache_key, underlying_asset_source)
-        return underlying_asset_source
+        return self._get_cached_property("ASSET_TO_USD_AGGREGATOR")
 
     @property
     def events(self):
