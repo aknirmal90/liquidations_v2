@@ -1,16 +1,15 @@
-CREATE MATERIALIZED VIEW aave_ethereum.mv_latest_emode_category
-TO aave_ethereum.LatestEModeCategoryAdded
+CREATE MATERIALIZED VIEW aave_ethereum.mv_latest_collateral_configuration
+TO aave_ethereum.LatestCollateralConfigurationChanged
 AS
 SELECT
-    categoryId,
+    asset,
     ltv,
     liquidationThreshold,
     liquidationBonus,
-    oracle,
-    label,
     transactionHash,
     blockNumber,
     transactionIndex,
     logIndex,
+    blockTimestamp,
     (blockNumber * 1000000000 + transactionIndex * 10000 + logIndex) AS version
-FROM aave_ethereum.EModeCategoryAdded;
+FROM aave_ethereum.CollateralConfigurationChanged;

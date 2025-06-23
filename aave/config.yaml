@@ -4,8 +4,6 @@ events:
   - AssetSourceUpdated
   - EModeAssetCategoryChanged
   - EModeCategoryAdded
-  - PriceCapUpdated
-  - CapParametersUpdated
   - LiquidationCall
   - Mint
   - Burn

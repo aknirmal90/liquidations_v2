@@ -3,6 +3,7 @@ import logging
 from django.db.models.signals import pre_save
 
 from blockchains.models import Event
+from oracles.tasks import InitializePriceEvents
 from utils.clickhouse.client import clickhouse_client
 from utils.explorers import token_metadata
 
@@ -30,6 +31,10 @@ def handle_events(sender, instance, **kwargs):
         logger.info("Processing ReserveInitialized event")
         handle_new_reserve(instance)
 
+    if instance.name == "AssetSourceUpdated":
+        logger.info("Processing AssetSourceUpdated event")
+        handle_asset_source_updated(instance)
+
 
 def handle_new_reserve(instance: Event):
     all_reserves_initialized_rows = clickhouse_client.select_event_rows(instance)
@@ -53,6 +58,10 @@ def handle_new_reserve(instance: Event):
                 logger.error(f"Failed to fetch/insert metadata for asset {asset}: {e}")
 
     clickhouse_client.optimize_table("TokenMetadata")
+
+
+def handle_asset_source_updated(instance: Event):
+    InitializePriceEvents.run()
 
 
 pre_save.connect(handle_events, sender=Event)

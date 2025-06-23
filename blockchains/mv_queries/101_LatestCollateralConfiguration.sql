@@ -8,6 +8,7 @@ CREATE TABLE aave_ethereum.LatestCollateralConfigurationChanged
     blockNumber UInt64,
     transactionIndex UInt32,
     logIndex UInt32,
+    blockTimestamp DateTime64(0),
     version UInt64
 )
 ENGINE = ReplacingMergeTree(version)

@@ -7,5 +7,5 @@ SELECT
     symbol,
     decimals_places,
     decimals,
-    createdAt
+    blockTimestamp
 FROM aave_ethereum.TokenMetadata;

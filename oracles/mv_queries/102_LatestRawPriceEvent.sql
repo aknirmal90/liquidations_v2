@@ -1,7 +1,7 @@
-CREATE TABLE aave_ethereum.LatestEModeAssetCategoryChanged
+CREATE TABLE IF NOT EXISTS aave_ethereum.LatestRawPriceEvent
 (
     asset String,
-    newCategoryId UInt8,
+    price UInt256,  -- adjust to Int64 if UInt256 unsupported
     transactionHash String,
     blockNumber UInt64,
     transactionIndex UInt32,
@@ -10,4 +10,4 @@ CREATE TABLE aave_ethereum.LatestEModeAssetCategoryChanged
     version UInt64
 )
 ENGINE = ReplacingMergeTree(version)
-ORDER BY asset;
+ORDER BY (asset);

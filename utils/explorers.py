@@ -34,7 +34,7 @@ def token_metadata(token_address: str) -> dict:
             ("symbol", symbol),
             ("decimals_places", 10**decimals),
             ("decimals", decimals),
-            ("createdAt", int(datetime.now().timestamp() * 1_000_000)),
+            ("blockTimestamp", int(datetime.now().timestamp())),
         ]
     )
 
@@ -46,5 +46,5 @@ def get_token_metadata_clickhouse_schema() -> dict:
         ("symbol", "String"),
         ("decimals_places", "UInt64"),
         ("decimals", "UInt64"),
-        ("createdAt", "UInt64"),
+        ("blockTimestamp", "DateTime64(0)"),
     ]

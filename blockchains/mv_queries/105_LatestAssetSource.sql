@@ -1,7 +1,7 @@
-CREATE TABLE aave_ethereum.LatestEModeAssetCategoryChanged
+CREATE TABLE aave_ethereum.LatestAssetSourceUpdated
 (
     asset String,
-    newCategoryId UInt8,
+    source String,
     transactionHash String,
     blockNumber UInt64,
     transactionIndex UInt32,

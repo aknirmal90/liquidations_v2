@@ -92,6 +92,8 @@ class ClickHouseClient:
             "EModeAssetCategoryChanged",
             "EModeCategoryAdded",
             "TokenMetadata",
+            "AssetSourceUpdated",
+            "RawPriceEvent",
         ]:
             self.execute_query(
                 f"OPTIMIZE TABLE {self.db_name}.Latest{table_name} FINAL;"

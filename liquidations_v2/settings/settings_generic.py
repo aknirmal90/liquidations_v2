@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "blockchains",
     "dashboard",
+    "oracles",
     # "aave",
     "django_admin_inline_paginator",
     "django_object_actions",

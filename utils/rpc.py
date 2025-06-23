@@ -1,13 +1,17 @@
 import logging
 from typing import Dict, List, Optional
 
-import requests
 import urllib3
 from decouple import config
 from django.core.cache import cache
 from web3 import Web3
 
-from utils.constants import NETWORK_NAME
+from utils.constants import (
+    NETWORK_BLOCK_TIME,
+    NETWORK_NAME,
+    NETWORK_REFERENCE_BLOCK,
+    NETWORK_REFERENCE_TIMESTAMP,
+)
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -16,24 +20,10 @@ logger = logging.getLogger(__name__)
 
 
 def get_evm_block_timestamps(blocks: List[int]) -> Dict:
-    batch_request = [
-        {
-            "jsonrpc": "2.0",
-            "method": "eth_getBlockByNumber",
-            "params": [hex(b), False],
-            "id": i,
-        }
-        for i, b in enumerate(iterable=blocks)
-    ]
-
-    # Send batch request and get responses
-    response = requests.post(url=config("NETWORK_RPC"), json=batch_request)
-    responses = response.json()
     return {
-        int(response["result"]["number"], base=16): int(
-            response["result"]["timestamp"], base=16
-        )
-        for response in responses
+        int(block): NETWORK_REFERENCE_TIMESTAMP
+        + (block - NETWORK_REFERENCE_BLOCK) * NETWORK_BLOCK_TIME
+        for block in blocks
     }
 
 
