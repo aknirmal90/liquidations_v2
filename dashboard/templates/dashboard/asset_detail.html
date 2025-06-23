@@ -283,6 +283,13 @@
                         Prices
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="events-tab" data-bs-toggle="tab" data-bs-target="#events" type="button"
+                        role="tab" aria-controls="events" aria-selected="false">
+                        <i class="fas fa-history me-2"></i>
+                        Events
+                    </button>
+                </li>
             </ul>
 
             <!-- Tab Content -->
@@ -456,7 +463,7 @@
                                 <div class="card-body metric-card">
                                     <div class="metric-value">
                                         {% if asset.current_price %}
-                                        {{ asset.current_price }}
+                                        {{ asset.current_price|floatformat:0 }}
                                         {% else %}
                                         N/A
                                         {% endif %}
@@ -511,15 +518,114 @@
                         </div>
                     </div>
                     {% endif %}
+                </div>
 
-                    <!-- Asset Source Updates -->
-                    <div class="row">
-                        <div class="col-12 mb-4">
+                <!-- Events Tab -->
+                <div class="tab-pane fade" id="events" role="tabpanel" aria-labelledby="events-tab">
+                    <!-- Collateral Configuration Changed Events -->
+                    <div class="row mb-4">
+                        <div class="col-12">
                             <div class="card">
                                 <div class="card-header">
                                     <h5 class="mb-0">
-                                        <i class="fas fa-history me-2"></i>
-                                        Asset Source Updates
+                                        <i class="fas fa-cog me-2"></i>
+                                        Collateral Configuration Changed Events
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    {% if collateral_events %}
+                                    <div class="table-responsive">
+                                        <table class="table table-hover events-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Asset</th>
+                                                    <th>LTV (%)</th>
+                                                    <th>Liquidation Threshold (%)</th>
+                                                    <th>Liquidation Bonus (%)</th>
+                                                    <th>Timestamp</th>
+                                                    <th>Transaction</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for event in collateral_events %}
+                                                <tr>
+                                                    <td>{{ addresses.asset|safe }}</td>
+                                                    <td>{{ event.ltv_pct }}%</td>
+                                                    <td>{{ event.liquidation_threshold_pct }}%</td>
+                                                    <td>{{ event.liquidation_bonus_pct }}%</td>
+                                                    <td>{{ event.block_timestamp }}</td>
+                                                    <td>{{ event.transaction_url|safe }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {% else %}
+                                    <div class="text-center text-muted">
+                                        <i class="fas fa-info-circle fa-2x mb-3"></i>
+                                        <p>No collateral configuration change events found for this asset.</p>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- E-Mode Asset Category Changed Events -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-exchange-alt me-2"></i>
+                                        E-Mode Asset Category Changed Events
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    {% if emode_asset_events %}
+                                    <div class="table-responsive">
+                                        <table class="table table-hover events-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Asset</th>
+                                                    <th>Old Category ID</th>
+                                                    <th>New Category ID</th>
+                                                    <th>Timestamp</th>
+                                                    <th>Transaction</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for event in emode_asset_events %}
+                                                <tr>
+                                                    <td>{{ addresses.asset|safe }}</td>
+                                                    <td>{{ event.old_category_id|default:"None" }}</td>
+                                                    <td>{{ event.new_category_id|default:"None" }}</td>
+                                                    <td>{{ event.block_timestamp }}</td>
+                                                    <td>{{ event.transaction_url|safe }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {% else %}
+                                    <div class="text-center text-muted">
+                                        <i class="fas fa-info-circle fa-2x mb-3"></i>
+                                        <p>No E-Mode asset category change events found for this asset.</p>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Asset Source Updated Events -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-link me-2"></i>
+                                        Asset Source Updated Events
                                     </h5>
                                 </div>
                                 <div class="card-body">
@@ -528,19 +634,19 @@
                                         <table class="table table-hover events-table">
                                             <thead>
                                                 <tr>
+                                                    <th>Asset</th>
                                                     <th>Asset Source</th>
-                                                    <th>Block Number</th>
                                                     <th>Timestamp</th>
+                                                    <th>Transaction</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {% for event in source_events %}
                                                 <tr>
-                                                    <td>
-                                                        <span class="source-badge">{{ event.asset_source }}</span>
-                                                    </td>
-                                                    <td>{{ event.block_number }}</td>
+                                                    <td>{{ addresses.asset|safe }}</td>
+                                                    <td>{{ event.asset_source_url|safe }}</td>
                                                     <td>{{ event.block_timestamp }}</td>
+                                                    <td>{{ event.transaction_url|safe }}</td>
                                                 </tr>
                                                 {% endfor %}
                                             </tbody>

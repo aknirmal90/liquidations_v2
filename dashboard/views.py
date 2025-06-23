@@ -9,7 +9,7 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from utils.admin import get_explorer_address_url
+from utils.admin import get_explorer_address_url, get_explorer_transaction_url
 from utils.clickhouse.client import clickhouse_client
 
 
@@ -105,17 +105,107 @@ def asset_detail(request, asset_address):
         asset_source = None
         if price_result.result_rows:
             try:
-                current_price = int(price_result.result_rows[0][1])
-            except (ValueError, TypeError, IndexError):
+                current_price = float(price_result.result_rows[0][1])
+                # asset_source is not available in LatestRawPriceEvent, so we'll set it to None
+                asset_source = None
+                print(f"DEBUG: Found price data - Price: {current_price}")
+            except (ValueError, TypeError, IndexError) as e:
                 current_price = None
+                asset_source = None
+                print(f"DEBUG: Error processing price data: {e}")
+        else:
+            print(f"DEBUG: No price data found for asset {asset_address}")
 
-        # Get AssetSourceUpdated events
+        # Get all event data for the Events tab
+        # CollateralConfigurationChanged events
+        collateral_events_query = f"""
+        SELECT
+            asset,
+            ltv,
+            liquidationThreshold,
+            liquidationBonus,
+            blockTimestamp,
+            blockNumber,
+            transactionHash
+        FROM aave_ethereum.CollateralConfigurationChanged
+        WHERE asset = '{asset_address}'
+        ORDER BY blockTimestamp DESC
+        LIMIT 50
+        """
+        collateral_events_result = clickhouse_client.execute_query(
+            collateral_events_query
+        )
+        collateral_events = []
+        for row in collateral_events_result.result_rows:
+            # Calculate formatted values
+            ltv_pct = round(row[1] / 100.0, 2) if row[1] is not None else 0
+            liquidation_threshold_pct = (
+                round(row[2] / 100.0, 2) if row[2] is not None else 0
+            )
+            liquidation_bonus_calc = (
+                (row[3] / 100.0) - 100.0 if row[3] is not None else 0
+            )
+            liquidation_bonus_pct = max(round(liquidation_bonus_calc, 2), 0)
+
+            collateral_events.append(
+                {
+                    "asset": row[0],
+                    "ltv": row[1],
+                    "ltv_pct": ltv_pct,
+                    "liquidation_threshold": row[2],
+                    "liquidation_threshold_pct": liquidation_threshold_pct,
+                    "liquidation_bonus": row[3],
+                    "liquidation_bonus_pct": liquidation_bonus_pct,
+                    "block_timestamp": row[4],
+                    "block_number": row[5],
+                    "transaction_hash": row[6],
+                    "transaction_url": get_explorer_transaction_url(row[6])
+                    if row[6]
+                    else None,
+                }
+            )
+
+        # EModeAssetCategoryChanged events
+        emode_asset_events_query = f"""
+        SELECT
+            asset,
+            oldCategoryId,
+            newCategoryId,
+            blockTimestamp,
+            blockNumber,
+            transactionHash
+        FROM aave_ethereum.EModeAssetCategoryChanged
+        WHERE asset = '{asset_address}'
+        ORDER BY blockTimestamp DESC
+        LIMIT 50
+        """
+        emode_asset_events_result = clickhouse_client.execute_query(
+            emode_asset_events_query
+        )
+        emode_asset_events = []
+        for row in emode_asset_events_result.result_rows:
+            emode_asset_events.append(
+                {
+                    "asset": row[0],
+                    "old_category_id": row[1],
+                    "new_category_id": row[2],
+                    "block_timestamp": row[3],
+                    "block_number": row[4],
+                    "transaction_hash": row[5],
+                    "transaction_url": get_explorer_transaction_url(row[5])
+                    if row[5]
+                    else None,
+                }
+            )
+
+        # AssetSourceUpdated events (moved from Prices tab to Events tab)
         source_events_query = f"""
         SELECT
             asset,
             source as asset_source,
             blockTimestamp,
-            blockNumber
+            blockNumber,
+            transactionHash
         FROM aave_ethereum.AssetSourceUpdated
         WHERE asset = '{asset_address}'
         ORDER BY blockTimestamp DESC
@@ -129,8 +219,15 @@ def asset_detail(request, asset_address):
                 {
                     "asset": row[0],
                     "asset_source": row[1],
+                    "asset_source_url": get_explorer_address_url(row[1])
+                    if row[1]
+                    else None,
                     "block_timestamp": row[2],
                     "block_number": row[3],
+                    "transaction_hash": row[4],
+                    "transaction_url": get_explorer_transaction_url(row[4])
+                    if row[4]
+                    else None,
                 }
             )
 
@@ -203,6 +300,8 @@ def asset_detail(request, asset_address):
                 "interest_rate_strategy": get_explorer_address_url(asset_config[4]),
             },
             "source_events": source_events,
+            "collateral_events": collateral_events,
+            "emode_asset_events": emode_asset_events,
             "price_plots": price_plots,
             "plots": plots,
         }
