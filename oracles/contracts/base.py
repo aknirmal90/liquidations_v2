@@ -7,6 +7,7 @@ import requests
 from django.core.cache import cache
 from web3 import Web3
 
+from utils.clickhouse.client import clickhouse_client
 from utils.constants import NETWORK_NAME, PROTOCOL_NAME
 from utils.encoding import decode_any
 from utils.rpc import rpc_adapter
@@ -47,6 +48,18 @@ class BaseEthereumAssetSource:
     @property
     def latest_price_from_rpc(self):
         return self.call_function("latestAnswer")
+
+    @property
+    def latest_price_from_clickhouse(self):
+        query = f"""
+        SELECT price
+        FROM aave_ethereum.LatestRawPriceEvent
+        WHERE asset = '{self.asset}'
+        ORDER BY blockTimestamp DESC
+        LIMIT 1
+        """
+        result = clickhouse_client.execute_query(query)
+        return result.result_rows[0][0]
 
     def local_cache_key(self, function_name: str, *args, **kwargs):
         return f"{NETWORK_NAME}_{PROTOCOL_NAME}_{self.asset_source}_{function_name}"

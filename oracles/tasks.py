@@ -295,3 +295,26 @@ class PriceEventParentSynchronizeTask(ParentSynchronizeTaskMixin, Task):
 
 
 PriceEventParentSynchronizeTask = app.register_task(PriceEventParentSynchronizeTask())
+
+
+class VerifyLatestPriceTask(Task):
+    def run(self):
+        all_assets = clickhouse_client.execute_query("SELECT asset, source AS asset_source FROM aave_ethereum.LatestAssetSourceUpdated FINAL")
+        num_verified = 0
+        num_different = 0
+
+        for asset, asset_source in all_assets.result_rows:
+            asset_source_interface = get_contract_interface(
+                asset=asset, asset_source=asset_source
+            )
+            latest_price_from_clickhouse = asset_source_interface.latest_price_from_clickhouse
+            latest_price_from_rpc = asset_source_interface.latest_price_from_rpc
+            if str(int(latest_price_from_clickhouse)) != str(int(latest_price_from_rpc)):
+                num_different += 1
+                logger.error(f"Latest price from clickhouse and rpc are different for {asset} {asset_source}")
+                logger.error(f"Clickhouse: {latest_price_from_clickhouse}, RPC: {latest_price_from_rpc} for {asset} {asset_source}")
+            num_verified += 1
+
+        logger.info(f"Verified {num_verified} assets, {num_different} different")
+
+VerifyLatestPriceTask = app.register_task(VerifyLatestPriceTask())

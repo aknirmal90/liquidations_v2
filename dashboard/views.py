@@ -19,7 +19,7 @@ def asset_list(request):
     try:
         # Query all assets from the LatestAssetConfiguration view with price data and avg refresh time
         query = """
-        SELECT 
+        SELECT
             ac.asset,
             ac.name,
             ac.symbol,
@@ -30,21 +30,21 @@ def asset_list(request):
             upv.price_usd,
             -- Calculate average refresh time: (total time span) / (number of intervals)
             -- Number of intervals = number of events - 1
-            CASE 
+            CASE
                 WHEN price_events.event_count >= 2 THEN
                     round(
-                        dateDiff('second', 
-                            price_events.oldest_timestamp, 
+                        dateDiff('second',
+                            price_events.oldest_timestamp,
                             price_events.newest_timestamp
-                        ) / (price_events.event_count - 1), 
+                        ) / (price_events.event_count - 1),
                         1
                     )
-                ELSE NULL 
+                ELSE NULL
             END as avg_refresh_time_seconds
         FROM aave_ethereum.view_LatestAssetConfiguration ac
         LEFT JOIN aave_ethereum.USDPriceView upv ON ac.asset = upv.asset
         LEFT JOIN (
-            SELECT 
+            SELECT
                 asset,
                 count() as event_count,
                 min(blockTimestamp) as oldest_timestamp,
