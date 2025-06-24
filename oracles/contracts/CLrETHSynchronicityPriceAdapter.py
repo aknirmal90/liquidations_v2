@@ -48,7 +48,7 @@ class CLrETHSynchronicityPriceAdapterAssetSource(BaseEthereumAssetSource):
             )
             func = getattr(contract.functions, self.RATIO_PROVIDER_METHOD)
             ratio = func().call()
-            cache.set(cache_key, ratio)
+            cache.set(cache_key, ratio, 60)
         return ratio
 
     @property

@@ -121,5 +121,5 @@ class BaseEthereumAssetSource:
         value = cache.get(cache_key)
         if value is None:
             value = self.call_function(function_name)
-            cache.set(cache_key, value)
+            cache.set(cache_key, value, 60)
         return value

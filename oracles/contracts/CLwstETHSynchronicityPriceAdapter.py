@@ -39,7 +39,7 @@ class CLwstETHSynchronicityPriceAdapterAssetSource(
             )
             func = getattr(contract.functions, self.RATIO_PROVIDER_METHOD)
             ratio = func(10**self.RATIO_DECIMALS).call()
-            cache.set(cache_key, ratio)
+            cache.set(cache_key, ratio, 60)
         return ratio
 
     @property
