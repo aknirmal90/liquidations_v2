@@ -318,7 +318,8 @@ class VerifyLatestPriceTask(Task):
                 num_different += 1
                 logger.error(f"Latest price from clickhouse and rpc are different for {asset} {asset_source}")
                 logger.error(f"Clickhouse: {latest_price_from_clickhouse}, RPC: {latest_price_from_rpc} for {asset} {asset_source}")
-            num_verified += 1
+            else:
+                num_verified += 1
 
         logger.info(f"Verified {num_verified} assets, {num_different} different")
 
