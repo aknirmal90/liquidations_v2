@@ -17,18 +17,44 @@ from utils.clickhouse.client import clickhouse_client
 def asset_list(request):
     """View to list all assets in the database"""
     try:
-        # Query all assets from the LatestAssetConfiguration view
+        # Query all assets from the LatestAssetConfiguration view with price data and avg refresh time
         query = """
-        SELECT DISTINCT
-            asset,
-            name,
-            symbol,
-            decimals,
-            collateralLTV,
-            collateralLiquidationThreshold,
-            collateralLiquidationBonus
-        FROM aave_ethereum.view_LatestAssetConfiguration
-        ORDER BY collateralLiquidationBonus DESC
+        SELECT 
+            ac.asset,
+            ac.name,
+            ac.symbol,
+            ac.decimals,
+            ac.collateralLTV,
+            ac.collateralLiquidationThreshold,
+            ac.collateralLiquidationBonus,
+            upv.price_usd,
+            -- Calculate average refresh time: (total time span) / (number of intervals)
+            -- Number of intervals = number of events - 1
+            CASE 
+                WHEN price_events.event_count >= 2 THEN
+                    round(
+                        dateDiff('second', 
+                            price_events.oldest_timestamp, 
+                            price_events.newest_timestamp
+                        ) / (price_events.event_count - 1), 
+                        1
+                    )
+                ELSE NULL 
+            END as avg_refresh_time_seconds
+        FROM aave_ethereum.view_LatestAssetConfiguration ac
+        LEFT JOIN aave_ethereum.USDPriceView upv ON ac.asset = upv.asset
+        LEFT JOIN (
+            SELECT 
+                asset,
+                count() as event_count,
+                min(blockTimestamp) as oldest_timestamp,
+                max(blockTimestamp) as newest_timestamp
+            FROM aave_ethereum.RawPriceEvent
+            WHERE blockTimestamp > now() - INTERVAL 30 DAY
+            GROUP BY asset
+            HAVING event_count >= 2
+        ) price_events ON ac.asset = price_events.asset
+        ORDER BY ac.collateralLiquidationBonus DESC
         """
 
         result = clickhouse_client.execute_query(query)
@@ -47,6 +73,8 @@ def asset_list(request):
                     "liquidation_bonus": max(
                         round((row[6] / 100.0) - 100.00, 2) or 0, 0
                     ),
+                    "price_usd": row[7] if row[7] is not None else None,
+                    "avg_refresh_time": row[8] if row[8] is not None else None,
                 }
             )
 

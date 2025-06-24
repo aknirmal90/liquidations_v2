@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from datetime import datetime
 from typing import Any, Dict, List
 
 from celery import Task
@@ -19,6 +20,7 @@ from utils.encoding import get_signature, get_topic_0
 from utils.files import parse_json
 from utils.rpc import rpc_adapter
 from utils.tasks import EventSynchronizeMixin, ParentSynchronizeTaskMixin
+from utils.tokens import Token
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,8 @@ class InitializePriceEvents(Task):
                 )
             )
 
+        asset_source_token_metadata_rows = []
+
         for row in rows:
             clickhouse_asset = row[0]
             clickhouse_asset_source = row[1]
@@ -59,6 +63,16 @@ class InitializePriceEvents(Task):
                     asset=clickhouse_asset, asset_source=clickhouse_asset_source
                 )
                 asset_source_name = asset_source_interface.name
+                asset_source_token = Token(clickhouse_asset_source)
+                decimals_places = asset_source_token.decimals()
+                asset_source_token_metadata_rows.append(
+                    [
+                        clickhouse_asset_source,
+                        decimals_places,
+                        10 ** decimals_places,
+                        int(datetime.now().timestamp()),
+                    ]
+                )
             except UnsupportedAssetSourceError as e:
                 logger.error(
                     f"Unsupported asset source for {clickhouse_asset_source}: {e}"
@@ -77,6 +91,11 @@ class InitializePriceEvents(Task):
                     contract_addresses=asset_source_interface.get_underlying_sources_to_monitor(),
                     method_ids=asset_source_interface.method_ids,
                 )
+
+        if asset_source_token_metadata_rows:
+            clickhouse_client.insert_rows(
+                "AssetSourceTokenMetadata", asset_source_token_metadata_rows
+            )
 
     def run(self):
         """Execute the initialization task.

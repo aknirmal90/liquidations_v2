@@ -43,7 +43,6 @@ class InitializeAppTask(Task):
         logger.info(f"Starting InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}")
         clickhouse_client.create_database()
         self.create_protocol_events()
-        self.create_token_metadata_table()
         self.create_materialized_views()
         logger.info(
             f"Completed InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}"
@@ -65,13 +64,6 @@ class InitializeAppTask(Task):
                 query = file.read()
                 logger.info(f"Executing query: {filename}")
                 clickhouse_client.execute_query(query)
-
-    def create_token_metadata_table(self):
-        """Create the token metadata table in Clickhouse."""
-        clickhouse_client.create_table(
-            "TokenMetadata",
-            get_token_metadata_clickhouse_schema(),
-        )
 
     def create_protocol_events(self):
         """Create or update Event instances for all configured protocol events.

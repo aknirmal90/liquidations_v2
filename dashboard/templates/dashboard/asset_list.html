@@ -54,8 +54,11 @@
         }
 
         .asset-card:hover {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+            color: var(--dark-color);
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.15);
         }
 
         .asset-symbol {
@@ -131,6 +134,49 @@
             font-size: 0.9rem;
             opacity: 0.9;
         }
+
+        .price-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--success-color);
+            margin-bottom: 0.25rem;
+        }
+
+        .price-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+
+        .price-metric {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
+            border-radius: 12px;
+            padding: 0.75rem;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .refresh-time-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--warning-color);
+        }
+
+        .refresh-time-label {
+            font-size: 0.7rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+
+        .refresh-time-metric {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05));
+            border-radius: 12px;
+            padding: 0.75rem;
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
     </style>
 </head>
 
@@ -195,8 +241,7 @@
                 {% for asset in assets %}
                 <div class="col-12 mb-4 asset-item" data-name="{{ asset.name|lower }}"
                     data-symbol="{{ asset.symbol|lower }}">
-                    <div class="card asset-card"
-                        onclick="window.location.href='{% url 'dashboard:asset_detail' asset.asset %}'">
+                    <div class="card asset-card" data-asset-url="{% url 'dashboard:asset_detail' asset.asset %}">
                         <div class="card-body py-4">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div class="d-flex align-items-center">
@@ -208,24 +253,48 @@
                                 </div>
                                 <div class="text-end">
                                     <div class="row g-4">
-                                        <div class="col-4">
+                                        <div class="col-2">
                                             <div class="metric">
                                                 <div class="metric-value text-nowrap">{{ asset.ltv }}%</div>
                                                 <div class="metric-label text-nowrap">LTV</div>
                                             </div>
                                         </div>
-                                        <div class="col-4">
+                                        <div class="col-2">
                                             <div class="metric">
                                                 <div class="metric-value text-nowrap">{{ asset.liquidation_threshold }}%
                                                 </div>
                                                 <div class="metric-label text-nowrap">Threshold</div>
                                             </div>
                                         </div>
-                                        <div class="col-4">
+                                        <div class="col-2">
                                             <div class="metric">
                                                 <div class="metric-value text-nowrap">{{ asset.liquidation_bonus }}%
                                                 </div>
                                                 <div class="metric-label text-nowrap">Bonus</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-3">
+                                            <div class="metric price-metric">
+                                                <div class="price-value text-nowrap">
+                                                    {% if asset.price_usd %}
+                                                    ${{ asset.price_usd|floatformat:2 }}
+                                                    {% else %}
+                                                    N/A
+                                                    {% endif %}
+                                                </div>
+                                                <div class="price-label text-nowrap">Price in USD</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-3">
+                                            <div class="metric refresh-time-metric">
+                                                <div class="refresh-time-value text-nowrap">
+                                                    {% if asset.avg_refresh_time %}
+                                                    {{ asset.avg_refresh_time|floatformat:1 }}s
+                                                    {% else %}
+                                                    N/A
+                                                    {% endif %}
+                                                </div>
+                                                <div class="refresh-time-label text-nowrap">Avg Refresh Time</div>
                                             </div>
                                         </div>
                                     </div>
@@ -282,12 +351,20 @@
             }
         });
 
-        // Add loading animation
+        // Add click handlers for asset cards
         document.addEventListener('DOMContentLoaded', function () {
             const cards = document.querySelectorAll('.asset-card');
             cards.forEach((card, index) => {
                 card.style.opacity = '0';
                 card.style.transform = 'translateY(20px)';
+
+                // Add click handler
+                card.addEventListener('click', function () {
+                    const assetUrl = this.dataset.assetUrl;
+                    if (assetUrl) {
+                        window.location.href = assetUrl;
+                    }
+                });
 
                 setTimeout(() => {
                     card.style.transition = 'all 0.5s ease';

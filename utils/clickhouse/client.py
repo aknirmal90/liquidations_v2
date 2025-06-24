@@ -93,6 +93,7 @@ class ClickHouseClient:
             "EModeCategoryAdded",
             "TokenMetadata",
             "AssetSourceUpdated",
+            "AssetSourceTokenMetadata",
             "RawPriceEvent",
         ]:
             self.execute_query(
