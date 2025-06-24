@@ -307,7 +307,12 @@ class VerifyLatestPriceTask(Task):
             asset_source_interface = get_contract_interface(
                 asset=asset, asset_source=asset_source
             )
-            latest_price_from_clickhouse = asset_source_interface.latest_price_from_clickhouse
+            try:
+                latest_price_from_clickhouse = asset_source_interface.latest_price_from_clickhouse
+            except Exception as e:
+                logger.error(f"Error getting latest price from clickhouse for {asset} {asset_source}: {e}")
+                continue
+
             latest_price_from_rpc = asset_source_interface.latest_price_from_rpc
             if str(int(latest_price_from_clickhouse)) != str(int(latest_price_from_rpc)):
                 num_different += 1
