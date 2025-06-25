@@ -1,18 +1,89 @@
 import json
 import logging
 from datetime import datetime
-from typing import Any, List
+from typing import Any, Dict, List
 
 import requests
 from django.core.cache import cache
 from web3 import Web3
+from web3.datastructures import AttributeDict
 
 from utils.clickhouse.client import clickhouse_client
-from utils.constants import NETWORK_NAME, PROTOCOL_NAME
+from utils.constants import NETWORK_NAME, PRICE_CACHE_EXPIRY, PROTOCOL_NAME
 from utils.encoding import decode_any
 from utils.rpc import rpc_adapter
 
 logger = logging.getLogger(__name__)
+
+
+class RatioProviderMixin:
+    """Mixin providing common ratio provider functionality for price adapters."""
+
+    @property
+    def RATIO_PROVIDER_METHOD(self):
+        """The method name to call on the ratio provider contract."""
+        raise NotImplementedError("RATIO_PROVIDER_METHOD must be implemented")
+
+    @property
+    def RATIO_PROVIDER_ADDRESS_NAME(self):
+        """The cached property name for the ratio provider address."""
+        return "RATIO_PROVIDER"
+
+    @property
+    def RATIO_PROVIDER(self):
+        """Get the ratio provider contract address from cache."""
+        return self._get_cached_property(self.RATIO_PROVIDER_ADDRESS_NAME)
+
+    @property
+    def RATIO_DECIMALS(self):
+        """Get the ratio decimals from cache."""
+        return self._get_cached_property("RATIO_DECIMALS")
+
+    def get_base_abi(self):
+        """Get the base ABI for ratio provider methods that take no parameters."""
+        abi = [
+            {
+                "inputs": [],
+                "name": self.RATIO_PROVIDER_METHOD,
+                "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+                "stateMutability": "view",
+                "type": "function",
+            }
+        ]
+        return abi
+
+    @property
+    def RATIO_PROVIDER_ABI(self):
+        """Get the ABI for the ratio provider contract. Override in subclasses if needed."""
+        return self.get_base_abi()
+
+    def get_ratio(self, use_parameter=False, parameter=None):
+        """
+        Get the current ratio from the ratio provider contract.
+
+        Args:
+            use_parameter: Whether the method call requires a parameter
+            parameter: The parameter to pass to the method (defaults to 10**RATIO_DECIMALS)
+        """
+        cache_key = self.local_cache_key("ratio")
+        ratio = cache.get(cache_key)
+
+        if ratio is None:
+            contract = rpc_adapter.client.eth.contract(
+                address=Web3.to_checksum_address(self.RATIO_PROVIDER),
+                abi=self.RATIO_PROVIDER_ABI,
+            )
+            func = getattr(contract.functions, self.RATIO_PROVIDER_METHOD)
+
+            if use_parameter:
+                if parameter is None:
+                    parameter = 10**self.RATIO_DECIMALS
+                ratio = func(parameter).call()
+            else:
+                ratio = func().call()
+
+            cache.set(cache_key, ratio, PRICE_CACHE_EXPIRY)
+        return ratio
 
 
 class BaseEthereumAssetSource:
@@ -94,7 +165,7 @@ class BaseEthereumAssetSource:
     def get_transaction_price(self, transaction: dict) -> int:
         raise NotImplementedError
 
-    def get_asset_sources_to_monitor(self) -> List[str]:
+    def get_underlying_sources_to_monitor(self) -> List[str]:
         raise NotImplementedError
 
     def process_event(self, event: dict) -> List[Any]:
@@ -113,13 +184,38 @@ class BaseEthereumAssetSource:
             "timestamp": int(datetime.now().timestamp()),
         }
 
-    def _get_cached_property(self, property_name: str, function_name: str = None):
+    def _get_cached_property(self, property_name: str, function_name: str = None, expiry: int = None):
         """Helper method to get cached contract properties with consistent caching logic."""
         if function_name is None:
             function_name = property_name
         cache_key = self.local_cache_key(property_name)
         value = cache.get(cache_key)
+
         if value is None:
             value = self.call_function(function_name)
-            cache.set(cache_key, value, 60)
+            if expiry is None:
+                cache.set(cache_key, value)
+            else:
+                cache.set(cache_key, value, expiry)
         return value
+
+    def process_current_price(self) -> Dict[str, Any]:
+        price = cache.get(self.local_cache_key("underlying_price"))
+        if price is None:
+            raise ValueError(f"Latest price for Asset Source {self.asset_source} not found in cache")
+
+        synthetic_event = AttributeDict(
+            {
+                "args": {
+                    "answer": price
+                },
+                "event": "SyntheticPriceEvent",
+                "transactionHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "logIndex": 0,
+                "blockNumber": 0,
+                "blockTimestamp": 0,
+                "address": self.get_underlying_sources_to_monitor[0],
+                "topics": [],
+            }
+        )
+        return self.process_event(synthetic_event, is_synthetic=True)

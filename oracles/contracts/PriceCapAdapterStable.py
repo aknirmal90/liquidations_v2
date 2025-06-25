@@ -1,7 +1,10 @@
 from django.core.cache import cache
+from web3 import Web3
 
 from oracles.contracts.AggregatorProxy import AggregatorProxyAssetSource
 from oracles.contracts.base import BaseEthereumAssetSource
+from utils.encoding import decode_any
+from utils.rpc import rpc_adapter
 
 
 class PriceCapAdapterStableAssetSource(BaseEthereumAssetSource):
@@ -16,55 +19,39 @@ class PriceCapAdapterStableAssetSource(BaseEthereumAssetSource):
 
     @property
     def events(self):
-        return self.underlying_asset_source.events + ["PriceCapUpdated"]
+        return self.underlying_asset_source.events
 
     @property
     def method_ids(self):
         return self.underlying_asset_source.method_ids
 
     def get_underlying_sources_to_monitor(self):
-        return self.underlying_asset_source.get_underlying_sources_to_monitor() + [
-            self.asset_source
-        ]
+        return self.underlying_asset_source.get_underlying_sources_to_monitor()
 
-    def get_event_price(self, event: dict) -> int:
-        # This implementation necessarily requires the asset cap event to sync first to
-        # get historially correct prices.
-        underlying_price = self.get_event_price_from_underlying(event)
-        asset_cap = self.get_event_price_from_asset_cap(event)
+    def get_event_price(self, event: dict, is_synthetic: bool = False) -> int:
+        asset_cap = self.MAX_CAP
+        underlying_price = event.args.answer
+        if not is_synthetic:
+            cache.set(self.local_cache_key("underlying_price"), underlying_price)
 
         if underlying_price > asset_cap:
             return asset_cap
         return underlying_price
 
-    def get_event_price_from_underlying(self, event: dict) -> int:
-        if event.event == "NewTransmission":
-            # NewTransmission is the underlying asset source price
-            cache_key = self.local_cache_key("underlying_price")
-            cache.set(cache_key, event.args.answer)
-            return event.args.answer
-        elif event.event == "PriceCapUpdated":
-            # When `underlying_price` is not set, initialize it to most recent max cap
-            # This is factually incorrect, but it's the best we can do for now
-            cache_key = self.local_cache_key("underlying_price")
-            max_cap = cache.get(cache_key)
-            if max_cap is None:
-                max_cap = event.args.priceCap
-                cache.set(cache_key, max_cap)
-            return max_cap
+    @property
+    def MAX_CAP(self):
+        MAX_CAP = cache.get(self.local_cache_key("MAX_CAP"))
+        if MAX_CAP is not None:
+            return MAX_CAP
 
-    def get_event_price_from_asset_cap(self, event: dict) -> int:
-        if event.event == "PriceCapUpdated":
-            # PriceCapUpdated is the asset cap
-            cache_key = self.local_cache_key("asset_cap")
-            cache.set(cache_key, event.args.priceCap)
-            return event.args.priceCap
-        elif event.event == "NewTransmission":
-            # When `asset_cap` is not set, initialize it to the most recent underlying asset source price
-            # This is factually incorrect, but it's the best we can do for now
-            cache_key = self.local_cache_key("asset_cap")
-            underlying_price = cache.get(cache_key)
-            if underlying_price is None:
-                underlying_price = event.args.answer
-                cache.set(cache_key, underlying_price)
-            return underlying_price
+        events = rpc_adapter.extract_raw_event_data(
+            topics=["0xa89f50d1caf6c404765ce94b422be388ce69c8ed68921620fa6a83c810000615"],
+            contract_addresses=[Web3.to_checksum_address(self.asset_source)],
+            start_block=0,
+            end_block=rpc_adapter.block_height,
+        )
+        latest_event = events[-1]
+        cache_key = self.local_cache_key("MAX_CAP")
+        data = decode_any(latest_event.data)
+        cache.set(cache_key, int(data, 16))
+        return int(data, 16)

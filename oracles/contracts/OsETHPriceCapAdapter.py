@@ -1,8 +1,4 @@
-from django.core.cache import cache
-from web3 import Web3
-
 from oracles.contracts.PriceCapAdapter import PriceCapAdapterAssetSource
-from utils.rpc import rpc_adapter
 
 
 class OsETHPriceCapAdapterAssetSource(PriceCapAdapterAssetSource):
@@ -28,14 +24,4 @@ class OsETHPriceCapAdapterAssetSource(PriceCapAdapterAssetSource):
         return "convertToAssets"
 
     def get_ratio(self):
-        cache_key = self.local_cache_key("ratio")
-        ratio = cache.get(cache_key)
-        if ratio is None:
-            contract = rpc_adapter.client.eth.contract(
-                address=Web3.to_checksum_address(self.RATIO_PROVIDER),
-                abi=self.RATIO_PROVIDER_ABI,
-            )
-            func = getattr(contract.functions, self.RATIO_PROVIDER_METHOD)
-            ratio = func(10**self.RATIO_DECIMALS).call()
-            cache.set(cache_key, ratio, 60)
-        return ratio
+        return super().get_ratio(use_parameter=True)

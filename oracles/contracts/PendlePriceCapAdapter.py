@@ -28,8 +28,10 @@ class PendlePriceCapAdapterAssetSource(BaseEthereumAssetSource):
     def get_underlying_sources_to_monitor(self):
         return self.underlying_asset_source.get_underlying_sources_to_monitor()
 
-    def get_event_price(self, event: dict) -> int:
-        underlying_price = self.underlying_asset_source.get_event_price(event)
+    def get_event_price(self, event: dict, is_synthetic: bool = False) -> int:
+        underlying_price = self.underlying_asset_source.get_event_price(event, is_synthetic)
+        if not is_synthetic:
+            cache.set(self.local_cache_key("underlying_price"), underlying_price)
         current_discount = self.getCurrentDiscount(event)
         price = (
             underlying_price
@@ -61,13 +63,3 @@ class PendlePriceCapAdapterAssetSource(BaseEthereumAssetSource):
         return int(
             self.DISCOUNT_RATE_PER_YEAR * time_to_maturity / self.SECONDS_PER_YEAR
         )
-
-    def reset_cache(self):
-        cache.delete(self.local_cache_key("SECONDS_PER_YEAR"))
-        cache.delete(self.local_cache_key("MATURITY"))
-        cache.delete(self.local_cache_key("DISCOUNT_RATE_PER_YEAR"))
-        cache.delete(self.local_cache_key("PERCENTAGE_FACTOR"))
-        self.SECONDS_PER_YEAR
-        self.MATURITY
-        self.DISCOUNT_RATE_PER_YEAR
-        self.PERCENTAGE_FACTOR

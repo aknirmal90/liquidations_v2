@@ -220,6 +220,8 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
         NEW_TRANSMISSION_TOPIC_0 = (
             "0xc797025feeeaf2cd924c99e9205acb8ec04d5cad21c41ce637a38fb6dee6016a"
         )
+        parsed_event_logs = []
+        updated_network_events = []
         if NEW_TRANSMISSION_TOPIC_0 in topic_0s:
             topic_0s.remove(NEW_TRANSMISSION_TOPIC_0)
             topic_0s.insert(len(topic_0s), NEW_TRANSMISSION_TOPIC_0)
@@ -242,7 +244,13 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
                     contract_addresses__contains=address
                 )
                 for network_event in network_events.iterator():
-                    self.process_network_event(network_event, event_logs_for_address)
+                    new_parsed_event_logs = self.process_network_event(network_event, event_logs_for_address)
+                    parsed_event_logs.extend(new_parsed_event_logs)
+                    network_event.logs_count += len(event_logs_for_address)
+                    updated_network_events.append(network_event)
+
+        self.bulk_insert_raw_price_events(parsed_event_logs)
+        PriceEvent.objects.bulk_update(network_events, ["logs_count"])
 
     def process_network_event(self, network_event: PriceEvent, event_logs: List[Any]):
         contract_interface = network_event.contract_interface
@@ -265,6 +273,10 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
             parsed_event_log = processed_event_log + log_values
             parsed_event_logs.append(parsed_event_log)
 
+        return parsed_event_logs
+
+    def bulk_insert_raw_price_events(self, parsed_event_logs: List[List[Any]]):
+
         for i in range(3):
             try:
                 self.clickhouse_client.insert_rows("RawPriceEvent", parsed_event_logs)
@@ -280,10 +292,6 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
             except Exception as e:
                 logger.error(f"Error optimizing table: {e}")
                 time.sleep(1)
-
-        network_event.logs_count += len(event_logs)
-        network_event.save()
-        logger.info(f"Number of records inserted: {len(event_logs)}")
 
 
 PriceEventSynchronizeTask = app.register_task(PriceEventSynchronizeTask())

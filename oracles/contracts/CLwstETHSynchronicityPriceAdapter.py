@@ -1,14 +1,13 @@
 from django.core.cache import cache
-from web3 import Web3
 
+from oracles.contracts.base import RatioProviderMixin
 from oracles.contracts.CLSynchronicityPriceAdapterPegToBase import (
     CLSynchronicityPriceAdapterPegToBaseAssetSource,
 )
-from utils.rpc import rpc_adapter
 
 
 class CLwstETHSynchronicityPriceAdapterAssetSource(
-    CLSynchronicityPriceAdapterPegToBaseAssetSource
+    CLSynchronicityPriceAdapterPegToBaseAssetSource, RatioProviderMixin
 ):
     @property
     def RATIO_PROVIDER_ABI(self):
@@ -29,31 +28,12 @@ class CLwstETHSynchronicityPriceAdapterAssetSource(
     def RATIO_PROVIDER_METHOD(self):
         return "getPooledEthByShares"
 
-    def get_ratio(self):
-        cache_key = self.local_cache_key("ratio")
-        ratio = cache.get(cache_key)
-        if ratio is None:
-            contract = rpc_adapter.client.eth.contract(
-                address=Web3.to_checksum_address(self.RATIO_PROVIDER),
-                abi=self.RATIO_PROVIDER_ABI,
-            )
-            func = getattr(contract.functions, self.RATIO_PROVIDER_METHOD)
-            ratio = func(10**self.RATIO_DECIMALS).call()
-            cache.set(cache_key, ratio, 60)
-        return ratio
-
-    @property
-    def RATIO_DECIMALS(self):
-        return self._get_cached_property("RATIO_DECIMALS")
-
-    @property
-    def RATIO_PROVIDER(self):
-        return self._get_cached_property(self.RATIO_PROVIDER_ADDRESS_NAME)
-
     @property
     def RATIO_PROVIDER_ADDRESS_NAME(self):
         return "STETH"
 
-    def get_event_price(self, event):
-        price = super().get_event_price(event)
-        return int((price * self.get_ratio()) / (10**self.RATIO_DECIMALS))
+    def get_event_price(self, event, is_synthetic: bool = False):
+        price = super().get_event_price(event, is_synthetic)
+        if not is_synthetic:
+            cache.set(self.local_cache_key("underlying_price"), price)
+        return int((price * self.get_ratio(use_parameter=True)) / (10**self.RATIO_DECIMALS))
