@@ -37,7 +37,7 @@ class CLSynchronicityPriceAdapterPegToBaseAssetSource(BaseEthereumAssetSource):
             + self.peg_to_base_source.get_underlying_sources_to_monitor()
         )
 
-    def get_event_price(self, event: dict, is_synthetic: bool = False) -> int:
+    def get_event_price(self, event: dict) -> int:
         asset_to_peg_price = self.get_event_price_from_asset_to_peg(event)
         peg_to_base_price = self.get_event_price_from_peg_to_base(event)
         price = int(

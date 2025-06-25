@@ -169,11 +169,11 @@ class BaseEthereumAssetSource:
     def get_underlying_sources_to_monitor(self) -> List[str]:
         raise NotImplementedError
 
-    def process_event(self, event: dict, is_synthetic: bool = False) -> List[Any]:
+    def process_event(self, event: dict) -> List[Any]:
         return [
             decode_any(self.asset),  # asset
             decode_any(self.asset_source),  # source
-            self.get_event_price(event, is_synthetic),  # price
+            self.get_event_price(event),  # price
             event.event,  # eventName
         ]
 
@@ -185,7 +185,9 @@ class BaseEthereumAssetSource:
             "timestamp": int(datetime.now().timestamp()),
         }
 
-    def _get_cached_property(self, property_name: str, function_name: str = None, expiry: int = None):
+    def _get_cached_property(
+        self, property_name: str, function_name: str = None, expiry: int = None
+    ):
         """Helper method to get cached contract properties with consistent caching logic."""
         if function_name is None:
             function_name = property_name
@@ -208,9 +210,7 @@ class BaseEthereumAssetSource:
 
         synthetic_event = AttributeDict(
             {
-                "args": AttributeDict({
-                    "answer": price
-                }),
+                "args": AttributeDict({"answer": price}),
                 "event": "SyntheticPriceEvent",
                 "transactionHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
                 "logIndex": 0,
@@ -219,4 +219,4 @@ class BaseEthereumAssetSource:
                 "topics": [],
             }
         )
-        return self.process_event(synthetic_event, is_synthetic=True)
+        return self.process_event(synthetic_event)

@@ -1,5 +1,3 @@
-from django.core.cache import cache
-
 from oracles.contracts.AggregatorProxy import AggregatorProxyAssetSource
 from oracles.contracts.base import BaseEthereumAssetSource, RatioProviderMixin
 from utils.rpc import get_evm_block_timestamps
@@ -26,16 +24,14 @@ class PriceCapAdapterAssetSource(BaseEthereumAssetSource, RatioProviderMixin):
     def get_underlying_sources_to_monitor(self):
         return self.underlying_asset_source.get_underlying_sources_to_monitor()
 
-    def get_event_price(self, event: dict, is_synthetic: bool = False) -> int:
+    def get_event_price(self, event: dict) -> int:
         max_ratio = self.get_max_ratio(event)
         current_ratio = self.get_ratio()
 
         if current_ratio > max_ratio:
             current_ratio = max_ratio
 
-        base_price = self.underlying_asset_source.get_event_price(event, is_synthetic)
-        if not is_synthetic:
-            cache.set(self.local_cache_key("underlying_price"), base_price)
+        base_price = self.underlying_asset_source.get_event_price(event)
         return int((base_price * current_ratio) / 10**self.RATIO_DECIMALS)
 
     @property

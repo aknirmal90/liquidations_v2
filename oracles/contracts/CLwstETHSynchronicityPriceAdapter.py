@@ -1,5 +1,3 @@
-from django.core.cache import cache
-
 from oracles.contracts.base import RatioProviderMixin
 from oracles.contracts.CLSynchronicityPriceAdapterPegToBase import (
     CLSynchronicityPriceAdapterPegToBaseAssetSource,
@@ -32,8 +30,8 @@ class CLwstETHSynchronicityPriceAdapterAssetSource(
     def RATIO_PROVIDER_ADDRESS_NAME(self):
         return "STETH"
 
-    def get_event_price(self, event, is_synthetic: bool = False):
-        price = super().get_event_price(event, is_synthetic)
-        if not is_synthetic:
-            cache.set(self.local_cache_key("underlying_price"), price)
-        return int((price * self.get_ratio(use_parameter=True)) / (10**self.RATIO_DECIMALS))
+    def get_event_price(self, event):
+        price = super().get_event_price(event)
+        return int(
+            (price * self.get_ratio(use_parameter=True)) / (10**self.RATIO_DECIMALS)
+        )

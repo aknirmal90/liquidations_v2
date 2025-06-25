@@ -1,6 +1,5 @@
 from typing import List
 
-from django.core.cache import cache
 
 from oracles.contracts.base import BaseEthereumAssetSource
 from utils.encoding import decode_any
@@ -32,11 +31,8 @@ class AggregatorAssetSource(BaseEthereumAssetSource):
             "0x6fadcf72",
         ]
 
-    def get_event_price(self, event: dict, is_synthetic: bool = False) -> int:
-        price = event.args.answer
-        if not is_synthetic:
-            cache.set(self.local_cache_key("underlying_price"), price)
-        return price
+    def get_event_price(self, event: dict) -> int:
+        return event.args.answer
 
     def get_transaction_price(self, transaction: dict) -> int:
         return transaction["price"]

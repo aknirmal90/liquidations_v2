@@ -23,5 +23,5 @@ class AggregatorProxyAssetSource(BaseEthereumAssetSource):
     def get_underlying_sources_to_monitor(self):
         return self.underlying_asset_source.get_underlying_sources_to_monitor()
 
-    def get_event_price(self, event: dict, is_synthetic: bool = False) -> int:
-        return self.underlying_asset_source.get_event_price(event, is_synthetic)
+    def get_event_price(self, event: dict) -> int:
+        return self.underlying_asset_source.get_event_price(event)

@@ -1,5 +1,3 @@
-from django.core.cache import cache
-
 from oracles.contracts.base import BaseEthereumAssetSource
 from oracles.contracts.PriceCapAdapterStable import PriceCapAdapterStableAssetSource
 from utils.rpc import get_evm_block_timestamps
@@ -28,10 +26,8 @@ class PendlePriceCapAdapterAssetSource(BaseEthereumAssetSource):
     def get_underlying_sources_to_monitor(self):
         return self.underlying_asset_source.get_underlying_sources_to_monitor()
 
-    def get_event_price(self, event: dict, is_synthetic: bool = False) -> int:
-        underlying_price = self.underlying_asset_source.get_event_price(event, is_synthetic)
-        if not is_synthetic:
-            cache.set(self.local_cache_key("underlying_price"), underlying_price)
+    def get_event_price(self, event: dict) -> int:
+        underlying_price = self.underlying_asset_source.get_event_price(event)
         current_discount = self.getCurrentDiscount(event)
         price = (
             underlying_price

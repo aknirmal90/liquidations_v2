@@ -1,10 +1,10 @@
-from django.core.cache import cache
-
 from oracles.contracts.AggregatorProxy import AggregatorProxyAssetSource
 from oracles.contracts.base import BaseEthereumAssetSource, RatioProviderMixin
 
 
-class WstETHSynchronicityPriceAdapterAssetSource(BaseEthereumAssetSource, RatioProviderMixin):
+class WstETHSynchronicityPriceAdapterAssetSource(
+    BaseEthereumAssetSource, RatioProviderMixin
+):
     @property
     def underlying_asset_source(self):
         underlying = self.underlying_asset_source_address
@@ -25,10 +25,8 @@ class WstETHSynchronicityPriceAdapterAssetSource(BaseEthereumAssetSource, RatioP
     def get_underlying_sources_to_monitor(self):
         return self.underlying_asset_source.get_underlying_sources_to_monitor()
 
-    def get_event_price(self, event: dict, is_synthetic: bool = False) -> int:
-        underlying_price = self.underlying_asset_source.get_event_price(event, is_synthetic)
-        if not is_synthetic:
-            cache.set(self.local_cache_key("underlying_price"), underlying_price)
+    def get_event_price(self, event: dict) -> int:
+        underlying_price = self.underlying_asset_source.get_event_price(event)
         ratio = self.get_ratio(use_parameter=True)
         return int((underlying_price * ratio) / (10**self.RATIO_DECIMALS))
 

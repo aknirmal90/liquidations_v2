@@ -2,7 +2,7 @@ from oracles.contracts.base import BaseEthereumAssetSource
 
 
 class GhoOracleAssetSource(BaseEthereumAssetSource):
-    def get_event_price(self, event: dict, is_synthetic: bool = False) -> int:
+    def get_event_price(self, event: dict) -> int:
         return 10**8
 
     @property
