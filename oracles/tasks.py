@@ -316,16 +316,16 @@ class VerifyLatestPriceTask(Task):
                 asset=asset, asset_source=asset_source
             )
             try:
-                latest_price_from_clickhouse = asset_source_interface.latest_price_from_clickhouse
+                latest_price_from_postgres = asset_source_interface.latest_price_from_postgres
             except Exception as e:
-                logger.error(f"Error getting latest price from clickhouse for {asset} {asset_source}: {e}")
+                logger.error(f"Error getting latest price from postgres for {asset} {asset_source}: {e}")
                 continue
 
             latest_price_from_rpc = asset_source_interface.latest_price_from_rpc
-            if str(int(latest_price_from_clickhouse)) != str(int(latest_price_from_rpc)):
+            if str(int(latest_price_from_postgres)) != str(int(latest_price_from_rpc)):
                 num_different += 1
-                logger.error(f"Latest price from clickhouse and rpc are different for {asset} {asset_source}")
-                logger.error(f"Clickhouse: {latest_price_from_clickhouse}, RPC: {latest_price_from_rpc} for {asset} {asset_source}")
+                logger.error(f"Latest price from postgres and rpc are different for {asset} {asset_source}")
+                logger.error(f"Postgres: {latest_price_from_postgres}, RPC: {latest_price_from_rpc} for {asset} {asset_source}")
             else:
                 num_verified += 1
 

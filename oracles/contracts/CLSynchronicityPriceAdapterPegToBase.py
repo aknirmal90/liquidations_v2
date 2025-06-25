@@ -17,11 +17,11 @@ class CLSynchronicityPriceAdapterPegToBaseAssetSource(BaseEthereumAssetSource):
 
     @property
     def asset_to_peg_source_address(self):
-        return self._get_cached_property("ASSET_TO_PEG")
+        return self._get_cached_property("ASSET_TO_PEG_ADDRESS")
 
     @property
     def peg_to_base_source_address(self):
-        return self._get_cached_property("PEG_TO_BASE")
+        return self._get_cached_property("PEG_TO_BASE_ADDRESS")
 
     @property
     def events(self):

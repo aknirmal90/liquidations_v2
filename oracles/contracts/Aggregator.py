@@ -1,7 +1,6 @@
 from typing import List
 
 from django.core.cache import cache
-from web3.datastructures import AttributeDict
 
 from oracles.contracts.base import BaseEthereumAssetSource
 from utils.encoding import decode_any

@@ -132,11 +132,12 @@ class BaseEthereumAssetSource:
         result = clickhouse_client.execute_query(query)
         return result.result_rows[0][0]
 
-    def local_cache_key(self, function_name: str, *args, **kwargs):
-        return f"{NETWORK_NAME}_{PROTOCOL_NAME}_{self.asset_source}_{function_name}"
+    @property
+    def latest_price_from_postgres(self):
+        return self.process_current_price()[2]
 
-    def global_cache_key(self, function_name: str, *args, **kwargs):
-        return f"{NETWORK_NAME}_{PROTOCOL_NAME}_{function_name}"
+    def local_cache_key(self, function_name: str, *args, **kwargs):
+        return f"{NETWORK_NAME}_{PROTOCOL_NAME}_{self.asset_source.lower()}_{function_name}"
 
     @property
     def abi(self):
@@ -168,11 +169,11 @@ class BaseEthereumAssetSource:
     def get_underlying_sources_to_monitor(self) -> List[str]:
         raise NotImplementedError
 
-    def process_event(self, event: dict) -> List[Any]:
+    def process_event(self, event: dict, is_synthetic: bool = False) -> List[Any]:
         return [
             decode_any(self.asset),  # asset
             decode_any(self.asset_source),  # source
-            self.get_event_price(event),  # price
+            self.get_event_price(event, is_synthetic),  # price
             event.event,  # eventName
         ]
 
@@ -202,19 +203,19 @@ class BaseEthereumAssetSource:
     def process_current_price(self) -> Dict[str, Any]:
         price = cache.get(self.local_cache_key("underlying_price"))
         if price is None:
-            raise ValueError(f"Latest price for Asset Source {self.asset_source} not found in cache")
+            price = self.latest_price_from_rpc
+            cache.set(self.local_cache_key("underlying_price"), price)
 
         synthetic_event = AttributeDict(
             {
-                "args": {
+                "args": AttributeDict({
                     "answer": price
-                },
+                }),
                 "event": "SyntheticPriceEvent",
                 "transactionHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
                 "logIndex": 0,
-                "blockNumber": 0,
-                "blockTimestamp": 0,
-                "address": self.get_underlying_sources_to_monitor[0],
+                "blockNumber": rpc_adapter.cached_block_height,
+                "address": self.get_underlying_sources_to_monitor()[0],
                 "topics": [],
             }
         )

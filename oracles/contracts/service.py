@@ -35,6 +35,7 @@ class UnsupportedAssetSourceError(Exception):
 
 
 def get_contract_interface(asset, asset_source):
+    asset_source = asset_source.lower()
     base_source = BaseEthereumAssetSource(asset=asset, asset_source=asset_source)
     if base_source.name == "EACAggregatorProxy":
         return AggregatorProxyAssetSource(asset=asset, asset_source=asset_source)
