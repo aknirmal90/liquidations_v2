@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List
 
+import web3
 from celery import Task
 from django.conf import settings
 from eth_utils import get_all_event_abis
@@ -69,7 +70,7 @@ class InitializePriceEvents(Task):
                     [
                         clickhouse_asset_source,
                         decimals_places,
-                        10 ** decimals_places,
+                        10**decimals_places,
                         int(datetime.now().timestamp()),
                     ]
                 )
@@ -216,21 +217,16 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
         return grouped_event_logs
 
     def handle_event_logs(self, network_events: List[Any], event_dicts: Dict):
-        topic_0s = list(event_dicts.keys())
-        NEW_TRANSMISSION_TOPIC_0 = (
-            "0xc797025feeeaf2cd924c99e9205acb8ec04d5cad21c41ce637a38fb6dee6016a"
-        )
-        parsed_event_logs = []
+        parsed_numerator_logs = []
+        parsed_denominator_logs = []
+        parsed_multiplier_logs = []
+        parsed_max_cap_logs = []
         updated_network_events = []
-        if NEW_TRANSMISSION_TOPIC_0 in topic_0s:
-            topic_0s.remove(NEW_TRANSMISSION_TOPIC_0)
-            topic_0s.insert(len(topic_0s), NEW_TRANSMISSION_TOPIC_0)
 
         # Ensure new transmission is the last event to sync. This ensures approximately
         # accurate prices when secondary fields like max asset cap are updated.
 
-        for topic_0 in topic_0s:
-            event_logs = event_dicts[topic_0]
+        for topic_0, event_logs in event_dicts.items():
             if not event_logs:
                 continue
 
@@ -244,42 +240,86 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
                     contract_addresses__contains=address
                 )
                 for network_event in network_events.iterator():
-                    new_parsed_event_logs = self.process_network_event(network_event, event_logs_for_address)
-                    parsed_event_logs.extend(new_parsed_event_logs)
+                    (
+                        new_parsed_numerator_logs,
+                        new_parsed_denominator_logs,
+                        new_parsed_multiplier_logs,
+                        new_parsed_max_cap_logs,
+                    ) = self.process_network_event(
+                        network_event, event_logs_for_address
+                    )
+
+                    parsed_numerator_logs.extend(new_parsed_numerator_logs)
+                    parsed_denominator_logs.extend(new_parsed_denominator_logs)
+                    parsed_multiplier_logs.extend(new_parsed_multiplier_logs)
+                    parsed_max_cap_logs.extend(new_parsed_max_cap_logs)
+
                     network_event.logs_count += len(event_logs_for_address)
                     updated_network_events.append(network_event)
 
-        self.bulk_insert_raw_price_events(parsed_event_logs)
+        self.bulk_insert_raw_price_events(
+            table_name="EventRawNumerator", logs=parsed_numerator_logs
+        )
+        self.bulk_insert_raw_price_events(
+            table_name="EventRawDenominator", logs=parsed_denominator_logs
+        )
+        self.bulk_insert_raw_price_events(
+            table_name="EventRawMultiplier", logs=parsed_multiplier_logs
+        )
+        self.bulk_insert_raw_price_events(
+            table_name="EventRawMaxCap", logs=parsed_max_cap_logs
+        )
+
         PriceEvent.objects.bulk_update(network_events, ["logs_count"])
 
     def process_network_event(self, network_event: PriceEvent, event_logs: List[Any]):
         contract_interface = network_event.contract_interface
-        log_fields = [
-            col_name for col_name, _ in network_event._get_clickhouse_log_columns()
-        ]
-
-        parsed_event_logs = []
-        timestamps = self.get_timestamps_for_events(event_logs)
+        parsed_numerator_logs = []
+        parsed_denominator_logs = []
+        parsed_multiplier_logs = []
+        parsed_max_cap_logs = []
 
         for event_log in event_logs:
-            log_values = [
-                getattr(event_log, field)
-                for field in log_fields
-                if field != "blockTimestamp"
-            ]
-            log_values.append(timestamps[event_log.blockNumber])
-            processed_event_log = contract_interface.process_event(event_log)
+            try:
+                parsed_event_log = contract_interface.get_price_components(
+                    event=event_log
+                )
+            except web3.exceptions.BadFunctionCallOutput:
+                continue
 
-            parsed_event_log = processed_event_log + log_values
-            parsed_event_logs.append(parsed_event_log)
+            parsed_numerator_logs.append(
+                self._get_log_properties(parsed_event_log, "numerator")
+            )
+            parsed_denominator_logs.append(
+                self._get_log_properties(parsed_event_log, "denominator")
+            )
+            parsed_multiplier_logs.append(
+                self._get_log_properties(parsed_event_log, "multiplier")
+            )
+            parsed_max_cap_logs.append(
+                self._get_log_properties(parsed_event_log, "max_cap")
+            )
 
-        return parsed_event_logs
+        return (
+            parsed_numerator_logs,
+            parsed_denominator_logs,
+            parsed_multiplier_logs,
+            parsed_max_cap_logs,
+        )
 
-    def bulk_insert_raw_price_events(self, parsed_event_logs: List[List[Any]]):
+    def _get_log_properties(self, event_log, prop: str):
+        super_properties = [
+            "asset",
+            "asset_source",
+            "timestamp",
+        ]
+        properties = super_properties + [prop]
+        return [event_log[property] for property in properties]
 
+    def bulk_insert_raw_price_events(self, table_name: str, logs: List[List[Any]]):
         for i in range(3):
             try:
-                self.clickhouse_client.insert_rows("RawPriceEvent", parsed_event_logs)
+                self.clickhouse_client.insert_rows(table_name, logs)
                 break
             except Exception as e:
                 logger.error(f"Error inserting rows: {e}")
@@ -287,7 +327,7 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
 
         for i in range(3):
             try:
-                self.clickhouse_client.optimize_table("RawPriceEvent")
+                self.clickhouse_client.optimize_table(table_name)
                 break
             except Exception as e:
                 logger.error(f"Error optimizing table: {e}")
@@ -307,7 +347,9 @@ PriceEventParentSynchronizeTask = app.register_task(PriceEventParentSynchronizeT
 
 class VerifyLatestPriceTask(Task):
     def run(self):
-        all_assets = clickhouse_client.execute_query("SELECT asset, source AS asset_source FROM aave_ethereum.LatestAssetSourceUpdated FINAL")
+        all_assets = clickhouse_client.execute_query(
+            "SELECT asset, source AS asset_source FROM aave_ethereum.LatestAssetSourceUpdated FINAL"
+        )
         num_verified = 0
         num_different = 0
 
@@ -316,19 +358,28 @@ class VerifyLatestPriceTask(Task):
                 asset=asset, asset_source=asset_source
             )
             try:
-                latest_price_from_postgres = asset_source_interface.latest_price_from_postgres
+                latest_price_from_postgres = (
+                    asset_source_interface.latest_price_from_postgres
+                )
             except Exception as e:
-                logger.error(f"Error getting latest price from postgres for {asset} {asset_source}: {e}")
+                logger.error(
+                    f"Error getting latest price from postgres for {asset} {asset_source}: {e}"
+                )
                 continue
 
             latest_price_from_rpc = asset_source_interface.latest_price_from_rpc
             if str(int(latest_price_from_postgres)) != str(int(latest_price_from_rpc)):
                 num_different += 1
-                logger.error(f"Latest price from postgres and rpc are different for {asset} {asset_source}")
-                logger.error(f"Postgres: {latest_price_from_postgres}, RPC: {latest_price_from_rpc} for {asset} {asset_source}")
+                logger.error(
+                    f"Latest price from postgres and rpc are different for {asset} {asset_source}"
+                )
+                logger.error(
+                    f"Postgres: {latest_price_from_postgres}, RPC: {latest_price_from_rpc} for {asset} {asset_source}"
+                )
             else:
                 num_verified += 1
 
         logger.info(f"Verified {num_verified} assets, {num_different} different")
+
 
 VerifyLatestPriceTask = app.register_task(VerifyLatestPriceTask())

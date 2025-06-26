@@ -1,3 +1,5 @@
+from typing import Dict, Optional
+
 from oracles.contracts.base import RatioProviderMixin
 from oracles.contracts.CLSynchronicityPriceAdapterPegToBase import (
     CLSynchronicityPriceAdapterPegToBaseAssetSource,
@@ -30,8 +32,31 @@ class CLwstETHSynchronicityPriceAdapterAssetSource(
     def RATIO_PROVIDER_ADDRESS_NAME(self):
         return "STETH"
 
-    def get_event_price(self, event):
-        price = super().get_event_price(event)
-        return int(
-            (price * self.get_ratio(use_parameter=True)) / (10**self.RATIO_DECIMALS)
+    def get_multiplier(
+        self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
+    ) -> int:
+        """
+        Get the multiplier for price calculation.
+        Uses the base price from parent class and applies additional ratio.
+        """
+        # Get the base multiplier from parent class
+        base_multiplier = super().get_multiplier(event, transaction)
+        # Apply additional ratio
+        block_number = None
+        if event:
+            block_number = getattr(event, "blockNumber", None)
+        return base_multiplier * self.get_ratio(
+            use_parameter=True, block_number=block_number
         )
+
+    def get_denominator(
+        self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
+    ) -> int:
+        """
+        Get the denominator for price calculation.
+        Uses the base denominator from parent class and applies ratio decimals.
+        """
+        # Get the base denominator from parent class
+        base_denominator = super().get_denominator(event, transaction)
+        # Apply ratio decimals
+        return base_denominator * 10**self.RATIO_DECIMALS

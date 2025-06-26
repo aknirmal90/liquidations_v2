@@ -1,8 +1,16 @@
+from typing import Dict, Optional
+
 from oracles.contracts.base import BaseEthereumAssetSource
 
 
 class GhoOracleAssetSource(BaseEthereumAssetSource):
-    def get_event_price(self, event: dict) -> int:
+    def get_numerator(
+        self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
+    ) -> int:
+        """
+        Get the numerator for price calculation.
+        GHO has a fixed price of 1 USD (10^8 in 8 decimals).
+        """
         return 10**8
 
     @property

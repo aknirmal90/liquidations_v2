@@ -1,3 +1,5 @@
+from typing import Dict, Optional
+
 from django.core.cache import cache
 
 from oracles.contracts.AggregatorProxy import AggregatorProxyAssetSource
@@ -37,52 +39,58 @@ class CLSynchronicityPriceAdapterPegToBaseAssetSource(BaseEthereumAssetSource):
             + self.peg_to_base_source.get_underlying_sources_to_monitor()
         )
 
-    def get_event_price(self, event: dict) -> int:
-        asset_to_peg_price = self.get_event_price_from_asset_to_peg(event)
-        peg_to_base_price = self.get_event_price_from_peg_to_base(event)
-        price = int(
-            (asset_to_peg_price * peg_to_base_price * 10**self.DECIMALS)
-            / self.DENOMINATOR
-        )
-        return price
+    def get_numerator(
+        self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
+    ) -> int:
+        """
+        Get the asset to peg price.
+        """
+        cache_key = self.local_cache_key("asset_to_peg_price")
+        if event:
+            if (
+                event.address.lower()
+                in self.asset_to_peg_source.get_underlying_sources_to_monitor()
+            ):
+                cache.set(cache_key, event.args.answer)
+                return event.args.answer
+            else:
+                asset_to_peg_price = cache.get(cache_key)
+                if asset_to_peg_price is None:
+                    asset_to_peg_price = 0
+                return asset_to_peg_price
+        else:
+            return cache.get(cache_key)
 
-    def get_event_price_from_asset_to_peg(self, event: dict) -> int:
-        if (
-            event.address.lower()
-            in self.asset_to_peg_source.get_underlying_sources_to_monitor()
-        ):
-            cache_key = self.local_cache_key("asset_to_peg_price")
-            cache.set(cache_key, event.args.answer)
-            return event.args.answer
-        elif (
-            event.address.lower()
-            in self.peg_to_base_source.get_underlying_sources_to_monitor()
-        ):
-            cache_key = self.local_cache_key("asset_to_peg_price")
-            asset_to_peg_price = cache.get(cache_key)
-            if asset_to_peg_price is None:
-                asset_to_peg_price = event.args.answer
-                cache.set(cache_key, asset_to_peg_price)
-            return asset_to_peg_price
+    def get_denominator(
+        self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
+    ) -> int:
+        """
+        Get the peg to base price.
+        """
+        cache_key = self.local_cache_key("peg_to_base_price")
+        if event:
+            if (
+                event.address.lower()
+                in self.peg_to_base_source.get_underlying_sources_to_monitor()
+            ):
+                cache.set(cache_key, event.args.answer)
+                return event.args.answer
+            else:
+                peg_to_base_price = cache.get(cache_key)
+                if peg_to_base_price is None:
+                    peg_to_base_price = 0
+                return peg_to_base_price
+        else:
+            return cache.get(cache_key)
 
-    def get_event_price_from_peg_to_base(self, event: dict) -> int:
-        if (
-            event.address.lower()
-            in self.peg_to_base_source.get_underlying_sources_to_monitor()
-        ):
-            cache_key = self.local_cache_key("peg_to_base_price")
-            cache.set(cache_key, event.args.answer)
-            return event.args.answer
-        elif (
-            event.address.lower()
-            in self.asset_to_peg_source.get_underlying_sources_to_monitor()
-        ):
-            cache_key = self.local_cache_key("peg_to_base_price")
-            underlying_price = cache.get(cache_key)
-            if underlying_price is None:
-                underlying_price = event.args.answer
-                cache.set(cache_key, underlying_price)
-            return underlying_price
+    def get_multiplier(
+        self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
+    ) -> int:
+        """
+        Get the multiplier for price calculation.
+        Uses the multiplier from the contract.
+        """
+        return 10**self.DECIMALS
 
     @property
     def DECIMALS(self):

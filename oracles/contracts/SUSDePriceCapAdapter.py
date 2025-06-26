@@ -1,3 +1,5 @@
+from typing import Optional
+
 from oracles.contracts.PriceCapAdapter import PriceCapAdapterAssetSource
 from oracles.contracts.PriceCapAdapterStable import PriceCapAdapterStableAssetSource
 
@@ -24,8 +26,10 @@ class SUSDePriceCapAdapterAssetSource(PriceCapAdapterAssetSource):
     def RATIO_PROVIDER_METHOD(self):
         return "convertToAssets"
 
-    def get_ratio(self):
-        return super().get_ratio(use_parameter=True)
+    def get_ratio(
+        self, use_parameter=False, parameter=None, block_number: Optional[int] = None
+    ):
+        return super().get_ratio(use_parameter=True, block_number=block_number)
 
     @property
     def underlying_asset_source(self):

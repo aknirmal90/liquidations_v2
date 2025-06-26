@@ -1,3 +1,5 @@
+from typing import Dict, Optional
+
 from oracles.contracts.Aggregator import AggregatorAssetSource
 from oracles.contracts.base import BaseEthereumAssetSource
 
@@ -23,5 +25,11 @@ class AggregatorProxyAssetSource(BaseEthereumAssetSource):
     def get_underlying_sources_to_monitor(self):
         return self.underlying_asset_source.get_underlying_sources_to_monitor()
 
-    def get_event_price(self, event: dict) -> int:
-        return self.underlying_asset_source.get_event_price(event)
+    def get_numerator(
+        self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
+    ) -> int:
+        """
+        Get the numerator for price calculation.
+        Delegates to the underlying asset source.
+        """
+        return self.underlying_asset_source.get_numerator(event, transaction)

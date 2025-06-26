@@ -1,3 +1,5 @@
+from typing import Dict, Optional
+
 from django.core.cache import cache
 from web3 import Web3
 
@@ -28,16 +30,43 @@ class PriceCapAdapterStableAssetSource(BaseEthereumAssetSource):
     def get_underlying_sources_to_monitor(self):
         return self.underlying_asset_source.get_underlying_sources_to_monitor()
 
-    def get_event_price(self, event: dict) -> int:
-        asset_cap = self.MAX_CAP
-        underlying_price = event.args.answer
+    def get_numerator(
+        self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
+    ) -> int:
+        """
+        Get the numerator for price calculation.
+        Uses the underlying asset source's price as the base, capped by MAX_CAP.
+        """
+        if event:
+            underlying_price = event.args.answer
+        elif transaction:
+            underlying_price = transaction.get("price", 0)
+        else:
+            raise ValueError("No event or transaction provided")
 
-        if underlying_price > asset_cap:
-            return asset_cap
         return underlying_price
 
-    @property
-    def MAX_CAP(self):
+    def get_denominator(
+        self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
+    ) -> int:
+        """
+        Get the denominator for price calculation.
+        Default implementation returns 1 (no division).
+        """
+        return 1
+
+    def get_multiplier(
+        self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
+    ) -> int:
+        """
+        Get the multiplier for price calculation.
+        Default implementation returns 1 (no multiplication).
+        """
+        return 1
+
+    def get_max_cap(
+        self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
+    ) -> int:
         MAX_CAP = cache.get(self.local_cache_key("MAX_CAP"))
         if MAX_CAP is not None:
             return MAX_CAP
