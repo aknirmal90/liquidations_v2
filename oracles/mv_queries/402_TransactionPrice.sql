@@ -1,4 +1,4 @@
-CREATE VIEW aave_ethereum.LatestPriceTransaction AS
+CREATE VIEW IF NOT EXISTS aave_ethereum.LatestPriceTransaction AS
 SELECT
     aave_ethereum.PriceLatestTransactionRawNumerator.asset,
     aave_ethereum.PriceLatestTransactionRawNumerator.asset_source,
