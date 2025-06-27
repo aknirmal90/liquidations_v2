@@ -6,4 +6,4 @@ CREATE TABLE IF NOT EXISTS aave_ethereum.PriceLatestEventRawMultiplier
     multiplier UInt256
 )
 ENGINE = ReplacingMergeTree(timestamp)
-ORDER BY (asset, asset_source);
+ORDER BY asset;

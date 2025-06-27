@@ -6,4 +6,4 @@ CREATE TABLE IF NOT EXISTS aave_ethereum.PriceLatestEventRawMaxCap
     max_cap UInt256
 )
 ENGINE = ReplacingMergeTree(timestamp)
-ORDER BY (asset, asset_source);
+ORDER BY asset;

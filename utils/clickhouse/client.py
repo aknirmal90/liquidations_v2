@@ -97,10 +97,23 @@ class ClickHouseClient:
             "TokenMetadata",
             "AssetSourceUpdated",
             "AssetSourceTokenMetadata",
-            "RawPriceEvent",
         ]:
             self.execute_query(
                 f"OPTIMIZE TABLE {self.db_name}.Latest{table_name} FINAL;"
+            )
+            logger.info(f"Optimized table {table_name} in database {self.db_name}")
+
+        if table_name in [
+            "EventRawNumerator",
+            "EventRawDenominator",
+            "EventRawMaxCap",
+            "EventRawMultiplier",
+            "TransactionRawNumerator",
+            "TransactionRawDenominator",
+            "TransactionRawMultiplier",
+        ]:
+            self.execute_query(
+                f"OPTIMIZE TABLE {self.db_name}.PriceLatest{table_name} FINAL;"
             )
             logger.info(f"Optimized table {table_name} in database {self.db_name}")
 
