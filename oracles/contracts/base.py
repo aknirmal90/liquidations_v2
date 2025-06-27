@@ -284,11 +284,22 @@ class BaseEthereumAssetSource:
             "asset": decode_any(self.asset),
             "asset_source": decode_any(self.asset_source),
             "timestamp": self.get_timestamp(event=event, transaction=transaction),
-            "numerator": self.get_numerator(event=event, transaction=transaction),
-            "denominator": self.get_denominator(event=event, transaction=transaction),
-            "multiplier": self.get_multiplier(event=event, transaction=transaction),
-            "max_cap": self.get_max_cap(event=event, transaction=transaction),
+            "numerator": self.zero_if_negative(
+                self.get_numerator(event=event, transaction=transaction)
+            ),
+            "denominator": self.zero_if_negative(
+                self.get_denominator(event=event, transaction=transaction)
+            ),
+            "multiplier": self.zero_if_negative(
+                self.get_multiplier(event=event, transaction=transaction)
+            ),
+            "max_cap": self.zero_if_negative(
+                self.get_max_cap(event=event, transaction=transaction)
+            ),
         }
+
+    def zero_if_negative(self, value: int) -> int:
+        return 0 if value < 0 else value
 
     def _get_cached_property(
         self,
