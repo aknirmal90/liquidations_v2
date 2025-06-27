@@ -52,14 +52,14 @@ class CLSynchronicityPriceAdapterPegToBaseAssetSource(BaseEthereumAssetSource):
                 in self.asset_to_peg_source.get_underlying_sources_to_monitor()
             ):
                 cache.set(cache_key, event.args.answer)
-                return event.args.answer
+                return event.args.answer * 10**self.DECIMALS
             else:
                 asset_to_peg_price = cache.get(cache_key)
                 if asset_to_peg_price is None:
                     asset_to_peg_price = 0
-                return asset_to_peg_price
+                return asset_to_peg_price * 10**self.DECIMALS
         else:
-            return cache.get(cache_key)
+            return cache.get(cache_key) * 10**self.DECIMALS
 
     def get_denominator(
         self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
@@ -90,7 +90,7 @@ class CLSynchronicityPriceAdapterPegToBaseAssetSource(BaseEthereumAssetSource):
         Get the multiplier for price calculation.
         Uses the multiplier from the contract.
         """
-        return 10**self.DECIMALS
+        return 1
 
     @property
     def DECIMALS(self):

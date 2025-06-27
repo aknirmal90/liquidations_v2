@@ -47,7 +47,7 @@ class PendlePriceCapAdapterAssetSource(BaseEthereumAssetSource):
         Applies the discount based on time to maturity.
         """
         current_discount = self.get_current_discount(event, transaction)
-        return self.PERCENTAGE_FACTOR - current_discount
+        return int(self.PERCENTAGE_FACTOR - current_discount)
 
     def get_denominator(
         self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
@@ -56,7 +56,7 @@ class PendlePriceCapAdapterAssetSource(BaseEthereumAssetSource):
         Get the denominator for price calculation.
         Uses the percentage factor.
         """
-        return self.PERCENTAGE_FACTOR * self.SECONDS_PER_YEAR
+        return self.PERCENTAGE_FACTOR
 
     @property
     def SECONDS_PER_YEAR(self):
@@ -82,7 +82,9 @@ class PendlePriceCapAdapterAssetSource(BaseEthereumAssetSource):
             block_number = event.blockNumber
             timestamp = get_evm_block_timestamps([block_number])[block_number]
             time_to_maturity = max(self.MATURITY - timestamp, 0)
-            current_discount = int(self.DISCOUNT_RATE_PER_YEAR * time_to_maturity)
+            current_discount = int(
+                (self.DISCOUNT_RATE_PER_YEAR * time_to_maturity) / self.SECONDS_PER_YEAR
+            )
             cache.set(cache_key, current_discount)
             return current_discount
         elif transaction:
