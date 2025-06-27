@@ -111,6 +111,8 @@ class BaseEthereumAssetSource:
         )
         response = response.json()
         result = response["result"][0]
+        if isinstance(result, str):
+            logger.info(f"ABI is a string for {asset_source}")
         return result["ContractName"], result["ABI"]
 
     def call_function(
