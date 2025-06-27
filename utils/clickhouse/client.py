@@ -67,8 +67,11 @@ class ClickHouseClient:
 
     def insert_rows(self, table_name: str, rows: List[Dict]):
         logger.info(f"Inserting {len(rows)} rows into table {table_name}")
-        result = self.client.insert(f"{self.db_name}.{table_name}", rows)
-        logger.info(f"Rows inserted successfully with status: {result}")
+        try:
+            result = self.client.insert(f"{self.db_name}.{table_name}", rows)
+            logger.info(f"Rows inserted successfully with status: {result}")
+        except Exception as e:
+            logger.error(f"Error inserting rows into table {table_name}: {e}")
 
     def insert_event_logs(self, event: Event, rows: List[Dict]):
         self.insert_rows(event.name, rows)

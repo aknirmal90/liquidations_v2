@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS aave_ethereum.TransactionRawMultiplier
 (
     asset String,
     asset_source String,
-    multiplier UInt256,
-    timestamp DateTime64(0)
+    timestamp DateTime64(0),
+    multiplier UInt256
 )
 ENGINE = Log;
