@@ -43,7 +43,7 @@ class PriceCapAdapterAssetSource(BaseEthereumAssetSource, RatioProviderMixin):
         Get the denominator for price calculation.
         Uses the ratio decimals.
         """
-        return 10**self.RATIO_DECIMALS
+        return 10**self.RATIO_DECIMALS * 1000
 
     def get_multiplier(
         self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
@@ -87,9 +87,6 @@ class PriceCapAdapterAssetSource(BaseEthereumAssetSource, RatioProviderMixin):
         else:
             raise ValueError("No event or transaction provided")
 
-        return (
-            self.SNAPSHOT_RATIO
-            + self.MAX_RATIO_GROWTH_PER_SECOND
-            * (block_timestamp - self.SNAPSHOT_TIMESTAMP)
-            / 1000
+        return self.SNAPSHOT_RATIO + self.MAX_RATIO_GROWTH_PER_SECOND * (
+            block_timestamp - self.SNAPSHOT_TIMESTAMP
         )
