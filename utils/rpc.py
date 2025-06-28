@@ -25,8 +25,11 @@ logger = logging.getLogger(__name__)
 
 def get_evm_block_timestamps(blocks: List[int]) -> Dict:
     return {
-        int(block): NETWORK_REFERENCE_TIMESTAMP
-        + (block - NETWORK_REFERENCE_BLOCK) * NETWORK_BLOCK_TIME
+        int(block): (
+            NETWORK_REFERENCE_TIMESTAMP
+            + (block - NETWORK_REFERENCE_BLOCK) * NETWORK_BLOCK_TIME
+        )
+        * 1_000_000
         for block in blocks
     }
 

@@ -4,6 +4,7 @@ AS
 SELECT
     asset,
     asset_source,
+    name,
     timestamp,
     multiplier
 FROM aave_ethereum.TransactionRawMultiplier;

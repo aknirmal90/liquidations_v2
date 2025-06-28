@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import requests
+import web3
 from django.core.cache import cache
 from web3 import Web3
 
@@ -142,19 +143,19 @@ class BaseEthereumAssetSource:
         return self.call_function("latestAnswer")
 
     @property
-    def latest_price_from_clickhouse(self):
+    def historical_price_from_event(self):
         query = f"""
-        SELECT price
-        FROM aave_ethereum.LatestRawPriceEvent
+        SELECT historical_price
+        FROM aave_ethereum.LatestPriceEvent
         WHERE asset = '{self.asset}'
-        ORDER BY blockTimestamp DESC
+        ORDER BY timestamp DESC
         LIMIT 1
         """
         result = clickhouse_client.execute_query(query)
         return result.result_rows[0][0]
 
     @property
-    def latest_price_from_postgres(self):
+    def predicted_price(self):
         return self.process_current_price()[2]
 
     def local_cache_key(self, function_name: str, *args, **kwargs):
@@ -175,11 +176,28 @@ class BaseEthereumAssetSource:
 
     @property
     def events(self) -> List[str]:
-        raise NotImplementedError
+        # NewTransmission (
+        # index_topic_1
+        # uint32 aggregatorRoundId,
+        # int192 answer,
+        # address transmitter,
+        # uint32 observationsTimestamp,
+        # int192[] observations,
+        # bytes observers,
+        # int192 juelsPerFeeCoin,
+        # bytes32 configDigest,
+        # uint40 epochAndRound
+        # )
+        return [
+            "NewTransmission",
+        ]
 
     @property
     def method_ids(self) -> List[str]:
-        raise NotImplementedError
+        # forward(address to, bytes data)
+        return [
+            "0x6fadcf72",
+        ]
 
     def get_underlying_sources_to_monitor(self) -> List[str]:
         raise NotImplementedError
@@ -285,6 +303,7 @@ class BaseEthereumAssetSource:
         return {
             "asset": decode_any(self.asset),
             "asset_source": decode_any(self.asset_source),
+            "name": self.name,
             "timestamp": self.get_timestamp(event=event, transaction=transaction),
             "numerator": self.zero_if_negative(
                 self.get_numerator(event=event, transaction=transaction)
@@ -301,6 +320,8 @@ class BaseEthereumAssetSource:
         }
 
     def zero_if_negative(self, value: int) -> int:
+        if value is None:
+            raise web3.exceptions.BadFunctionCallOutput("Value is None")
         return 0 if value < 0 else value
 
     def _get_cached_property(

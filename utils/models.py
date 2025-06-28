@@ -64,5 +64,5 @@ class BaseEvent(models.Model):
             ("transactionHash", "String"),
             ("transactionIndex", "UInt64"),
             ("logIndex", "UInt64"),
-            ("blockTimestamp", "DateTime64(0)"),
+            ("blockTimestamp", "DateTime64(6)"),
         ]

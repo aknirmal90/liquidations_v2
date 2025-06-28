@@ -5,7 +5,7 @@ CREATE TABLE aave_ethereum.LatestTokenMetadata
     symbol String,
     decimals_places String,
     decimals UInt8,
-    blockTimestamp DateTime64(0)
+    blockTimestamp DateTime64(6)
 )
 ENGINE = ReplacingMergeTree(blockTimestamp)
 ORDER BY asset;

@@ -94,3 +94,14 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         return get_explorer_address_url(obj.asset_source)
 
     get_asset_source_display.short_description = "Asset Source"
+
+    def reset_sync_status(self, request, queryset):
+        queryset.update(last_synced_block=0, logs_count=0)
+
+    reset_sync_status.short_description = "Reset Sync Status"
+
+    actions = (
+        "reset_sync_status",
+        "enable",
+        "disable",
+    )

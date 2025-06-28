@@ -1,5 +1,6 @@
-from datetime import datetime
 from typing import Dict, Optional
+
+from django.core.cache import cache
 
 from oracles.contracts.AggregatorProxy import AggregatorProxyAssetSource
 from oracles.contracts.base import BaseEthereumAssetSource, RatioProviderMixin
@@ -34,7 +35,12 @@ class PriceCapAdapterAssetSource(BaseEthereumAssetSource, RatioProviderMixin):
         Get the numerator for price calculation.
         Uses the underlying asset source's price as the base.
         """
-        return self.underlying_asset_source.get_numerator(event, transaction)
+        if event:
+            return self.underlying_asset_source.get_numerator(event, transaction)
+        elif transaction:
+            raise NotImplementedError("Transaction not supported for numerator")
+        else:
+            raise ValueError("No event or transaction provided")
 
     def get_denominator(
         self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
@@ -43,7 +49,7 @@ class PriceCapAdapterAssetSource(BaseEthereumAssetSource, RatioProviderMixin):
         Get the denominator for price calculation.
         Uses the ratio decimals.
         """
-        return 10**self.RATIO_DECIMALS * 1000
+        return 10**self.RATIO_DECIMALS
 
     def get_multiplier(
         self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
@@ -53,16 +59,16 @@ class PriceCapAdapterAssetSource(BaseEthereumAssetSource, RatioProviderMixin):
         Uses the ratio from the ratio provider, capped by max ratio.
         """
         block_number = None
+        cache_key = self.local_cache_key("multiplier")
         if event:
             block_number = getattr(event, "blockNumber", None)
-
-        current_ratio = self.get_ratio(block_number=block_number)
-        max_ratio = self.get_max_cap(event, transaction)
-
-        if current_ratio > max_ratio:
-            current_ratio = max_ratio
-
-        return current_ratio
+            ratio = self.get_ratio(block_number=block_number)
+            cache.set(cache_key, ratio)
+            return ratio
+        elif transaction:
+            return cache.get(cache_key)
+        else:
+            raise ValueError("No event or transaction provided")
 
     @property
     def MAX_RATIO_GROWTH_PER_SECOND(self):
@@ -79,14 +85,17 @@ class PriceCapAdapterAssetSource(BaseEthereumAssetSource, RatioProviderMixin):
     def get_max_cap(
         self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
     ) -> int:
+        cache_key = self.local_cache_key("max_cap")
         if event:
             block_number = event.blockNumber
             block_timestamp = get_evm_block_timestamps([block_number])[block_number]
+            max_cap = self.SNAPSHOT_RATIO + self.MAX_RATIO_GROWTH_PER_SECOND * (
+                block_timestamp - self.SNAPSHOT_TIMESTAMP
+            )
+            cache.set(cache_key, max_cap)
+            return max_cap
+
         elif transaction:
-            block_timestamp = int(datetime.now().timestamp())
+            max_cap = cache.get(cache_key)
         else:
             raise ValueError("No event or transaction provided")
-
-        return self.SNAPSHOT_RATIO + self.MAX_RATIO_GROWTH_PER_SECOND * (
-            block_timestamp - self.SNAPSHOT_TIMESTAMP
-        )

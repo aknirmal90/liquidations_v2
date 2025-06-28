@@ -18,7 +18,6 @@ from utils.constants import (
     PROTOCOL_NAME,
 )
 from utils.encoding import get_signature, get_topic_0
-from utils.explorers import get_token_metadata_clickhouse_schema
 from utils.files import parse_json, parse_yaml
 from utils.rpc import rpc_adapter
 from utils.tasks import EventSynchronizeMixin, ParentSynchronizeTaskMixin

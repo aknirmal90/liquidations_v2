@@ -4,6 +4,7 @@ AS
 SELECT
     asset,
     asset_source,
+    name,
     timestamp,
     max_cap
 FROM aave_ethereum.EventRawMaxCap;

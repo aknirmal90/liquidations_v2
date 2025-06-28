@@ -4,6 +4,7 @@ AS
 SELECT
     asset,
     asset_source,
+    name,
     timestamp,
     numerator
 FROM aave_ethereum.EventRawNumerator;

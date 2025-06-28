@@ -18,14 +18,6 @@ class CLrETHSynchronicityPriceAdapterAssetSource(
     def underlying_asset_source_address(self):
         return self._get_cached_property("ETH_TO_USD")
 
-    @property
-    def events(self):
-        return self.underlying_asset_source.events
-
-    @property
-    def method_ids(self):
-        return self.underlying_asset_source.method_ids
-
     def get_underlying_sources_to_monitor(self):
         return self.underlying_asset_source.get_underlying_sources_to_monitor()
 

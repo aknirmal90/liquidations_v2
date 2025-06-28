@@ -71,7 +71,7 @@ class InitializePriceEvents(Task):
                         clickhouse_asset_source,
                         decimals_places,
                         10**decimals_places,
-                        int(datetime.now().timestamp()),
+                        int(datetime.now().timestamp() * 1_000_000),
                     ]
                 )
             except UnsupportedAssetSourceError as e:
@@ -97,6 +97,7 @@ class InitializePriceEvents(Task):
             clickhouse_client.insert_rows(
                 "AssetSourceTokenMetadata", asset_source_token_metadata_rows
             )
+            clickhouse_client.optimize_table("AssetSourceTokenMetadata")
 
     def run(self):
         """Execute the initialization task.
@@ -110,6 +111,17 @@ class InitializePriceEvents(Task):
         logger.info(
             f"Completed InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}"
         )
+        self.optimize_tables()
+
+    def optimize_tables(self):
+        """Optimize tables in Clickhouse."""
+        clickhouse_client.optimize_table("EventRawNumerator")
+        clickhouse_client.optimize_table("EventRawDenominator")
+        clickhouse_client.optimize_table("EventRawMultiplier")
+        clickhouse_client.optimize_table("EventRawMaxCap")
+        clickhouse_client.optimize_table("TransactionRawNumerator")
+        clickhouse_client.optimize_table("TransactionRawDenominator")
+        clickhouse_client.optimize_table("TransactionRawMultiplier")
 
     def create_materialized_views(self):
         """Create materialized views in Clickhouse."""
@@ -270,7 +282,7 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
             table_name="EventRawMaxCap", logs=parsed_max_cap_logs
         )
 
-        PriceEvent.objects.bulk_update(network_events, ["logs_count"])
+        PriceEvent.objects.bulk_update(updated_network_events, ["logs_count"])
 
     def process_network_event(self, network_event: PriceEvent, event_logs: List[Any]):
         contract_interface = network_event.contract_interface
@@ -311,6 +323,7 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
         super_properties = [
             "asset",
             "asset_source",
+            "name",
             "timestamp",
         ]
         properties = super_properties + [prop]
@@ -345,36 +358,41 @@ class PriceEventParentSynchronizeTask(ParentSynchronizeTaskMixin, Task):
 PriceEventParentSynchronizeTask = app.register_task(PriceEventParentSynchronizeTask())
 
 
-class VerifyLatestPriceTask(Task):
+class VerifyHistoricalPriceTask(Task):
     def run(self):
         all_assets = clickhouse_client.execute_query(
             "SELECT asset, source AS asset_source FROM aave_ethereum.LatestAssetSourceUpdated FINAL"
         )
         num_verified = 0
         num_different = 0
+        delta_threshold = 0.01
 
         for asset, asset_source in all_assets.result_rows:
             asset_source_interface = get_contract_interface(
                 asset=asset, asset_source=asset_source
             )
             try:
-                latest_price_from_postgres = (
-                    asset_source_interface.latest_price_from_postgres
+                historical_price_from_event = (
+                    asset_source_interface.historical_price_from_event
                 )
             except Exception as e:
                 logger.error(
-                    f"Error getting latest price from postgres for {asset} {asset_source}: {e}"
+                    f"Error getting historical price from event for {asset} {asset_source}: {e}"
                 )
                 continue
 
             latest_price_from_rpc = asset_source_interface.latest_price_from_rpc
-            if str(int(latest_price_from_postgres)) != str(int(latest_price_from_rpc)):
+            if (
+                abs(historical_price_from_event - latest_price_from_rpc)
+                / latest_price_from_rpc
+                > delta_threshold
+            ):
                 num_different += 1
                 logger.error(
-                    f"Latest price from postgres and rpc are different for {asset} {asset_source}"
+                    f"Historical price from clickhouse and rpc are different for {asset} {asset_source}"
                 )
                 logger.error(
-                    f"Postgres: {latest_price_from_postgres}, RPC: {latest_price_from_rpc} for {asset} {asset_source}"
+                    f"Historical Event Price: {historical_price_from_event}, RPC: {latest_price_from_rpc} for {asset_source_interface.name} {asset_source}"
                 )
             else:
                 num_verified += 1
@@ -382,4 +400,4 @@ class VerifyLatestPriceTask(Task):
         logger.info(f"Verified {num_verified} assets, {num_different} different")
 
 
-VerifyLatestPriceTask = app.register_task(VerifyLatestPriceTask())
+VerifyHistoricalPriceTask = app.register_task(VerifyHistoricalPriceTask())

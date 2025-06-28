@@ -4,6 +4,7 @@ AS
 SELECT
     asset,
     asset_source,
+    name,
     timestamp,
     denominator
 FROM aave_ethereum.TransactionRawDenominator;

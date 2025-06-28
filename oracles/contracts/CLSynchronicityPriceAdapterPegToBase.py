@@ -39,7 +39,7 @@ class CLSynchronicityPriceAdapterPegToBaseAssetSource(BaseEthereumAssetSource):
             + self.peg_to_base_source.get_underlying_sources_to_monitor()
         )
 
-    def get_numerator(
+    def get_asset_to_peg_price(
         self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
     ) -> int:
         """
@@ -52,16 +52,16 @@ class CLSynchronicityPriceAdapterPegToBaseAssetSource(BaseEthereumAssetSource):
                 in self.asset_to_peg_source.get_underlying_sources_to_monitor()
             ):
                 cache.set(cache_key, event.args.answer)
-                return event.args.answer * 10**self.DECIMALS
+                return event.args.answer
             else:
                 asset_to_peg_price = cache.get(cache_key)
                 if asset_to_peg_price is None:
                     asset_to_peg_price = 0
-                return asset_to_peg_price * 10**self.DECIMALS
+                return asset_to_peg_price
         else:
-            return cache.get(cache_key) * 10**self.DECIMALS
+            return cache.get(cache_key)
 
-    def get_denominator(
+    def get_peg_to_base_price(
         self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
     ) -> int:
         """
@@ -82,6 +82,26 @@ class CLSynchronicityPriceAdapterPegToBaseAssetSource(BaseEthereumAssetSource):
                 return peg_to_base_price
         else:
             return cache.get(cache_key)
+
+    def get_numerator(
+        self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
+    ) -> int:
+        """
+        Get the numerator for price calculation.
+        """
+        return (
+            self.get_asset_to_peg_price(event, transaction)
+            * self.get_peg_to_base_price(event, transaction)
+            * 10**self.DECIMALS
+        )
+
+    def get_denominator(
+        self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
+    ) -> int:
+        """
+        Get the denominator for price calculation.
+        """
+        return self.DENOMINATOR
 
     def get_multiplier(
         self, event: Optional[Dict] = None, transaction: Optional[Dict] = None
