@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import datetime
 from typing import Any, Optional, Union
 
@@ -131,6 +132,7 @@ class RpcCacheStorage:
         abi = result["ABI"]
         cls.set_cache(asset_source, "ASSET_SOURCE_NAME", name)
         cls.set_cache(asset_source, "ASSET_SOURCE_ABI", abi)
+        time.sleep(0.25)
         return name, abi
 
 

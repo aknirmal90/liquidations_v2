@@ -336,12 +336,41 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
             except Exception as e:
                 logger.error(f"Error updating transmitters for address {address}: {e}")
 
+        self.cache_transmitters_for_websockets()
+        self.cache_asset_sources_for_websockets()
+
+    def cache_transmitters_for_websockets(self):
         transmitters_qs = PriceEvent.objects.values_list("transmitters", flat=True)
         transmitters = []
         for transmitters_array in transmitters_qs:
-            transmitters.extend(transmitters_array)
+            if transmitters_array:
+                transmitters.extend(transmitters_array)
         transmitters = list(set(transmitters))
         cache.set("transmitters_for_websockets", transmitters)
+
+    def cache_asset_sources_for_websockets(self):
+        events = PriceEvent.objects.all()
+        # Create a dictionary to group by contract_address
+        contract_address_to_asset_sources = {}
+
+        for event in events:
+            contract_addresses = event.contract_addresses
+            if contract_addresses:
+                for contract_address in contract_addresses:
+                    if contract_address not in contract_address_to_asset_sources:
+                        contract_address_to_asset_sources[contract_address] = []
+
+                    contract_address_to_asset_sources[contract_address].append(
+                        [event.asset, event.asset_source]
+                    )
+
+        # Cache asset_sources for each contract address
+        for (
+            contract_address,
+            asset_sources_list,
+        ) in contract_address_to_asset_sources.items():
+            cache_key = f"underlying_asset_source_{contract_address}"
+            cache.set(cache_key, asset_sources_list)
 
 
 PriceEventSynchronizeTask = app.register_task(PriceEventSynchronizeTask())

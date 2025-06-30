@@ -3,8 +3,8 @@ import logging
 from django.core.cache import cache
 from django.core.management.base import BaseCommand
 
+from oracles.contracts.numerator import get_numerator
 from oracles.management.commands.listen_base import WebsocketCommand
-from oracles.models import PriceEvent
 from utils.constants import NETWORK_NAME, PROTOCOL_NAME
 from utils.oracle import (
     InvalidMethodSignature,
@@ -87,30 +87,22 @@ class Command(WebsocketCommand, BaseCommand):
         """
         median_price = parsed_data["median_price"]
         oracle_address = parsed_data["oracle_address"]
-        # epoch_and_round = parsed_data["epoch_and_round"]
+
+        asset_sources = cache.get(f"underlying_asset_source_{oracle_address}")
+        transaction_numerators = []
+        if asset_sources:
+            for asset, asset_source in asset_sources:
+                logger.info(
+                    f"Processing oracle update for {asset} with median price: {median_price}"
+                )
+                transaction_numerators.append(
+                    get_numerator(
+                        asset=asset,
+                        asset_source=asset_source,
+                        transaction=tx_data,
+                    )
+                )
 
         logger.info(
             f"Processing oracle update for {oracle_address} with median price: {median_price}"
         )
-
-        price_events = PriceEvent.objects.filter(
-            contract_addresses__contains=oracle_address
-        )
-        for price_event in price_events.iterator():
-            # contract_interface = price_event.contract_interface
-            # numerator = contract_interface.get_numerator(median_price)
-            if price_event.transmitters:
-                for transmitter in price_event.transmitters:
-                    logger.info(
-                        f"Transmitting price for {transmitter} with median price: {median_price}"
-                    )
-
-        if median_price > 0:
-            logger.info(
-                f"✅ Price is positive ({median_price}), proceeding with liquidation logic"
-            )
-            # TODO: Implement your liquidation decision logic here
-        else:
-            logger.warning(
-                f"⚠️ Price is non-positive ({median_price}), skipping liquidation"
-            )
