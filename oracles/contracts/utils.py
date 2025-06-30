@@ -16,6 +16,8 @@ CACHE_TTL_4_HOURS = 60 * 60 * 4
 
 CACHE_TTL_24_HOURS = 60 * 60 * 24
 
+CACHE_MULTIPLERS_BEFORE_BLOCK = 22_700_000
+
 
 class UnsupportedAssetSourceError(Exception):
     pass
@@ -99,7 +101,7 @@ class RpcCacheStorage:
         func = contract.functions[function_name](*args, **kwargs)
 
         # Call with block number if specified, otherwise call normally
-        if block_number is not None or block_number > 22_700_000:
+        if block_number is not None:
             return func.call(block_identifier=block_number)
         else:
             return func.call()

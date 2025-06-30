@@ -1,5 +1,6 @@
 from oracles.contracts.multiplier_abis import METHOD_ABI_MAPPING
 from oracles.contracts.utils import (
+    CACHE_MULTIPLERS_BEFORE_BLOCK,
     AssetSourceType,
     RpcCacheStorage,
     UnsupportedAssetSourceError,
@@ -160,22 +161,58 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
                     asset_source, decimals_key
                 )
                 parameter = int(10**ratio_decimals)
-                multiplier = RpcCacheStorage.call_function(
-                    provider, method, parameter, block_number=block_number, abi=abi
-                )
+                if block_number < CACHE_MULTIPLERS_BEFORE_BLOCK:
+                    multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
+                    if multiplier is None:
+                        multiplier = RpcCacheStorage.call_function(
+                            provider,
+                            method,
+                            parameter,
+                            block_number=block_number,
+                            abi=abi,
+                        )
+                        RpcCacheStorage.set_cache(
+                            asset_source, "MULTIPLIER", multiplier
+                        )
+                else:
+                    multiplier = RpcCacheStorage.call_function(
+                        provider, method, parameter, block_number=block_number, abi=abi
+                    )
             else:
                 # Handle case where parameter is needed but no decimals specified
-                multiplier = RpcCacheStorage.call_function(
-                    provider,
-                    method,
-                    int(1e18),  # Default parameter as integer
-                    block_number=block_number,
-                    abi=abi,
-                )
+                if block_number < CACHE_MULTIPLERS_BEFORE_BLOCK:
+                    multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
+                    if multiplier is None:
+                        multiplier = RpcCacheStorage.call_function(
+                            provider,
+                            method,
+                            int(1e18),  # Default parameter as integer
+                            block_number=block_number,
+                            abi=abi,
+                        )
+                        RpcCacheStorage.set_cache(
+                            asset_source, "MULTIPLIER", multiplier
+                        )
+                else:
+                    multiplier = RpcCacheStorage.call_function(
+                        provider,
+                        method,
+                        int(1e18),  # Default parameter as integer
+                        block_number=block_number,
+                        abi=abi,
+                    )
         else:
-            multiplier = RpcCacheStorage.call_function(
-                provider, method, block_number=block_number, abi=abi
-            )
+            if block_number < CACHE_MULTIPLERS_BEFORE_BLOCK:
+                multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
+                if multiplier is None:
+                    multiplier = RpcCacheStorage.call_function(
+                        provider, method, block_number=block_number, abi=abi
+                    )
+                    RpcCacheStorage.set_cache(asset_source, "MULTIPLIER", multiplier)
+            else:
+                multiplier = RpcCacheStorage.call_function(
+                    provider, method, block_number=block_number, abi=abi
+                )
 
         RpcCacheStorage.set_cache(asset_source, "MULTIPLIER", multiplier)
 
