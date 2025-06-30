@@ -1,4 +1,4 @@
-CREATE TABLE aave_ethereum.TokenMetadata
+CREATE TABLE IF NOT EXISTS aave_ethereum.TokenMetadata
 (
     asset String,
     name String,

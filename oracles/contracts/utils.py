@@ -99,7 +99,7 @@ class RpcCacheStorage:
         func = contract.functions[function_name](*args, **kwargs)
 
         # Call with block number if specified, otherwise call normally
-        if block_number is not None:
+        if block_number is not None or block_number > 22_700_000:
             return func.call(block_identifier=block_number)
         else:
             return func.call()
