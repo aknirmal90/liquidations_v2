@@ -90,6 +90,11 @@ class EventSynchronizeMixin:
                 self.handle_event_logs(
                     network_events=network_events, event_dicts=event_dicts
                 )
+                self.post_handle_hook(
+                    network_events=network_events,
+                    start_block=iter_from_block,
+                    end_block=iter_to_block,
+                )
 
                 if iter_to_block >= global_to_block:
                     self.update_last_synced_block(network_events, global_to_block)
@@ -127,6 +132,11 @@ class EventSynchronizeMixin:
                         iter_to_block = global_to_block
                 else:
                     raise e
+
+    def post_handle_hook(
+        self, network_events: List[Any], start_block: int, end_block: int
+    ):
+        return
 
     def process_raw_event_dicts(self, raw_event_dicts, event_abis):
         event_dicts = {}

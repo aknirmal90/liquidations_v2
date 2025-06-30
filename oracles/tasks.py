@@ -1,23 +1,21 @@
 import logging
-import os
 import time
 from datetime import datetime
 from typing import Any, Dict, List
 
 import web3
 from celery import Task
-from django.conf import settings
 from eth_utils import get_all_event_abis
 
 from liquidations_v2.celery_app import app
-from oracles.contracts.service import (
+from oracles.contracts.legacy.service import (
     UnsupportedAssetSourceError,
     get_contract_interface,
 )
 from oracles.models import PriceEvent
 from utils.clickhouse.client import clickhouse_client
 from utils.constants import NETWORK_NAME, PRICES_ABI_PATH, PROTOCOL_NAME
-from utils.encoding import get_signature, get_topic_0
+from utils.encoding import decode_any, get_signature, get_topic_0
 from utils.files import parse_json
 from utils.rpc import rpc_adapter
 from utils.tasks import EventSynchronizeMixin, ParentSynchronizeTaskMixin
@@ -107,38 +105,9 @@ class InitializePriceEvents(Task):
         """
         logger.info(f"Starting InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}")
         self.create_price_events()
-        self.create_materialized_views()
         logger.info(
             f"Completed InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}"
         )
-        self.optimize_tables()
-
-    def optimize_tables(self):
-        """Optimize tables in Clickhouse."""
-        clickhouse_client.optimize_table("EventRawNumerator")
-        clickhouse_client.optimize_table("EventRawDenominator")
-        clickhouse_client.optimize_table("EventRawMultiplier")
-        clickhouse_client.optimize_table("EventRawMaxCap")
-        clickhouse_client.optimize_table("TransactionRawNumerator")
-        clickhouse_client.optimize_table("TransactionRawDenominator")
-        clickhouse_client.optimize_table("TransactionRawMultiplier")
-
-    def create_materialized_views(self):
-        """Create materialized views in Clickhouse."""
-        MATERIALIZED_VIEWS_PATH = os.path.join(
-            os.path.dirname(settings.BASE_DIR), "oracles", "mv_queries"
-        )
-        files = os.listdir(MATERIALIZED_VIEWS_PATH)
-        files.sort()
-
-        for filename in files:
-            if not filename.endswith(".sql"):
-                continue
-
-            with open(os.path.join(MATERIALIZED_VIEWS_PATH, filename), "r") as file:
-                query = file.read()
-                logger.info(f"Executing query: {filename}")
-                clickhouse_client.execute_query(query)
 
     def create_or_get_price_event(
         self,
@@ -346,6 +315,64 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
                 logger.error(f"Error optimizing table: {e}")
                 time.sleep(1)
 
+    def post_handle_hook(
+        self, network_events: List[Any], start_block: int, end_block: int
+    ):
+        contract_addresses_array = network_events.values_list(
+            "contract_addresses", flat=True
+        )
+        contract_addresses = []
+        for contract_addresses_item in contract_addresses_array:
+            contract_addresses.extend(contract_addresses_item)
+        contract_addresses = list(set(contract_addresses))
+        contract_addresses = [
+            web3.Web3.to_checksum_address(address) for address in contract_addresses
+        ]
+
+        events = rpc_adapter.extract_raw_event_data(
+            topics=[
+                "0x78af32efdcad432315431e9b03d27e6cd98fb79c405fdc5af7c1714d9c0f75b3"
+            ],
+            # EX: https://etherscan.io/tx/0xd5127d96ca9519c89cda89a57d69437d654da21f773f992f469d4e7128977da1#eventlog
+            contract_addresses=contract_addresses,
+            start_block=start_block,
+            end_block=end_block,
+        )
+
+        if not events:
+            return
+
+        # Group events by address to map to PriceEvents
+        address_to_transmitters = {}
+        for event in events:
+            address = decode_any(event.address)
+            transmitter = "0x" + decode_any(event.topics[1])[-40:]
+
+            if address not in address_to_transmitters:
+                address_to_transmitters[address] = set()
+            address_to_transmitters[address].add(transmitter)
+
+        # Batch update PriceEvents with unique transmitters
+        for address, transmitters_set in address_to_transmitters.items():
+            try:
+                price_events = PriceEvent.objects.filter(
+                    contract_addresses__contains=address
+                )
+                for price_event in price_events:
+                    # Get existing transmitters and add new ones
+                    existing_transmitters = set(price_event.transmitters or [])
+                    updated_transmitters = list(
+                        existing_transmitters.union(transmitters_set)
+                    )
+
+                    # Update only if there are new transmitters
+                    if len(updated_transmitters) > len(existing_transmitters):
+                        price_event.transmitters = updated_transmitters
+                        price_event.save(update_fields=["transmitters"])
+
+            except Exception as e:
+                logger.error(f"Error updating transmitters for address {address}: {e}")
+
 
 PriceEventSynchronizeTask = app.register_task(PriceEventSynchronizeTask())
 
@@ -361,7 +388,7 @@ PriceEventParentSynchronizeTask = app.register_task(PriceEventParentSynchronizeT
 class VerifyHistoricalPriceTask(Task):
     def run(self):
         all_assets = clickhouse_client.execute_query(
-            "SELECT asset, source AS asset_source FROM aave_ethereum.LatestAssetSourceUpdated FINAL"
+            "SELECT asset, asset_source FROM aave_ethereum.LatestPriceEvent FINAL"
         )
         num_verified = 0
         num_different = 0

@@ -21,7 +21,6 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         "blocks_to_sync",
         "logs_count",
         "get_contracts_display",
-        "updated_at",
     )
 
     list_filter = ("is_enabled", "updated_at", "asset_source_name", "name")
@@ -33,6 +32,10 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         (
             "Asset Information",
             {"fields": ("get_asset_display", "get_asset_source_display")},
+        ),
+        (
+            "Transmitters",
+            {"fields": ("get_transmitters_display",)},
         ),
         (
             "Sync Status",
@@ -70,6 +73,8 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         "get_asset_source_display",
         "asset_source_name",
         "method_ids",
+        "transmitters",
+        "get_transmitters_display",
     )
 
     def abi_display(self, obj):
@@ -84,6 +89,17 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         return format_html("<br>".join(contract_links))
 
     get_contracts_display.short_description = "Contract Addresses"
+
+    def get_transmitters_display(self, obj):
+        if not obj.transmitters:
+            return
+
+        transmitter_links = []
+        for transmitter in obj.transmitters:
+            transmitter_links.append(get_explorer_address_url(transmitter))
+        return format_html("<br>".join(transmitter_links))
+
+    get_transmitters_display.short_description = "Transmitters"
 
     def get_asset_display(self, obj):
         return get_explorer_address_url(obj.asset)

@@ -10,7 +10,10 @@ from oracles.contracts.CLSynchronicityPriceAdapterPegToBase import (
 from oracles.contracts.CLwstETHSynchronicityPriceAdapter import (
     CLwstETHSynchronicityPriceAdapterAssetSource,
 )
-from oracles.contracts.GhoOracle import GhoOracleAssetSource
+from oracles.contracts.legacy.GhoOracle import GhoOracleAssetSource
+from oracles.contracts.legacy.SUSDePriceCapAdapter import (
+    SUSDePriceCapAdapterAssetSource,
+)
 from oracles.contracts.OsETHPriceCapAdapter import OsETHPriceCapAdapterAssetSource
 from oracles.contracts.PendlePriceCapAdapter import PendlePriceCapAdapterAssetSource
 from oracles.contracts.PriceCapAdapterStable import PriceCapAdapterStableAssetSource
@@ -22,7 +25,6 @@ from oracles.contracts.sDAIMainnetPriceCapAdapter import (
 from oracles.contracts.sDAISynchronicityPriceAdapter import (
     sDAISynchronicityPriceAdapterAssetSource,
 )
-from oracles.contracts.SUSDePriceCapAdapter import SUSDePriceCapAdapterAssetSource
 from oracles.contracts.WeETHPriceCapAdapter import WeETHPriceCapAdapterAssetSource
 from oracles.contracts.WstETHPriceCapAdapter import WstETHPriceCapAdapterAssetSource
 from oracles.contracts.WstETHSynchronicityPriceAdapter import (

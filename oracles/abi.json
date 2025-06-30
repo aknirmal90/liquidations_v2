@@ -91,5 +91,30 @@
         ],
         "name": "DiscountRatePerYearUpdated",
         "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "transmitter",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "previous",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "current",
+                "type": "address"
+            }
+        ],
+        "name": "PayeeshipTransferred",
+        "type": "event"
     }
 ]

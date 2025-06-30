@@ -49,17 +49,25 @@ class InitializeAppTask(Task):
 
     def create_materialized_views(self):
         """Create materialized views in Clickhouse."""
-        MATERIALIZED_VIEWS_PATH = os.path.join(
+        BLOCKCHAINS_MATERIALIZED_VIEWS_PATH = os.path.join(
             os.path.dirname(settings.BASE_DIR), "blockchains", "mv_queries"
         )
-        files = os.listdir(MATERIALIZED_VIEWS_PATH)
+        self._create_materialized_view_for_folder(BLOCKCHAINS_MATERIALIZED_VIEWS_PATH)
+
+        ORACLES_MATERIALIZED_VIEWS_PATH = os.path.join(
+            os.path.dirname(settings.BASE_DIR), "oracles", "mv_queries"
+        )
+        self._create_materialized_view_for_folder(ORACLES_MATERIALIZED_VIEWS_PATH)
+
+    def _create_materialized_view_for_folder(self, folder: str):
+        files = os.listdir(folder)
         files.sort()
 
         for filename in files:
             if not filename.endswith(".sql"):
                 continue
 
-            with open(os.path.join(MATERIALIZED_VIEWS_PATH, filename), "r") as file:
+            with open(os.path.join(folder, filename), "r") as file:
                 query = file.read()
                 logger.info(f"Executing query: {filename}")
                 clickhouse_client.execute_query(query)

@@ -17,10 +17,12 @@ class ClickHouseClient:
             port=config("CLICKHOUSE_PORT"),
             user=config("CLICKHOUSE_USER"),
             password=config("CLICKHOUSE_PASSWORD", default=""),
+            verify=False,
         )
         self.network_name = config("NETWORK_NAME")
         self.protocol_name = config("PROTOCOL_NAME")
         self.db_name = f"{self.protocol_name}_{self.network_name}"
+
         logger.info("ClickHouse client initialized successfully")
 
     def create_database(self):
@@ -56,15 +58,6 @@ class ClickHouseClient:
         columns = event._get_clickhouse_columns()
         self.create_table(event.name, columns)
 
-    def drop_event_table(self, event: Event):
-        logger.info(
-            f"Dropping table {event.name} from database {self.db_name} if it exists"
-        )
-        result = self.client.command(
-            f"DROP TABLE IF EXISTS {self.db_name}.{event.name}"
-        )
-        logger.info(f"Table {event.name} dropped successfully with status: {result}")
-
     def insert_rows(self, table_name: str, rows: List[Dict]):
         logger.info(f"Inserting {len(rows)} rows into table {table_name}")
         try:
@@ -94,11 +87,11 @@ class ClickHouseClient:
             "CollateralConfigurationChanged",
             "EModeAssetCategoryChanged",
             "EModeCategoryAdded",
-            "TokenMetadata",
             "AssetSourceUpdated",
+            "TokenMetadata",
             "AssetSourceTokenMetadata",
         ]:
-            self.execute_query(
+            self.client.command(
                 f"OPTIMIZE TABLE {self.db_name}.Latest{table_name} FINAL;"
             )
             logger.info(f"Optimized table {table_name} in database {self.db_name}")
@@ -109,10 +102,9 @@ class ClickHouseClient:
             "EventRawMaxCap",
             "EventRawMultiplier",
             "TransactionRawNumerator",
-            "TransactionRawDenominator",
             "TransactionRawMultiplier",
         ]:
-            self.execute_query(
+            self.client.command(
                 f"OPTIMIZE TABLE {self.db_name}.PriceLatest{table_name} FINAL;"
             )
             logger.info(f"Optimized table {table_name} in database {self.db_name}")
