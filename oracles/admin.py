@@ -49,7 +49,6 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
                     "topic_0",
                     "abi_display",
                     "contract_addresses",
-                    "method_ids",
                 )
             },
         ),

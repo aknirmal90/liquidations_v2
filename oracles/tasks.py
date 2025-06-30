@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 
 import web3
 from celery import Task
+from django.core.cache import cache
 from eth_utils import get_all_event_abis
 from web3.datastructures import AttributeDict
 
@@ -335,6 +336,13 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
             except Exception as e:
                 logger.error(f"Error updating transmitters for address {address}: {e}")
 
+        transmitters_qs = PriceEvent.objects.values_list("transmitters", flat=True)
+        transmitters = []
+        for transmitters_array in transmitters_qs:
+            transmitters.extend(transmitters_array)
+        transmitters = list(set(transmitters))
+        cache.set("transmitters_for_websockets", transmitters)
+
 
 PriceEventSynchronizeTask = app.register_task(PriceEventSynchronizeTask())
 
@@ -347,28 +355,7 @@ class PriceEventDynamicSynchronizeTask(ParentSynchronizeTaskMixin, Task):
 PriceEventDynamicSynchronizeTask = app.register_task(PriceEventDynamicSynchronizeTask())
 
 
-class PriceEventStaticSynchronizeTask(Task):
-    def run(self):
-        network_events = PriceEvent.objects.all()
-        event = AttributeDict({"blockNumber": rpc_adapter.cached_block_height})
-        parsed_denominator_logs = []
-        parsed_max_cap_logs = []
-
-        for network_event in network_events.iterator():
-            parsed_denominator_logs.extend(
-                self.get_parsed_logs(network_event, [event], get_denominator)
-            )
-            parsed_max_cap_logs.extend(
-                self.get_parsed_logs(network_event, [event], get_max_cap)
-            )
-
-        self.bulk_insert_raw_price_events(
-            table_name="EventRawDenominator", logs=parsed_denominator_logs
-        )
-        self.bulk_insert_raw_price_events(
-            table_name="EventRawMaxCap", logs=parsed_max_cap_logs
-        )
-
+class BasePriceMixin:
     def get_parsed_logs(
         self, network_event: PriceEvent, event_logs_for_address: List[Any], parser_func
     ):
@@ -399,8 +386,51 @@ class PriceEventStaticSynchronizeTask(Task):
                 logger.error(f"Error optimizing table: {e}")
 
 
+class PriceEventStaticSynchronizeTask(BasePriceMixin, Task):
+    def run(self):
+        network_events = PriceEvent.objects.all()
+        event = AttributeDict({"blockNumber": rpc_adapter.cached_block_height})
+        parsed_denominator_logs = []
+        parsed_max_cap_logs = []
+
+        for network_event in network_events.iterator():
+            parsed_denominator_logs.extend(
+                self.get_parsed_logs(network_event, [event], get_denominator)
+            )
+            parsed_max_cap_logs.extend(
+                self.get_parsed_logs(network_event, [event], get_max_cap)
+            )
+
+        self.bulk_insert_raw_price_events(
+            table_name="EventRawDenominator", logs=parsed_denominator_logs
+        )
+        self.bulk_insert_raw_price_events(
+            table_name="EventRawMaxCap", logs=parsed_max_cap_logs
+        )
+
+
 PriceEventStaticSynchronizeTask = app.register_task(PriceEventStaticSynchronizeTask())
 
+
+class PriceTransactionDynamicSynchronizeTask(BasePriceMixin, Task):
+    def run(self):
+        network_events = PriceEvent.objects.all()
+        event = AttributeDict({"blockNumber": rpc_adapter.cached_block_height})
+        parsed_multiplier_logs = []
+
+        for network_event in network_events.iterator():
+            parsed_multiplier_logs.extend(
+                self.get_parsed_logs(network_event, [event], get_multiplier)
+            )
+
+        self.bulk_insert_raw_price_events(
+            table_name="TransactionRawMultiplier", logs=parsed_multiplier_logs
+        )
+
+
+PriceTransactionDynamicSynchronizeTask = app.register_task(
+    PriceTransactionDynamicSynchronizeTask()
+)
 
 # class VerifyHistoricalPriceTask(Task):
 #     def run(self):
