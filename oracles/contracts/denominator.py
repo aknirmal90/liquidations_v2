@@ -1,8 +1,14 @@
-from oracles.contracts.utils import CACHE_TTL_4_HOURS, AssetSourceType, RpcCacheStorage
+from oracles.contracts.utils import (
+    CACHE_TTL_4_HOURS,
+    AssetSourceType,
+    RpcCacheStorage,
+    UnsupportedAssetSourceError,
+    get_timestamp,
+)
 from utils.encoding import decode_any
 
 
-def get_denominator(asset_source: str, event=None, transaction=None) -> int:
+def get_denominator(asset: str, asset_source: str, event=None, transaction=None) -> int:
     asset_source = decode_any(asset_source)
     asset_source_type, abi = RpcCacheStorage.get_contract_info(asset_source)
 
@@ -23,21 +29,21 @@ def get_denominator(asset_source: str, event=None, transaction=None) -> int:
         AssetSourceType.WstETHSynchronicityPriceAdapter,
         AssetSourceType.CLrETHSynchronicityPriceAdapterPegToBase,
     ]:
-        return 10 ** RpcCacheStorage.get_cached_asset_source_function(
+        denominator = 10 ** RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "RATIO_DECIMALS", ttl=CACHE_TTL_4_HOURS
         )
     elif asset_source_type == AssetSourceType.CLSynchronicityPriceAdapterPegToBase:
-        return RpcCacheStorage.get_cached_asset_source_function(
+        denominator = RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "DENOMINATOR", ttl=CACHE_TTL_4_HOURS
         )
     elif asset_source_type == AssetSourceType.CLwstETHSynchronicityPriceAdapter:
-        return RpcCacheStorage.get_cached_asset_source_function(
+        denominator = RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "DENOMINATOR", ttl=CACHE_TTL_4_HOURS
         ) * 10 ** RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "RATIO_DECIMALS", ttl=CACHE_TTL_4_HOURS
         )
     elif asset_source_type == AssetSourceType.PendlePriceCapAdapter:
-        return RpcCacheStorage.get_cached_asset_source_function(
+        denominator = RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "PERCENTAGE_FACTOR", ttl=CACHE_TTL_4_HOURS
         )
     elif asset_source_type in [
@@ -45,6 +51,16 @@ def get_denominator(asset_source: str, event=None, transaction=None) -> int:
         AssetSourceType.EACAggregatorProxy,
         AssetSourceType.PriceCapAdapterStable,
     ]:
-        return 1
+        denominator = 1
     else:
-        raise ValueError(f"Unknown asset source type: {asset_source_type}")
+        raise UnsupportedAssetSourceError(
+            f"Unknown asset source type: {asset_source_type}"
+        )
+
+    return [
+        asset,
+        asset_source,
+        asset_source_type,
+        get_timestamp(event, transaction),
+        denominator,
+    ]

@@ -1,11 +1,17 @@
 from web3 import Web3
 
-from oracles.contracts.utils import CACHE_TTL_4_HOURS, AssetSourceType, RpcCacheStorage
+from oracles.contracts.utils import (
+    CACHE_TTL_4_HOURS,
+    AssetSourceType,
+    RpcCacheStorage,
+    UnsupportedAssetSourceError,
+    get_timestamp,
+)
 from utils.encoding import decode_any
 from utils.rpc import get_evm_block_timestamps, rpc_adapter
 
 
-def get_max_cap(asset_source: str, event=None, transaction=None) -> int:
+def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> int:
     asset_source = decode_any(asset_source)
     asset_source_type, abi = RpcCacheStorage.get_contract_info(asset_source)
 
@@ -29,10 +35,10 @@ def get_max_cap(asset_source: str, event=None, transaction=None) -> int:
             RpcCacheStorage.set_cache_with_ttl(
                 asset_source, "MAX_CAP", max_cap, CACHE_TTL_4_HOURS
             )
-            return max_cap
-        raise ValueError(
-            f"No event found for {asset_source} of type {asset_source_type}"
-        )
+        else:
+            raise ValueError(
+                f"No event found for {asset_source} of type {asset_source_type}"
+            )
 
     # PriceCapAdapter: Calculate max cap based on snapshot ratio and growth rate
     elif asset_source_type in (
@@ -67,7 +73,6 @@ def get_max_cap(asset_source: str, event=None, transaction=None) -> int:
         RpcCacheStorage.set_cache_with_ttl(
             asset_source, "MAX_CAP", max_cap, CACHE_TTL_4_HOURS
         )
-        return max_cap
 
     # All other asset source types: No max cap (return 0)
     elif asset_source_type in [
@@ -81,6 +86,16 @@ def get_max_cap(asset_source: str, event=None, transaction=None) -> int:
         AssetSourceType.WstETHSynchronicityPriceAdapter,
         AssetSourceType.sDAISynchronicityPriceAdapter,
     ]:
-        return 0
+        max_cap = 0
     else:
-        raise ValueError(f"Unknown asset source type: {asset_source_type}")
+        raise UnsupportedAssetSourceError(
+            f"Unknown asset source type: {asset_source_type}"
+        )
+
+    return [
+        asset,
+        asset_source,
+        asset_source_type,
+        get_timestamp(event, transaction),
+        max_cap,
+    ]

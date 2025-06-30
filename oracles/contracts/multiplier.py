@@ -1,10 +1,15 @@
 from oracles.contracts.multiplier_abis import METHOD_ABI_MAPPING
-from oracles.contracts.utils import AssetSourceType, RpcCacheStorage
+from oracles.contracts.utils import (
+    AssetSourceType,
+    RpcCacheStorage,
+    UnsupportedAssetSourceError,
+    get_timestamp,
+)
 from utils.encoding import decode_any
 from utils.rpc import get_evm_block_timestamps
 
 
-def get_multiplier(asset_source: str, event=None, transaction=None) -> int:
+def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) -> int:
     asset_source = decode_any(asset_source)
     asset_source_type, abi = RpcCacheStorage.get_contract_info(asset_source)
 
@@ -155,12 +160,12 @@ def get_multiplier(asset_source: str, event=None, transaction=None) -> int:
                     asset_source, decimals_key
                 )
                 parameter = int(10**ratio_decimals)
-                ratio = RpcCacheStorage.call_function(
+                multiplier = RpcCacheStorage.call_function(
                     provider, method, parameter, block_number=block_number, abi=abi
                 )
             else:
                 # Handle case where parameter is needed but no decimals specified
-                ratio = RpcCacheStorage.call_function(
+                multiplier = RpcCacheStorage.call_function(
                     provider,
                     method,
                     int(1e18),  # Default parameter as integer
@@ -168,12 +173,11 @@ def get_multiplier(asset_source: str, event=None, transaction=None) -> int:
                     abi=abi,
                 )
         else:
-            ratio = RpcCacheStorage.call_function(
+            multiplier = RpcCacheStorage.call_function(
                 provider, method, block_number=block_number, abi=abi
             )
 
-        RpcCacheStorage.set_cache(asset_source, "MULTIPLIER", ratio)
-        return ratio
+        RpcCacheStorage.set_cache(asset_source, "MULTIPLIER", multiplier)
 
     # Handle Pendle discount calculation
     elif config_type == "pendle_discount":
@@ -200,11 +204,18 @@ def get_multiplier(asset_source: str, event=None, transaction=None) -> int:
         multiplier = int(percentage_factor - current_discount)
 
         RpcCacheStorage.set_cache(asset_source, "MULTIPLIER", multiplier)
-        return multiplier
 
     # Handle default multiplier of 1
     elif config_type == "default":
-        return 1
+        multiplier = 1
 
     else:
-        raise ValueError(f"Unknown config type: {config_type}")
+        raise UnsupportedAssetSourceError(f"Unknown config type: {config_type}")
+
+    return [
+        asset,
+        asset_source,
+        asset_source_type,
+        get_timestamp(event, transaction),
+        multiplier,
+    ]

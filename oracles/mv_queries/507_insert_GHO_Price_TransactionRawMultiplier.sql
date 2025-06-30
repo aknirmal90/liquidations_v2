@@ -1,4 +1,4 @@
--- Insert into TransactionRawMaxCap table
+-- Insert into EventRawMaxCap table
 INSERT INTO aave_ethereum.TransactionRawMultiplier
 (
     asset,
@@ -9,7 +9,7 @@ INSERT INTO aave_ethereum.TransactionRawMultiplier
 )
 VALUES
 (
-    '0xd110cac5d8682a3b045d5524a9903e031d70fccd',
+    '0x40d16fc0246ad3160ccc09b8d0d3a2cd28ae6c2f',
     '0xd110cac5d8682a3b045d5524a9903e031d70fccd',
     'GhoOracle',
     now(),

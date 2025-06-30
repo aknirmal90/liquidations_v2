@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import Any, Optional, Union
 
 import requests
@@ -6,7 +7,7 @@ from django.core.cache import cache
 from web3 import Web3
 
 from utils.constants import NETWORK_NAME, PROTOCOL_NAME
-from utils.rpc import rpc_adapter
+from utils.rpc import get_evm_block_timestamps, rpc_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,22 @@ logger = logging.getLogger(__name__)
 CACHE_TTL_4_HOURS = 60 * 60 * 4
 
 CACHE_TTL_24_HOURS = 60 * 60 * 24
+
+
+class UnsupportedAssetSourceError(Exception):
+    pass
+
+
+def get_timestamp(event=None, transaction=None) -> int:
+    if event:
+        block = event.blockNumber
+        timestamp = get_evm_block_timestamps([block])[block]
+    elif transaction:
+        block = transaction["epoch_and_round"]
+        timestamp = get_evm_block_timestamps([block])[block]
+    else:
+        timestamp = int(datetime.now().timestamp() * 1_000_000)
+    return timestamp
 
 
 class RpcCacheStorage:

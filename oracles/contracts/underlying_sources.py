@@ -1,6 +1,10 @@
 from typing import List
 
-from oracles.contracts.utils import AssetSourceType, RpcCacheStorage
+from oracles.contracts.utils import (
+    AssetSourceType,
+    RpcCacheStorage,
+    UnsupportedAssetSourceError,
+)
 from utils.encoding import decode_any
 
 
@@ -85,4 +89,6 @@ def get_underlying_sources(asset_source: str) -> List[str]:
 
     # Unknown asset source type
     else:
-        raise ValueError(f"Unknown asset source type: {asset_source_type}")
+        raise UnsupportedAssetSourceError(
+            f"Unknown asset source type: {asset_source_type}"
+        )

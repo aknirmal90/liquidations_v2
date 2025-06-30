@@ -3,6 +3,7 @@ import logging
 from django.db.models.signals import pre_save
 
 from blockchains.models import Event
+from oracles.tasks import InitializePriceEvents
 from utils.clickhouse.client import clickhouse_client
 from utils.explorers import token_metadata
 
@@ -60,8 +61,7 @@ def handle_new_reserve(instance: Event):
 
 
 def handle_asset_source_updated(instance: Event):
-    # InitializePriceEvents.run()
-    pass
+    InitializePriceEvents.run()
 
 
 pre_save.connect(handle_events, sender=Event)

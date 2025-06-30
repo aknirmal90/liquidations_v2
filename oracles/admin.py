@@ -72,7 +72,6 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         "get_asset_display",
         "get_asset_source_display",
         "asset_source_name",
-        "method_ids",
         "transmitters",
         "get_transmitters_display",
     )

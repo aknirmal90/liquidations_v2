@@ -87,6 +87,7 @@ class Command(WebsocketCommand, BaseCommand):
         """
         median_price = parsed_data["median_price"]
         oracle_address = parsed_data["oracle_address"]
+        # epoch_and_round = parsed_data["epoch_and_round"]
 
         logger.info(
             f"Processing oracle update for {oracle_address} with median price: {median_price}"
