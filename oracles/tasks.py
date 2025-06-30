@@ -231,6 +231,9 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
             table_name="EventRawNumerator", logs=parsed_numerator_logs
         )
         self.bulk_insert_raw_price_events(
+            table_name="TransactionRawNumerator", logs=parsed_numerator_logs
+        )
+        self.bulk_insert_raw_price_events(
             table_name="EventRawMultiplier", logs=parsed_multiplier_logs
         )
         self.bulk_insert_raw_price_events(

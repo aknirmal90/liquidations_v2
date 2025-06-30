@@ -28,43 +28,46 @@ def get_numerator(asset: str, asset_source: str, event=None, transaction=None) -
             other_price_past = RpcCacheStorage.get_cache(
                 asset_source, "PEG_TO_BASE_PRICE"
             )
-            other_price_future = RpcCacheStorage.get_cached_asset_source_function(
+            other_price_future = RpcCacheStorage.get_cache(
                 asset_source, "PEG_TO_BASE_PRICE_FUTURE"
             )
         else:
-            other_price_past = RpcCacheStorage.get_cached_asset_source_function(
+            other_price_past = RpcCacheStorage.get_cache(
                 asset_source, "ASSET_TO_PEG_PRICE"
             )
-            other_price_future = RpcCacheStorage.get_cached_asset_source_function(
+            other_price_future = RpcCacheStorage.get_cache(
                 asset_source, "ASSET_TO_PEG_PRICE_FUTURE"
             )
 
-            if event:
-                price = (price * other_price_past) * (10**DECIMALS)
-                if is_asset_to_peg:
-                    RpcCacheStorage.set_cache(asset_source, "ASSET_TO_PEG_PRICE", price)
-                else:
-                    RpcCacheStorage.set_cache(asset_source, "PEG_TO_BASE_PRICE", price)
-            elif transaction:
-                if other_price_future:
-                    price = (price * other_price_future) * (10**DECIMALS)
-                else:
-                    price = (price * other_price_past) * (10**DECIMALS)
+        if other_price_past is None:
+            other_price_past = 0
 
-                if is_asset_to_peg:
-                    RpcCacheStorage.set_cache_with_ttl(
-                        asset_source,
-                        "ASSET_TO_PEG_PRICE_FUTURE",
-                        price,
-                        ttl=NETWORK_BLOCK_TIME,
-                    )
-                else:
-                    RpcCacheStorage.set_cache_with_ttl(
-                        asset_source,
-                        "PEG_TO_BASE_PRICE_FUTURE",
-                        price,
-                        ttl=NETWORK_BLOCK_TIME,
-                    )
+        if event:
+            price = (price * other_price_past) * (10**DECIMALS)
+            if is_asset_to_peg:
+                RpcCacheStorage.set_cache(asset_source, "ASSET_TO_PEG_PRICE", price)
+            else:
+                RpcCacheStorage.set_cache(asset_source, "PEG_TO_BASE_PRICE", price)
+        elif transaction:
+            if other_price_future:
+                price = (price * other_price_future) * (10**DECIMALS)
+            else:
+                price = (price * other_price_past) * (10**DECIMALS)
+
+            if is_asset_to_peg:
+                RpcCacheStorage.set_cache_with_ttl(
+                    asset_source,
+                    "ASSET_TO_PEG_PRICE_FUTURE",
+                    price,
+                    ttl=NETWORK_BLOCK_TIME,
+                )
+            else:
+                RpcCacheStorage.set_cache_with_ttl(
+                    asset_source,
+                    "PEG_TO_BASE_PRICE_FUTURE",
+                    price,
+                    ttl=NETWORK_BLOCK_TIME,
+                )
 
     else:
         if event:
