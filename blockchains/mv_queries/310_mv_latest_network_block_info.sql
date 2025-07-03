@@ -2,7 +2,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS aave_ethereum.mv_latest_network_block_inf
 TO aave_ethereum.LatestNetworkBlockInfo
 AS
 SELECT
-    network_name,
+    network_id,
     latest_block_number,
     latest_block_timestamp,
     network_time_for_new_block
