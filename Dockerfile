@@ -52,9 +52,13 @@ COPY ./bin/start-websocket-transactions /start-websocket-transactions
 RUN sed -i 's/\r$//g' /start-websocket-transactions
 RUN chmod +x /start-websocket-transactions
 
-COPY ./bin/start-celery-prices /start-celery-prices
-RUN sed -i 's/\r$//g' /start-celery-prices
-RUN chmod +x /start-celery-prices
+COPY ./bin/start-websocket-blocks /start-websocket-blocks
+RUN sed -i 's/\r$//g' /start-websocket-blocks
+RUN chmod +x /start-websocket-blocks
+
+COPY ./bin/start-celery-high /start-celery-high
+RUN sed -i 's/\r$//g' /start-celery-high
+RUN chmod +x /start-celery-high
 
 # install doppler
 RUN (curl -Ls https://cli.doppler.com/install.sh || wget -qO- https://cli.doppler.com/install.sh) | sh
