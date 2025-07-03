@@ -3,6 +3,7 @@ from oracles.contracts.utils import (
     RpcCacheStorage,
     get_blockNumber,
     get_timestamp,
+    send_unsupported_asset_source_notification,
 )
 from utils.constants import NETWORK_BLOCK_TIME
 from utils.encoding import decode_any
@@ -92,11 +93,41 @@ def get_numerator(asset: str, asset_source: str, event=None, transaction=None) -
                     ttl=NETWORK_BLOCK_TIME,
                 )
 
-    else:
+    elif asset_source_type in (
+        AssetSourceType.EACAggregatorProxy,
+        AssetSourceType.PriceCapAdapterStable,
+        AssetSourceType.PendlePriceCapAdapter,
+        AssetSourceType.CLrETHSynchronicityPriceAdapter,
+        AssetSourceType.CLrETHSynchronicityPriceAdapterPegToBase,
+        AssetSourceType.sDAIMainnetPriceCapAdapter,
+        AssetSourceType.PriceCapAdapter,
+        AssetSourceType.WstETHPriceCapAdapter,
+        AssetSourceType.WeETHPriceCapAdapter,
+        AssetSourceType.SUSDePriceCapAdapter,
+        AssetSourceType.RsETHPriceCapAdapter,
+        AssetSourceType.RETHPriceCapAdapter,
+        AssetSourceType.OsETHPriceCapAdapter,
+        AssetSourceType.CbETHPriceCapAdapter,
+        AssetSourceType.GhoOracle,
+        AssetSourceType.EthXPriceCapAdapter,
+        AssetSourceType.EBTCPriceCapAdapter,
+        AssetSourceType.EUSDePriceCapAdapter,
+        AssetSourceType.WstETHSynchronicityPriceAdapter,
+        AssetSourceType.sDAISynchronicityPriceAdapter,
+        AssetSourceType.EURPriceCapAdapterStable,
+    ):
         if event:
             price = int(event.args.answer)
         elif transaction:
             price = int(transaction["median_price"])
+
+    else:
+        send_unsupported_asset_source_notification(
+            asset_source, f"Unsupported in Numerator {asset_source_type}"
+        )
+        raise ValueError(
+            f"Unknown asset source type: {asset_source_type} - {asset_source}"
+        )
 
     return [
         asset,

@@ -5,6 +5,7 @@ from oracles.contracts.utils import (
     UnsupportedAssetSourceError,
     get_blockNumber,
     get_timestamp,
+    send_unsupported_asset_source_notification,
 )
 from utils.encoding import decode_any
 
@@ -61,11 +62,15 @@ def get_denominator(asset: str, asset_source: str, event=None, transaction=None)
         AssetSourceType.GhoOracle,
         AssetSourceType.EACAggregatorProxy,
         AssetSourceType.PriceCapAdapterStable,
+        AssetSourceType.EURPriceCapAdapterStable,
     ]:
         denominator = 1
     else:
+        send_unsupported_asset_source_notification(
+            asset_source, f"Unsupported in Price Denominator {asset_source_type}"
+        )
         raise UnsupportedAssetSourceError(
-            f"Unknown asset source type: {asset_source_type}"
+            f"Unknown asset source type: {asset_source_type} - {asset_source}"
         )
 
     return [

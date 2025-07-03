@@ -5,8 +5,9 @@ from oracles.contracts.utils import (
     AssetSourceType,
     RpcCacheStorage,
     UnsupportedAssetSourceError,
-    get_timestamp,
     get_blockNumber,
+    get_timestamp,
+    send_unsupported_asset_source_notification,
 )
 from utils.encoding import decode_any
 from utils.rpc import get_evm_block_timestamps, rpc_adapter
@@ -33,6 +34,37 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
             latest_event = events[-1]
             data = decode_any(latest_event.data)
             max_cap = int(data, 16)
+            RpcCacheStorage.set_cache_with_ttl(
+                asset_source, "MAX_CAP", max_cap, CACHE_TTL_4_HOURS
+            )
+        else:
+            raise ValueError(
+                f"No event found for {asset_source} of type {asset_source_type}"
+            )
+
+    elif asset_source_type == AssetSourceType.EURPriceCapAdapterStable:
+        events = rpc_adapter.extract_raw_event_data(
+            topics=[
+                "0x816ed2ec97505a2cbad39de6d4f0be098ab74467f5de87c86c000e64edf52c55"
+            ],
+            contract_addresses=[Web3.to_checksum_address(asset_source)],
+            start_block=0,
+            end_block=rpc_adapter.block_height,
+        )
+        if events:
+            latest_event = events[-1]
+            data = decode_any(latest_event.data)
+            max_cap_event = int(data, 16)
+            BASE_TO_USD_AGGREGATOR = RpcCacheStorage.get_cached_asset_source_function(
+                asset_source, "BASE_TO_USD_AGGREGATOR"
+            )
+            base_price = RpcCacheStorage.get_cached_asset_source_function(
+                BASE_TO_USD_AGGREGATOR, "latestAnswer", ttl=CACHE_TTL_4_HOURS
+            )
+            ratio_decimals = RpcCacheStorage.get_cached_asset_source_function(
+                asset_source, "RATIO_DECIMALS"
+            )
+            max_cap = int(max_cap_event * base_price / (10**ratio_decimals))
             RpcCacheStorage.set_cache_with_ttl(
                 asset_source, "MAX_CAP", max_cap, CACHE_TTL_4_HOURS
             )
@@ -89,8 +121,11 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
     ]:
         max_cap = 0
     else:
+        send_unsupported_asset_source_notification(
+            asset_source, f"Unsupported in Max Cap {asset_source_type}"
+        )
         raise UnsupportedAssetSourceError(
-            f"Unknown asset source type: {asset_source_type}"
+            f"Unknown asset source type: {asset_source_type} - {asset_source}"
         )
 
     return [

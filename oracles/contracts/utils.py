@@ -10,6 +10,7 @@ from web3 import Web3
 from utils.constants import NETWORK_NAME, PROTOCOL_NAME
 from utils.encoding import decode_any
 from utils.rpc import get_evm_block_timestamps, rpc_adapter
+from utils.simplepush import send_simplepush_notification
 
 logger = logging.getLogger(__name__)
 
@@ -166,4 +167,12 @@ class AssetSourceType:
     EUSDePriceCapAdapter = "EUSDePriceCapAdapter"
     WstETHSynchronicityPriceAdapter = "WstETHSynchronicityPriceAdapter"
     sDAISynchronicityPriceAdapter = "sDAISynchronicityPriceAdapter"
-    AccessControlledOCR2Aggregator = "AccessControlledOCR2Aggregator"
+    EURPriceCapAdapterStable = "EURPriceCapAdapterStable"
+
+
+def send_unsupported_asset_source_notification(asset_source: str, event: str):
+    send_simplepush_notification(
+        title="Unsupported Asset Source",
+        message=f"Unsupported asset source: {asset_source}",
+        event=event,
+    )

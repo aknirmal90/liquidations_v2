@@ -4,6 +4,7 @@ from oracles.contracts.utils import (
     AssetSourceType,
     RpcCacheStorage,
     UnsupportedAssetSourceError,
+    send_unsupported_asset_source_notification,
 )
 from utils.encoding import decode_any
 
@@ -44,6 +45,7 @@ def get_underlying_sources(asset_source: str) -> List[str]:
         AssetSourceType.EBTCPriceCapAdapter: ["BASE_TO_USD_AGGREGATOR"],
         AssetSourceType.EUSDePriceCapAdapter: ["BASE_TO_USD_AGGREGATOR"],
         AssetSourceType.sDAIMainnetPriceCapAdapter: ["BASE_TO_USD_AGGREGATOR"],
+        AssetSourceType.EURPriceCapAdapterStable: ["ASSET_TO_USD_AGGREGATOR"],
         # PendlePriceCapAdapter variants: Single ASSET_TO_USD_AGGREGATOR source
         AssetSourceType.PendlePriceCapAdapter: ["ASSET_TO_USD_AGGREGATOR"],
         AssetSourceType.PriceCapAdapterStable: ["ASSET_TO_USD_AGGREGATOR"],
@@ -89,6 +91,9 @@ def get_underlying_sources(asset_source: str) -> List[str]:
 
     # Unknown asset source type
     else:
+        send_unsupported_asset_source_notification(
+            asset_source, f"Unsupported in Underlying Sources {asset_source_type}"
+        )
         raise UnsupportedAssetSourceError(
             f"Unknown asset source type: {asset_source_type} - {asset_source}"
         )

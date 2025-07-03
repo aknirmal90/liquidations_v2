@@ -5,6 +5,7 @@ from oracles.contracts.utils import (
     UnsupportedAssetSourceError,
     get_blockNumber,
     get_timestamp,
+    send_unsupported_asset_source_notification,
 )
 from utils.encoding import decode_any
 from utils.rpc import get_evm_block_timestamps, rpc_adapter
@@ -136,12 +137,18 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
         AssetSourceType.PriceCapAdapterStable: {"type": "default"},
         AssetSourceType.CLSynchronicityPriceAdapterPegToBase: {"type": "default"},
         AssetSourceType.GhoOracle: {"type": "default"},
+        AssetSourceType.EURPriceCapAdapterStable: {"type": "default"},
     }
 
     # Get configuration for this asset source type
     config = MULTIPLIER_CONFIGS.get(asset_source_type)
     if not config:
-        raise ValueError(f"Unknown asset source type: {asset_source_type}")
+        send_unsupported_asset_source_notification(
+            asset_source, f"Unsupported in Multiplier {asset_source_type}"
+        )
+        raise ValueError(
+            f"Unknown asset source type: {asset_source_type} - {asset_source}"
+        )
 
     config_type = config["type"]
 
