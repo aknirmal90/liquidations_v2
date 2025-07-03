@@ -51,8 +51,8 @@ SELECT
         CAST(historical_price AS Float64) * (
             CAST(multiplier AS Float64) +
             CAST(dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'std_growth_per_sec', (asset, asset_source, name), CAST(0 AS Int64)) AS Float64) *
-            (dictGetOrDefault('aave_ethereum.NetworkBlockInfoDictionary', 'latest_block_number', 'ethereum', CAST(0 AS UInt64)) - multiplier_blockNumber) *
-            dictGetOrDefault('aave_ethereum.NetworkBlockInfoDictionary', 'network_time_for_new_block', 'ethereum', CAST(0 AS UInt64))
+            (dictGetOrDefault('aave_ethereum.NetworkBlockInfoDictionary', 'latest_block_number', 1, CAST(0 AS UInt64)) - multiplier_blockNumber) *
+            dictGetOrDefault('aave_ethereum.NetworkBlockInfoDictionary', 'network_time_for_new_block', 1, CAST(0 AS UInt64))
         ) / NULLIF(CAST(multiplier AS Float64), 0) AS UInt256
     ) AS predicted_price
 FROM aave_ethereum.LatestPriceTransactionBase

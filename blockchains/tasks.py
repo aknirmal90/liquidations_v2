@@ -13,6 +13,7 @@ from oracles.models import PriceEvent
 from utils.clickhouse.client import clickhouse_client
 from utils.constants import (
     NETWORK_BLOCK_TIME,
+    NETWORK_ID,
     NETWORK_NAME,
     PROTOCOL_ABI_PATH,
     PROTOCOL_CONFIG_PATH,
@@ -210,8 +211,8 @@ class UpdateNetworkBlockInfoTask(Task):
         try:
             query = f"""
             INSERT INTO aave_ethereum.NetworkBlockInfo
-            (network_name, latest_block_number, latest_block_timestamp, network_time_for_new_block)
-            VALUES ('{NETWORK_NAME}', {block_number}, {block_timestamp * 1_000_000}, {NETWORK_BLOCK_TIME})
+            (network_id, latest_block_number, latest_block_timestamp, network_time_for_new_block)
+            VALUES ({NETWORK_ID}, {block_number}, {block_timestamp * 1_000_000}, {NETWORK_BLOCK_TIME})
             """
 
             clickhouse_client.execute_query(query)

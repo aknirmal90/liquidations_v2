@@ -1,11 +1,11 @@
 CREATE DICTIONARY IF NOT EXISTS aave_ethereum.NetworkBlockInfoDictionary
 (
-    network_name String,
+    network_id UInt64,
     latest_block_number UInt64,
     latest_block_timestamp DateTime64(6),
     network_time_for_new_block UInt64
 )
-PRIMARY KEY network_name
+PRIMARY KEY network_id
 SOURCE(CLICKHOUSE(
     HOST 'localhost'
     PORT 9000

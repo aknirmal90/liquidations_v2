@@ -6,6 +6,8 @@ PROTOCOL_NAME = config("PROTOCOL_NAME")
 
 NETWORK_NAME = config("NETWORK_NAME")
 
+NETWORK_ID = config("NETWORK_ID", cast=int)
+
 PROTOCOL_CONFIG_PATH = f"{PROTOCOL_NAME}/config.yaml"
 
 PROTOCOL_ABI_PATH = f"{PROTOCOL_NAME}/abi.json"
