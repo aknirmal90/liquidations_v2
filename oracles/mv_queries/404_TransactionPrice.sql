@@ -44,13 +44,13 @@ SELECT
         END AS Float64
     ) / CAST(decimals_places AS Float64) AS historical_price_usd,
     -- Add multiplier statistics from dictionary
-    dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'std_growth_per_sec', tuple(asset, asset_source, name), CAST(0 AS Int64)) AS std_growth_per_sec,
-    dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'avg_time_bw_records', tuple(asset, asset_source, name), CAST(0 AS Float64)) AS avg_time_bw_records,
+    dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'std_growth_per_sec', (asset, asset_source, name), CAST(0 AS Int64)) AS std_growth_per_sec,
+    dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'avg_time_bw_records', (asset, asset_source, name), CAST(0 AS Float64)) AS avg_time_bw_records,
     -- Calculate predicted price based on block difference and network time
     CAST(
         CAST(historical_price AS Float64) * (
             CAST(multiplier AS Float64) +
-            CAST(dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'std_growth_per_sec', tuple(asset, asset_source, name), CAST(0 AS Int64)) AS Float64) *
+            CAST(dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'std_growth_per_sec', (asset, asset_source, name), CAST(0 AS Int64)) AS Float64) *
             (dictGetOrDefault('aave_ethereum.NetworkBlockInfoDictionary', 'latest_block_number', 'ethereum', CAST(0 AS UInt64)) - multiplier_blockNumber) *
             dictGetOrDefault('aave_ethereum.NetworkBlockInfoDictionary', 'network_time_for_new_block', 'ethereum', CAST(0 AS UInt64))
         ) / NULLIF(CAST(multiplier AS Float64), 0) AS UInt256
