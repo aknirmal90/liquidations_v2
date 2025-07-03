@@ -387,6 +387,16 @@
                                             {{ asset.decimals_places }}
                                         </div>
                                     </div>
+                                    {% if asset.price_event_name and asset.price_event_name != "Unknown" %}
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <strong>Price Event Name:</strong><br>
+                                            <span class="text-muted">
+                                                <i class="fas fa-tag me-1"></i>{{ asset.price_event_name }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -403,7 +413,13 @@
                                     <div class="row">
                                         <div class="col-12">
                                             <strong>Interest Rate Strategy:</strong><br>
-                                            {{ addresses.interest_rate_strategy|safe }}
+                                            {% if addresses.interest_rate_strategy %}
+                                                <a href="{{ addresses.interest_rate_strategy }}" target="_blank" class="address-badge">
+                                                    {{ asset.interest_rate_strategy|truncatechars:20 }}
+                                                </a>
+                                            {% else %}
+                                                <span class="address-badge">{{ asset.interest_rate_strategy|truncatechars:20 }}</span>
+                                            {% endif %}
                                         </div>
                                     </div>
                                     <div class="row mt-3">
@@ -431,21 +447,45 @@
                                     <div class="row">
                                         <div class="col-md-6 mb-3">
                                             <strong>Asset Address:</strong><br>
-                                            {{ addresses.asset|safe }}
+                                            {% if addresses.asset %}
+                                                <a href="{{ addresses.asset }}" target="_blank" class="address-badge">
+                                                    {{ asset.address|truncatechars:20 }}
+                                                </a>
+                                            {% else %}
+                                                <span class="address-badge">{{ asset.address|truncatechars:20 }}</span>
+                                            {% endif %}
                                         </div>
                                         <div class="col-md-6 mb-3">
                                             <strong>aToken Address:</strong><br>
-                                            {{ addresses.aToken|safe }}
+                                            {% if addresses.aToken %}
+                                                <a href="{{ addresses.aToken }}" target="_blank" class="address-badge">
+                                                    {{ asset.aToken|truncatechars:20 }}
+                                                </a>
+                                            {% else %}
+                                                <span class="address-badge">{{ asset.aToken|truncatechars:20 }}</span>
+                                            {% endif %}
                                         </div>
                                     </div>
                                     <div class="row">
                                         <div class="col-md-6 mb-3">
                                             <strong>Stable Debt Token:</strong><br>
-                                            {{ addresses.stableDebtToken|safe }}
+                                            {% if addresses.stableDebtToken %}
+                                                <a href="{{ addresses.stableDebtToken }}" target="_blank" class="address-badge">
+                                                    {{ asset.stableDebtToken|truncatechars:20 }}
+                                                </a>
+                                            {% else %}
+                                                <span class="address-badge">{{ asset.stableDebtToken|truncatechars:20 }}</span>
+                                            {% endif %}
                                         </div>
                                         <div class="col-md-6 mb-3">
                                             <strong>Variable Debt Token:</strong><br>
-                                            {{ addresses.variableDebtToken|safe }}
+                                            {% if addresses.variableDebtToken %}
+                                                <a href="{{ addresses.variableDebtToken }}" target="_blank" class="address-badge">
+                                                    {{ asset.variableDebtToken|truncatechars:20 }}
+                                                </a>
+                                            {% else %}
+                                                <span class="address-badge">{{ asset.variableDebtToken|truncatechars:20 }}</span>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </div>
@@ -456,50 +496,200 @@
 
                 <!-- Prices Tab -->
                 <div class="tab-pane fade" id="prices" role="tabpanel" aria-labelledby="prices-tab">
-                    <!-- Price Metrics -->
+                    <!-- Latest Prices Overview -->
                     <div class="row mb-4">
-                        <div class="col-md-6 mb-4">
-                            <div class="card price-metric">
+                        <div class="col-md-4 mb-4">
+                            <div class="card price-metric"
+                                style="background: linear-gradient(135deg, #10b981, #059669);">
                                 <div class="card-body metric-card">
                                     <div class="metric-value">
-                                        {% if asset.current_price %}
-                                        {{ asset.current_price|floatformat:0 }}
+                                        {% if prices.event_price.price %}
+                                        {{ prices.event_price.price }}
                                         {% else %}
                                         N/A
                                         {% endif %}
                                     </div>
-                                    <div class="metric-label">Current Price</div>
+                                    <div class="metric-label">Event Price</div>
+                                    <small class="text-white-50">
+                                        {% if prices.event_price.timestamp %}
+                                        Last updated: {{ prices.event_price.timestamp|date:"M d, Y H:i" }}
+                                        {% endif %}
+                                    </small>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-6 mb-4">
-                            <div class="card">
+                        <div class="col-md-4 mb-4">
+                            <div class="card price-metric"
+                                style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">
                                 <div class="card-body metric-card">
                                     <div class="metric-value">
-                                        {% if asset.avg_block_time %}
-                                        {{ asset.avg_block_time }}s
+                                        {% if prices.transaction_price.price %}
+                                        {{ prices.transaction_price.price }}
                                         {% else %}
                                         N/A
                                         {% endif %}
                                     </div>
-                                    <div class="metric-label">Avg Refresh Time</div>
+                                    <div class="metric-label">Transaction Price</div>
+                                    <small class="text-white-50">
+                                        {% if prices.transaction_price.timestamp %}
+                                        Last updated: {{ prices.transaction_price.timestamp|date:"M d, Y H:i" }}
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-4">
+                            <div class="card price-metric"
+                                style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                                <div class="card-body metric-card">
+                                    <div class="metric-value">
+                                        {% if prices.predicted_price.price %}
+                                        {{ prices.predicted_price.price }}
+                                        {% else %}
+                                        N/A
+                                        {% endif %}
+                                    </div>
+                                    <div class="metric-label">Predicted Price</div>
+                                    <small class="text-white-50">
+                                        {% if prices.predicted_price.timestamp %}
+                                        Predicted at: {{ prices.predicted_price.timestamp|date:"M d, Y H:i" }}
+                                        {% endif %}
+                                    </small>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Price Charts -->
-                    {% if price_plots.price_chart %}
+                    <!-- Price Details Table -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-table me-2"></i>
+                                        Price Details
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover events-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Price Type</th>
+                                                    <th>Price</th>
+                                                    <th>Timestamp</th>
+                                                    <th>Block Number</th>
+                                                    <th>Asset Source</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% if prices.event_price %}
+                                                <tr>
+                                                    <td>
+                                                        <span class="badge" style="background: #10b981; color: white;">
+                                                            <i class="fas fa-calendar-alt me-1"></i>
+                                                            Event Price
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        {% if prices.event_price.price %}
+                                                        {{ prices.event_price.price }}
+                                                        {% else %}
+                                                        N/A
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>{{ prices.event_price.timestamp|date:"M d, Y H:i:s" }}</td>
+                                                    <td>{{ prices.event_price.block_number|default:"N/A" }}</td>
+                                                    <td>
+                                                        {% if prices.event_price.asset_source %}
+                                                        <span class="source-badge">
+                                                            {{ prices.event_price.asset_source|truncatechars:20 }}
+                                                        </span>
+                                                        {% else %}
+                                                        N/A
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% endif %}
+                                                {% if prices.transaction_price %}
+                                                <tr>
+                                                    <td>
+                                                        <span class="badge" style="background: #3b82f6; color: white;">
+                                                            <i class="fas fa-exchange-alt me-1"></i>
+                                                            Transaction Price
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        {% if prices.transaction_price.price %}
+                                                        {{ prices.transaction_price.price }}
+                                                        {% else %}
+                                                        N/A
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>{{ prices.transaction_price.timestamp|date:"M d, Y H:i:s" }}
+                                                    </td>
+                                                    <td>{{ prices.transaction_price.block_number|default:"N/A" }}</td>
+                                                    <td>
+                                                        {% if prices.transaction_price.asset_source %}
+                                                        <span class="source-badge">
+                                                            {{ prices.transaction_price.asset_source|truncatechars:20 }}
+                                                        </span>
+                                                        {% else %}
+                                                        N/A
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% endif %}
+                                                {% if prices.predicted_price %}
+                                                <tr>
+                                                    <td>
+                                                        <span class="badge" style="background: #8b5cf6; color: white;">
+                                                            <i class="fas fa-crystal-ball me-1"></i>
+                                                            Predicted Price
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        {% if prices.predicted_price.price %}
+                                                        {{ prices.predicted_price.price }}
+                                                        {% else %}
+                                                        N/A
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>{{ prices.predicted_price.timestamp|date:"M d, Y H:i:s" }}</td>
+                                                    <td>{{ prices.predicted_price.block_number|default:"N/A" }}</td>
+                                                    <td>
+                                                        {% if prices.predicted_price.asset_source %}
+                                                        <span class="source-badge">
+                                                            {{ prices.predicted_price.asset_source|truncatechars:20 }}
+                                                        </span>
+                                                        {% else %}
+                                                        N/A
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% endif %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Price Verification Chart -->
+                    {% if price_component_plots.verification_chart %}
                     <div class="row mb-4">
                         <div class="col-12">
                             <div class="chart-container">
                                 <h5 class="mb-3">
-                                    <i class="fas fa-chart-line me-2"></i>
-                                    Price History
+                                    <i class="fas fa-check-circle me-2" style="color: #6366f1;"></i>
+                                    Price Verification Error % (Last 30 Days)
                                 </h5>
-                                <!-- DEBUG: Price chart data available -->
-                                {{ price_plots.price_chart.0|safe }}
-                                {{ price_plots.price_chart.1|safe }}
+                                <p class="text-muted mb-3">
+                                    <small>Error percentage for price verification showing accuracy of historical event, historical transaction, and predicted transaction prices over the last 30 days.</small>
+                                </p>
+                                {{ price_component_plots.verification_chart.0|safe }}
+                                {{ price_component_plots.verification_chart.1|safe }}
                             </div>
                         </div>
                     </div>
@@ -508,163 +698,318 @@
                         <div class="col-12">
                             <div class="chart-container">
                                 <div class="chart-placeholder">
-                                    <i class="fas fa-chart-line"></i>
-                                    <h5>No Price Data Available</h5>
-                                    <p>Historical price data is not available for this asset at the moment.</p>
-                                    <!-- DEBUG: No price chart data -->
-                                    <p><small>Debug: price_plots keys: {{ price_plots.keys|join:", " }}</small></p>
+                                    <i class="fas fa-check-circle" style="color: #6366f1;"></i>
+                                    <h5>No Price Verification Chart Available</h5>
+                                    <p>Price verification data is not available for this asset at the moment.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Numerator Charts -->
+                    {% if price_component_plots.numerator_chart %}
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="chart-container">
+                                <h5 class="mb-3">
+                                    <i class="fas fa-hashtag me-2" style="color: #f59e0b;"></i>
+                                    Numerator History (Event & Transaction)
+                                </h5>
+                                <p class="text-muted mb-3">
+                                    <small>Numerator values from both Event and Transaction sources showing price calculation components over the last 30 days.</small>
+                                </p>
+                                {{ price_component_plots.numerator_chart.0|safe }}
+                                {{ price_component_plots.numerator_chart.1|safe }}
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="chart-container">
+                                <div class="chart-placeholder">
+                                    <i class="fas fa-hashtag" style="color: #f59e0b;"></i>
+                                    <h5>No Numerator Chart Available</h5>
+                                    <p>Numerator data is not available for this asset at the moment.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Multiplier Charts -->
+                    {% if price_component_plots.multiplier_chart %}
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="chart-container">
+                                <h5 class="mb-3">
+                                    <i class="fas fa-times me-2" style="color: #8b5cf6;"></i>
+                                    Multiplier History (Event & Transaction)
+                                </h5>
+                                <p class="text-muted mb-3">
+                                    <small>Multiplier values from both Event and Transaction sources showing price adjustment factors over the last 30 days.</small>
+                                </p>
+                                {{ price_component_plots.multiplier_chart.0|safe }}
+                                {{ price_component_plots.multiplier_chart.1|safe }}
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="chart-container">
+                                <div class="chart-placeholder">
+                                    <i class="fas fa-times" style="color: #8b5cf6;"></i>
+                                    <h5>No Multiplier Chart Available</h5>
+                                    <p>Multiplier data is not available for this asset at the moment.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Max Cap Charts -->
+                    {% if price_component_plots.max_cap_chart %}
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="chart-container">
+                                <h5 class="mb-3">
+                                    <i class="fas fa-shield-alt me-2" style="color: #ef4444;"></i>
+                                    Max Cap History (Event)
+                                </h5>
+                                <p class="text-muted mb-3">
+                                    <small>Maximum cap values from Event sources showing price protection limits over the last 30 days.</small>
+                                </p>
+                                {{ price_component_plots.max_cap_chart.0|safe }}
+                                {{ price_component_plots.max_cap_chart.1|safe }}
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="chart-container">
+                                <div class="chart-placeholder">
+                                    <i class="fas fa-shield-alt" style="color: #ef4444;"></i>
+                                    <h5>No Max Cap Chart Available</h5>
+                                    <p>Max cap data is not available for this asset at the moment.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Denominator Charts -->
+                    {% if price_component_plots.denominator_chart %}
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="chart-container">
+                                <h5 class="mb-3">
+                                    <i class="fas fa-divide me-2" style="color: #10b981;"></i>
+                                    Denominator History (Event)
+                                </h5>
+                                <p class="text-muted mb-3">
+                                    <small>Denominator values from Event sources showing price normalization factors over the last 30 days.</small>
+                                </p>
+                                {{ price_component_plots.denominator_chart.0|safe }}
+                                {{ price_component_plots.denominator_chart.1|safe }}
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="chart-container">
+                                <div class="chart-placeholder">
+                                    <i class="fas fa-divide" style="color: #10b981;"></i>
+                                    <h5>No Denominator Chart Available</h5>
+                                    <p>Denominator data is not available for this asset at the moment.</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                     {% endif %}
                 </div>
+            </div>
 
-                <!-- Events Tab -->
-                <div class="tab-pane fade" id="events" role="tabpanel" aria-labelledby="events-tab">
-                    <!-- Collateral Configuration Changed Events -->
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h5 class="mb-0">
-                                        <i class="fas fa-cog me-2"></i>
-                                        Collateral Configuration Changed Events
-                                    </h5>
+            <!-- Events Tab -->
+            <div class="tab-pane fade" id="events" role="tabpanel" aria-labelledby="events-tab">
+                <!-- Collateral Configuration Changed Events -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-cog me-2"></i>
+                                    Collateral Configuration Changed Events
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                {% if collateral_events %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover events-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Asset</th>
+                                                <th>LTV (%)</th>
+                                                <th>Liquidation Threshold (%)</th>
+                                                <th>Liquidation Bonus (%)</th>
+                                                <th>Timestamp</th>
+                                                <th>Transaction</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for event in collateral_events %}
+                                            <tr>
+                                                <td>{{ addresses.asset|safe }}</td>
+                                                <td>{{ event.ltv_pct }}%</td>
+                                                <td>{{ event.liquidation_threshold_pct }}%</td>
+                                                <td>{{ event.liquidation_bonus_pct }}%</td>
+                                                <td>{{ event.block_timestamp }}</td>
+                                                <td>
+                                                    {% if event.transaction_url %}
+                                                        <a href="{{ event.transaction_url }}" target="_blank" class="address-badge">
+                                                            {{ event.transaction_hash|truncatechars:15 }}
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="address-badge">{{ event.transaction_hash|truncatechars:15 }}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <div class="card-body">
-                                    {% if collateral_events %}
-                                    <div class="table-responsive">
-                                        <table class="table table-hover events-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Asset</th>
-                                                    <th>LTV (%)</th>
-                                                    <th>Liquidation Threshold (%)</th>
-                                                    <th>Liquidation Bonus (%)</th>
-                                                    <th>Timestamp</th>
-                                                    <th>Transaction</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {% for event in collateral_events %}
-                                                <tr>
-                                                    <td>{{ addresses.asset|safe }}</td>
-                                                    <td>{{ event.ltv_pct }}%</td>
-                                                    <td>{{ event.liquidation_threshold_pct }}%</td>
-                                                    <td>{{ event.liquidation_bonus_pct }}%</td>
-                                                    <td>{{ event.block_timestamp }}</td>
-                                                    <td>{{ event.transaction_url|safe }}</td>
-                                                </tr>
-                                                {% endfor %}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    {% else %}
-                                    <div class="text-center text-muted">
-                                        <i class="fas fa-info-circle fa-2x mb-3"></i>
-                                        <p>No collateral configuration change events found for this asset.</p>
-                                    </div>
-                                    {% endif %}
+                                {% else %}
+                                <div class="text-center text-muted">
+                                    <i class="fas fa-info-circle fa-2x mb-3"></i>
+                                    <p>No collateral configuration change events found for this asset.</p>
                                 </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- E-Mode Asset Category Changed Events -->
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h5 class="mb-0">
-                                        <i class="fas fa-exchange-alt me-2"></i>
-                                        E-Mode Asset Category Changed Events
-                                    </h5>
+                <!-- E-Mode Asset Category Changed Events -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-exchange-alt me-2"></i>
+                                    E-Mode Asset Category Changed Events
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                {% if emode_asset_events %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover events-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Asset</th>
+                                                <th>Old Category ID</th>
+                                                <th>New Category ID</th>
+                                                <th>Timestamp</th>
+                                                <th>Transaction</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for event in emode_asset_events %}
+                                            <tr>
+                                                <td>{{ addresses.asset|safe }}</td>
+                                                <td>{{ event.old_category_id|default:"None" }}</td>
+                                                <td>{{ event.new_category_id|default:"None" }}</td>
+                                                <td>{{ event.block_timestamp }}</td>
+                                                <td>
+                                                    {% if event.transaction_url %}
+                                                        <a href="{{ event.transaction_url }}" target="_blank" class="address-badge">
+                                                            {{ event.transaction_hash|truncatechars:15 }}
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="address-badge">{{ event.transaction_hash|truncatechars:15 }}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <div class="card-body">
-                                    {% if emode_asset_events %}
-                                    <div class="table-responsive">
-                                        <table class="table table-hover events-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Asset</th>
-                                                    <th>Old Category ID</th>
-                                                    <th>New Category ID</th>
-                                                    <th>Timestamp</th>
-                                                    <th>Transaction</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {% for event in emode_asset_events %}
-                                                <tr>
-                                                    <td>{{ addresses.asset|safe }}</td>
-                                                    <td>{{ event.old_category_id|default:"None" }}</td>
-                                                    <td>{{ event.new_category_id|default:"None" }}</td>
-                                                    <td>{{ event.block_timestamp }}</td>
-                                                    <td>{{ event.transaction_url|safe }}</td>
-                                                </tr>
-                                                {% endfor %}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    {% else %}
-                                    <div class="text-center text-muted">
-                                        <i class="fas fa-info-circle fa-2x mb-3"></i>
-                                        <p>No E-Mode asset category change events found for this asset.</p>
-                                    </div>
-                                    {% endif %}
+                                {% else %}
+                                <div class="text-center text-muted">
+                                    <i class="fas fa-info-circle fa-2x mb-3"></i>
+                                    <p>No E-Mode asset category change events found for this asset.</p>
                                 </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Asset Source Updated Events -->
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h5 class="mb-0">
-                                        <i class="fas fa-link me-2"></i>
-                                        Asset Source Updated Events
-                                    </h5>
+                <!-- Asset Source Updated Events -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-link me-2"></i>
+                                    Asset Source Updated Events
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                {% if source_events %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover events-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Asset</th>
+                                                <th>Asset Source</th>
+                                                <th>Timestamp</th>
+                                                <th>Transaction</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for event in source_events %}
+                                            <tr>
+                                                <td>{{ addresses.asset|safe }}</td>
+                                                <td>
+                                                    {% if event.asset_source_url %}
+                                                        <a href="{{ event.asset_source_url }}" target="_blank" class="address-badge">
+                                                            {{ event.asset_source|truncatechars:15 }}
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="address-badge">{{ event.asset_source|truncatechars:15 }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ event.block_timestamp }}</td>
+                                                <td>
+                                                    {% if event.transaction_url %}
+                                                        <a href="{{ event.transaction_url }}" target="_blank" class="address-badge">
+                                                            {{ event.transaction_hash|truncatechars:15 }}
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="address-badge">{{ event.transaction_hash|truncatechars:15 }}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <div class="card-body">
-                                    {% if source_events %}
-                                    <div class="table-responsive">
-                                        <table class="table table-hover events-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Asset</th>
-                                                    <th>Asset Source</th>
-                                                    <th>Timestamp</th>
-                                                    <th>Transaction</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {% for event in source_events %}
-                                                <tr>
-                                                    <td>{{ addresses.asset|safe }}</td>
-                                                    <td>{{ event.asset_source_url|safe }}</td>
-                                                    <td>{{ event.block_timestamp }}</td>
-                                                    <td>{{ event.transaction_url|safe }}</td>
-                                                </tr>
-                                                {% endfor %}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    {% else %}
-                                    <div class="text-center text-muted">
-                                        <i class="fas fa-info-circle fa-2x mb-3"></i>
-                                        <p>No asset source update events found for this asset.</p>
-                                    </div>
-                                    {% endif %}
+                                {% else %}
+                                <div class="text-center text-muted">
+                                    <i class="fas fa-info-circle fa-2x mb-3"></i>
+                                    <p>No asset source update events found for this asset.</p>
                                 </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
     </div>
 
     <!-- Scripts -->

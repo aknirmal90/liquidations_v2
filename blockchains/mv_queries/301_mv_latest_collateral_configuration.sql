@@ -1,4 +1,4 @@
-CREATE MATERIALIZED VIEW aave_ethereum.mv_latest_collateral_configuration
+CREATE MATERIALIZED VIEW IF NOT EXISTS aave_ethereum.mv_latest_collateral_configuration
 TO aave_ethereum.LatestCollateralConfigurationChanged
 AS
 SELECT

@@ -1,4 +1,4 @@
-CREATE MATERIALIZED VIEW aave_ethereum.mv_latest_asset_source
+CREATE MATERIALIZED VIEW IF NOT EXISTS aave_ethereum.mv_latest_asset_source
 TO aave_ethereum.LatestAssetSourceUpdated
 AS
 SELECT

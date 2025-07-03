@@ -8,6 +8,7 @@ from django.core.cache import cache
 from web3 import Web3
 
 from utils.constants import NETWORK_NAME, PROTOCOL_NAME
+from utils.encoding import decode_any
 from utils.rpc import get_evm_block_timestamps, rpc_adapter
 
 logger = logging.getLogger(__name__)
@@ -16,8 +17,6 @@ logger = logging.getLogger(__name__)
 CACHE_TTL_4_HOURS = 60 * 60 * 4
 
 CACHE_TTL_24_HOURS = 60 * 60 * 24
-
-CACHE_MULTIPLERS_BEFORE_BLOCK = 22_700_000
 
 
 class UnsupportedAssetSourceError(Exception):
@@ -28,12 +27,16 @@ def get_timestamp(event=None, transaction=None) -> int:
     if event:
         block = event.blockNumber
         timestamp = get_evm_block_timestamps([block])[block]
-    elif transaction:
-        block = transaction["epoch_and_round"]
-        timestamp = get_evm_block_timestamps([block])[block]
     else:
         timestamp = int(datetime.now().timestamp() * 1_000_000)
     return timestamp
+
+
+def get_blockNumber(event=None, transaction=None) -> int:
+    if event:
+        return event.blockNumber
+    else:
+        return rpc_adapter.cached_block_height
 
 
 class RpcCacheStorage:
@@ -71,9 +74,11 @@ class RpcCacheStorage:
         else:
             value = cls.call_function(asset_source, function_name, *args, **kwargs)
             if ttl:
-                cls.set_cache_with_ttl(asset_source, function_name, value, ttl)
+                cls.set_cache_with_ttl(
+                    asset_source, function_name, decode_any(value), ttl
+                )
             else:
-                cls.set_cache(asset_source, function_name, value)
+                cls.set_cache(asset_source, function_name, decode_any(value))
             return value
 
     @classmethod
@@ -161,3 +166,4 @@ class AssetSourceType:
     EUSDePriceCapAdapter = "EUSDePriceCapAdapter"
     WstETHSynchronicityPriceAdapter = "WstETHSynchronicityPriceAdapter"
     sDAISynchronicityPriceAdapter = "sDAISynchronicityPriceAdapter"
+    AccessControlledOCR2Aggregator = "AccessControlledOCR2Aggregator"

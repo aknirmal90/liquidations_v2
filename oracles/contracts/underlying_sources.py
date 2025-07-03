@@ -90,5 +90,5 @@ def get_underlying_sources(asset_source: str) -> List[str]:
     # Unknown asset source type
     else:
         raise UnsupportedAssetSourceError(
-            f"Unknown asset source type: {asset_source_type}"
+            f"Unknown asset source type: {asset_source_type} - {asset_source}"
         )

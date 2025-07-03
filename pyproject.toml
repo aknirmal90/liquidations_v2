@@ -19,6 +19,7 @@ dependencies = [
     "django-object-actions==4.3.0",
     "eth-utils==5.1.0",
     "gunicorn==21.2.0",
+    "honcho>=2.0.0",
     "humanize==4.11.0",
     "ipdb==0.13.13",
     "ipython==8.27.0",
@@ -35,3 +36,19 @@ dependencies = [
     "web3==7.6.0",
     "whitenoise==6.6.0",
 ]
+
+[tool.ruff]
+exclude = [
+    "*.html",
+    "**/*.html",
+    "templates/",
+    "*/templates/",
+]
+
+[tool.black]
+extend-exclude = '''
+/(
+    \.html$
+    | templates/
+)/
+'''

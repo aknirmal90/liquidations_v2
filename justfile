@@ -74,13 +74,31 @@ export UV_KEYRING_PROVIDER := "subprocess"
 @startcelery:
   source .venv/bin/activate
   source exportenv.sh
-  doppler run --command "celery -A liquidations_v2 worker --loglevel info -E -n default_%h"
+  doppler run --command "celery -A liquidations_v2 worker --loglevel info -E -n default_%h -Q default"
+
+# Run celery worker
+@startceleryhigh:
+  source .venv/bin/activate
+  source exportenv.sh
+  doppler run --command "celery -A liquidations_v2 worker --loglevel info -E -n High_%h -Q High"
 
 # Run celery beat
 @startbeat:
   source .venv/bin/activate
   source exportenv.sh
-  doppler run --command "celery -A liquidations_v2 beat --loglevel=info"
+  doppler run --command "celery -A liquidations_v2 beat --loglevel=info  --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+
+# Run websocket server
+@startwsstxns:
+  source .venv/bin/activate
+  source exportenv.sh
+  doppler run --command "python manage.py listen_pending_transactions"
+
+# Run websocket server
+@startwssblocks:
+  source .venv/bin/activate
+  source exportenv.sh
+  doppler run --command "python manage.py listen_blocks"
 
 # Launch Django shell
 @shell:

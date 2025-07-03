@@ -1,4 +1,4 @@
-CREATE TABLE aave_ethereum.LatestEModeCategoryAdded
+CREATE TABLE IF NOT EXISTS aave_ethereum.LatestEModeCategoryAdded
 (
     categoryId UInt8,
     ltv UInt16,

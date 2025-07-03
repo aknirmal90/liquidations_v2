@@ -37,8 +37,8 @@ services:
             - 8123:8123   # HTTP interface
             - 9000:9000   # Native interface
         environment:
-            CLICKHOUSE_USER: default
-            CLICKHOUSE_PASSWORD: clickhouse
+            CLICKHOUSE_USER: clickhouse-user
+            CLICKHOUSE_PASSWORD: clickhouse-password
         volumes:
             - clickhouse_data:/var/lib/clickhouse
             - clickhouse_logs:/var/log/clickhouse-server

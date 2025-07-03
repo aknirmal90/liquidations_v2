@@ -1,13 +1,13 @@
 from oracles.contracts.multiplier_abis import METHOD_ABI_MAPPING
 from oracles.contracts.utils import (
-    CACHE_MULTIPLERS_BEFORE_BLOCK,
     AssetSourceType,
     RpcCacheStorage,
     UnsupportedAssetSourceError,
+    get_blockNumber,
     get_timestamp,
 )
 from utils.encoding import decode_any
-from utils.rpc import get_evm_block_timestamps
+from utils.rpc import get_evm_block_timestamps, rpc_adapter
 
 
 def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) -> int:
@@ -107,6 +107,12 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
             "method": "getPooledEthByShares",
             "requires_parameter": True,
         },
+        AssetSourceType.sDAIMainnetPriceCapAdapter: {
+            "type": "ratio_provider",
+            "provider_key": "RATIO_PROVIDER",
+            "method": "chi",
+            "requires_parameter": False,
+        },
         AssetSourceType.sDAISynchronicityPriceAdapter: {
             "type": "ratio_provider",
             "provider_key": "RATE_PROVIDER",
@@ -129,7 +135,6 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
         AssetSourceType.EACAggregatorProxy: {"type": "default"},
         AssetSourceType.PriceCapAdapterStable: {"type": "default"},
         AssetSourceType.CLSynchronicityPriceAdapterPegToBase: {"type": "default"},
-        AssetSourceType.sDAIMainnetPriceCapAdapter: {"type": "default"},
         AssetSourceType.GhoOracle: {"type": "default"},
     }
 
@@ -161,7 +166,7 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
                     asset_source, decimals_key
                 )
                 parameter = int(10**ratio_decimals)
-                if block_number < CACHE_MULTIPLERS_BEFORE_BLOCK:
+                if block_number < rpc_adapter.cached_block_height:
                     multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
                     if multiplier is None:
                         multiplier = RpcCacheStorage.call_function(
@@ -180,7 +185,7 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
                     )
             else:
                 # Handle case where parameter is needed but no decimals specified
-                if block_number < CACHE_MULTIPLERS_BEFORE_BLOCK:
+                if block_number < rpc_adapter.cached_block_height:
                     multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
                     if multiplier is None:
                         multiplier = RpcCacheStorage.call_function(
@@ -202,7 +207,7 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
                         abi=abi,
                     )
         else:
-            if block_number < CACHE_MULTIPLERS_BEFORE_BLOCK:
+            if block_number < rpc_adapter.cached_block_height:
                 multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
                 if multiplier is None:
                     multiplier = RpcCacheStorage.call_function(
@@ -254,5 +259,6 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
         asset_source,
         asset_source_type,
         get_timestamp(event, transaction),
+        get_blockNumber(event, transaction),
         multiplier,
     ]

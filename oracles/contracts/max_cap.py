@@ -6,6 +6,7 @@ from oracles.contracts.utils import (
     RpcCacheStorage,
     UnsupportedAssetSourceError,
     get_timestamp,
+    get_blockNumber,
 )
 from utils.encoding import decode_any
 from utils.rpc import get_evm_block_timestamps, rpc_adapter
@@ -97,5 +98,6 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
         asset_source,
         asset_source_type,
         get_timestamp(event, transaction),
+        get_blockNumber(event, transaction),
         max_cap,
     ]

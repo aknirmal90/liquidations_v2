@@ -1,4 +1,4 @@
-CREATE TABLE aave_ethereum.LatestAssetSourceUpdated
+CREATE TABLE IF NOT EXISTS aave_ethereum.LatestAssetSourceUpdated
 (
     asset String,
     source String,

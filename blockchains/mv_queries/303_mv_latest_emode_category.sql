@@ -1,4 +1,4 @@
-CREATE MATERIALIZED VIEW aave_ethereum.mv_latest_emode_category
+CREATE MATERIALIZED VIEW IF NOT EXISTS aave_ethereum.mv_latest_emode_category
 TO aave_ethereum.LatestEModeCategoryAdded
 AS
 SELECT

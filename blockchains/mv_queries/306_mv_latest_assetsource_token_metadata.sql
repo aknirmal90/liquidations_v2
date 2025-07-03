@@ -1,4 +1,4 @@
-CREATE MATERIALIZED VIEW aave_ethereum.mv_latest_assetsource_token_metadata
+CREATE MATERIALIZED VIEW IF NOT EXISTS aave_ethereum.mv_latest_assetsource_token_metadata
 TO aave_ethereum.LatestAssetSourceTokenMetadata
 AS
 SELECT

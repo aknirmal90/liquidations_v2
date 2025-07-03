@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django.contrib import messages
 
 from oracles.models import PriceEvent
 from utils.admin import (
@@ -7,6 +8,7 @@ from utils.admin import (
     format_pretty_json,
     get_explorer_address_url,
 )
+from utils.clickhouse.client import clickhouse_client
 
 
 @admin.register(PriceEvent)
@@ -110,9 +112,53 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
     get_asset_source_display.short_description = "Asset Source"
 
     def reset_sync_status(self, request, queryset):
-        queryset.update(last_synced_block=0, logs_count=0)
+        """Reset sync status and delete oracle records for selected asset-source pairs"""
+        try:
+            # Extract asset-source pairs from selected PriceEvents
+            asset_source_pairs = [(pe.asset, pe.asset_source) for pe in queryset]
 
-    reset_sync_status.short_description = "Reset Sync Status"
+            # Reset the sync status for selected PriceEvents
+            updated_count = queryset.update(last_synced_block=0, logs_count=0)
+
+            # Delete oracle records only for the selected asset-source combinations
+            deletion_results = clickhouse_client.delete_oracle_records_by_asset_source(
+                asset_source_pairs
+            )
+
+            # Count successful deletions
+            successful_tables = [
+                table
+                for table, result in deletion_results.items()
+                if result == "success"
+            ]
+            failed_tables = [
+                table
+                for table, result in deletion_results.items()
+                if result.startswith("error")
+            ]
+
+            success_message = f"Reset sync status for {updated_count} PriceEvent(s) and deleted oracle records from {len(successful_tables)} tables for {len(asset_source_pairs)} asset-source pairs."
+
+            if failed_tables:
+                success_message += (
+                    f" Warning: {len(failed_tables)} tables had deletion errors."
+                )
+
+            self.message_user(request, success_message, messages.SUCCESS)
+
+            if failed_tables:
+                self.message_user(
+                    request,
+                    f"Tables with deletion errors: {', '.join(failed_tables[:5])}{'...' if len(failed_tables) > 5 else ''}",
+                    messages.WARNING,
+                )
+
+        except Exception as e:
+            self.message_user(request, f"Error during reset: {str(e)}", messages.ERROR)
+
+    reset_sync_status.short_description = (
+        "Reset Sync Status & Delete Oracle Records (Selected Assets)"
+    )
 
     actions = (
         "reset_sync_status",

@@ -10,6 +10,7 @@ from web3.datastructures import AttributeDict
 
 from liquidations_v2.celery_app import app
 from oracles.contracts.denominator import get_denominator
+from oracles.contracts.interface import PriceOracleInterface
 from oracles.contracts.max_cap import get_max_cap
 from oracles.contracts.multiplier import get_multiplier
 from oracles.contracts.numerator import get_numerator
@@ -302,9 +303,6 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
             end_block=end_block,
         )
 
-        if not events:
-            return
-
         # Group events by address to map to PriceEvents
         address_to_transmitters = {}
         for event in events:
@@ -444,7 +442,7 @@ PriceEventStaticSynchronizeTask = app.register_task(PriceEventStaticSynchronizeT
 class PriceTransactionDynamicSynchronizeTask(BasePriceMixin, Task):
     def run(self):
         network_events = PriceEvent.objects.all()
-        event = AttributeDict({"blockNumber": rpc_adapter.cached_block_height})
+        event = AttributeDict({"blockNumber": rpc_adapter.block_height})
         parsed_multiplier_logs = []
 
         for network_event in network_events.iterator():
@@ -456,51 +454,167 @@ class PriceTransactionDynamicSynchronizeTask(BasePriceMixin, Task):
             table_name="TransactionRawMultiplier", logs=parsed_multiplier_logs
         )
 
+        # Refresh MultiplierStatistics view and dictionary after updating multiplier data
+        self.refresh_multiplier_statistics()
+
+    def refresh_multiplier_statistics(self):
+        """Refresh the MultiplierStatistics view and reload the dictionary."""
+        try:
+            # The view is refreshed automatically when queried since it's a regular view
+            # We just need to reload the dictionary to pick up new data
+            logger.info("Reloading MultiplierStatsDict dictionary")
+            clickhouse_client.execute_query(
+                "SYSTEM RELOAD DICTIONARY aave_ethereum.MultiplierStatsDict"
+            )
+            logger.info("Successfully reloaded MultiplierStatsDict dictionary")
+        except Exception as e:
+            logger.error(f"Error refreshing multiplier statistics: {e}")
+
 
 PriceTransactionDynamicSynchronizeTask = app.register_task(
     PriceTransactionDynamicSynchronizeTask()
 )
 
-# class VerifyHistoricalPriceTask(Task):
-#     def run(self):
-#         all_assets = clickhouse_client.execute_query(
-#             "SELECT asset, asset_source FROM aave_ethereum.LatestPriceEvent FINAL"
-#         )
-#         num_verified = 0
-#         num_different = 0
-#         delta_threshold = 0.01
 
-#         for asset, asset_source in all_assets.result_rows:
-#             asset_source_interface = get_contract_interface(
-#                 asset=asset, asset_source=asset_source
-#             )
-#             try:
-#                 historical_price_from_event = (
-#                     asset_source_interface.historical_price_from_event
-#                 )
-#             except Exception as e:
-#                 logger.error(
-#                     f"Error getting historical price from event for {asset} {asset_source}: {e}"
-#                 )
-#                 continue
-
-#             latest_price_from_rpc = asset_source_interface.latest_price_from_rpc
-#             if (
-#                 abs(historical_price_from_event - latest_price_from_rpc)
-#                 / latest_price_from_rpc
-#                 > delta_threshold
-#             ):
-#                 num_different += 1
-#                 logger.error(
-#                     f"Historical price from clickhouse and rpc are different for {asset} {asset_source}"
-#                 )
-#                 logger.error(
-#                     f"Historical Event Price: {historical_price_from_event}, RPC: {latest_price_from_rpc} for {asset_source_interface.name} {asset_source}"
-#                 )
-#             else:
-#                 num_verified += 1
-
-#         logger.info(f"Verified {num_verified} assets, {num_different} different")
+class InsertTransactionNumeratorTask(BasePriceMixin, Task):
+    def run(self, parsed_multiplier_logs: List[Any]):
+        self.bulk_insert_raw_price_events(
+            table_name="TransactionRawNumerator", logs=parsed_multiplier_logs
+        )
 
 
-# VerifyHistoricalPriceTask = app.register_task(VerifyHistoricalPriceTask())
+InsertTransactionNumeratorTask = app.register_task(InsertTransactionNumeratorTask())
+
+
+class VerifyHistoricalPriceTask(Task):
+    def _compare_price_with_rpc(
+        self,
+        price,
+        rpc_price,
+        price_type,
+        asset,
+        asset_source,
+        name,
+        threshold,
+        mismatch_counts,
+        verification_records,
+    ):
+        """Compare a price with RPC price and track mismatches."""
+        if price is None:
+            return True
+
+        percent_diff = (price - rpc_price) / rpc_price * 100
+
+        # Store verification record
+        verification_records.append(
+            [
+                asset,
+                asset_source,
+                name,
+                price_type,
+                int(datetime.now().timestamp() * 1_000_000),  # Convert to microseconds
+                abs(percent_diff),
+            ]
+        )
+
+        if abs(price - rpc_price) / rpc_price > threshold:
+            mismatch_counts[f"{price_type}_vs_rpc"] += 1
+            logger.error(
+                f"{price_type.replace('_', ' ').title()} price mismatch for {asset} {asset_source}: "
+                f"{price_type.replace('_', ' ').title()}: {price}, RPC: {rpc_price}, "
+                f"Difference: {percent_diff:.8f}%"
+            )
+            return False
+        return True
+
+    def run(self):
+        all_assets = clickhouse_client.execute_query(
+            "SELECT asset, asset_source, name FROM aave_ethereum.LatestPriceEvent FINAL"
+        )
+        num_verified = 0
+        num_different = 0
+        delta_threshold = 0.000001
+        mismatch_counts = {
+            "historical_event_vs_rpc": 0,
+            "historical_transaction_vs_rpc": 0,
+            "predicted_transaction_vs_rpc": 0,
+        }
+        verification_records = []
+
+        for asset, asset_source, name in all_assets.result_rows:
+            asset_source_interface = PriceOracleInterface(
+                asset=asset, asset_source=asset_source
+            )
+
+            try:
+                latest_price_from_rpc = asset_source_interface.latest_price_from_rpc
+                historical_event = asset_source_interface.historical_price_from_event
+                historical_transaction = (
+                    asset_source_interface.historical_price_from_transaction
+                )
+                predicted_transaction = (
+                    asset_source_interface.predicted_price_from_transaction
+                )
+            except Exception as e:
+                logger.error(f"Error getting prices for {asset} {asset_source}: {e}")
+                continue
+
+            # Compare all three price types using the same function
+            matches = [
+                self._compare_price_with_rpc(
+                    price=historical_event,
+                    rpc_price=latest_price_from_rpc,
+                    price_type="historical_event",
+                    asset=asset,
+                    asset_source=asset_source,
+                    name=name,
+                    threshold=delta_threshold,
+                    mismatch_counts=mismatch_counts,
+                    verification_records=verification_records,
+                ),
+                self._compare_price_with_rpc(
+                    price=historical_transaction,
+                    rpc_price=latest_price_from_rpc,
+                    price_type="historical_transaction",
+                    asset=asset,
+                    asset_source=asset_source,
+                    name=name,
+                    threshold=delta_threshold,
+                    mismatch_counts=mismatch_counts,
+                    verification_records=verification_records,
+                ),
+                self._compare_price_with_rpc(
+                    price=predicted_transaction,
+                    rpc_price=latest_price_from_rpc,
+                    price_type="predicted_transaction",
+                    asset=asset,
+                    asset_source=asset_source,
+                    name=name,
+                    threshold=delta_threshold,
+                    mismatch_counts=mismatch_counts,
+                    verification_records=verification_records,
+                ),
+            ]
+
+            if all(matches):
+                num_verified += 1
+            else:
+                num_different += 1
+
+        # Insert verification records into ClickHouse
+        if verification_records:
+            try:
+                clickhouse_client.insert_rows(
+                    "PriceVerificationRecords", verification_records
+                )
+                logger.info(
+                    f"Inserted {len(verification_records)} verification records"
+                )
+            except Exception as e:
+                logger.error(f"Error inserting verification records: {e}")
+
+        logger.info(f"Verified {num_verified} assets, {num_different} different")
+        logger.info(f"Mismatch breakdown: {mismatch_counts}")
+
+
+VerifyHistoricalPriceTask = app.register_task(VerifyHistoricalPriceTask())

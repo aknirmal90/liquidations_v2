@@ -5,6 +5,7 @@ SELECT
     asset,
     asset_source,
     name,
-    timestamp,
+    blockTimestamp,
+    blockNumber,
     multiplier
 FROM aave_ethereum.EventRawMultiplier;

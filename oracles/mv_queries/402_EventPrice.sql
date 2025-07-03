@@ -3,7 +3,10 @@ SELECT
     asset,
     asset_source,
     name,
-    timestamp,
+    blockTimestamp,
+    blockNumber,
+    multiplier_blockTimestamp,
+    multiplier_blockNumber,
     numerator,
     denominator,
     multiplier,
@@ -39,5 +42,8 @@ SELECT
             -- No max cap applied
             historical_price
         END AS Float64
-    ) / CAST(decimals_places AS Float64) AS historical_price_usd
+    ) / CAST(decimals_places AS Float64) AS historical_price_usd,
+    -- Add multiplier statistics from dictionary
+    dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'std_growth_per_sec', (asset, asset_source, name), CAST(0 AS Int64)) AS std_growth_per_sec,
+    dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'avg_time_bw_records', (asset, asset_source, name), CAST(0 AS Float64)) AS avg_time_bw_records
 FROM aave_ethereum.LatestPriceEventBase

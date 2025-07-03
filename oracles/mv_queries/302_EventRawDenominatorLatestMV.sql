@@ -5,6 +5,7 @@ SELECT
     asset,
     asset_source,
     name,
-    timestamp,
+    blockTimestamp,
+    blockNumber,
     denominator
 FROM aave_ethereum.EventRawDenominator;

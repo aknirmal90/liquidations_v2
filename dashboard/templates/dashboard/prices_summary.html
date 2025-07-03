@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Verification Summary | Aave Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <!-- Bokeh CSS and JS imports -->
+    <link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.css" type="text/css" />
+    <link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.7.3.min.css" type="text/css" />
+    <link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.7.3.min.css" type="text/css" />
+
+    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.js"></script>
+    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.7.3.min.js"></script>
+    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.7.3.min.js"></script>
+    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-api-3.7.3.min.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --secondary-color: #8b5cf6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --dark-color: #1f2937;
+            --light-color: #f9fafb;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .navbar {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .navbar-nav .nav-link {
+            color: rgba(255, 255, 255, 0.8) !important;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem !important;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            margin-right: 0.5rem;
+        }
+
+        .navbar-nav .nav-link:hover {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar-nav .nav-link.active {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .main-container {
+            padding: 2rem 0;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            border-radius: 16px;
+            text-align: center;
+            padding: 3rem 2rem;
+        }
+
+        .page-title {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .page-subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .table {
+            margin-bottom: 0;
+        }
+
+        .table th {
+            background: var(--primary-color);
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: none;
+            padding: 1rem;
+        }
+
+        .table td {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            vertical-align: middle;
+        }
+
+        .table tbody tr:hover {
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .address-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            padding: 0.25rem 0.5rem;
+            background: rgba(99, 102, 241, 0.1);
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .address-link:hover {
+            color: var(--primary-color);
+            background: rgba(99, 102, 241, 0.2);
+            text-decoration: none;
+        }
+
+        .error-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .error-low {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
+
+        .error-medium {
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+        }
+
+        .error-high {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+        }
+
+        .error-none {
+            background: rgba(107, 114, 128, 0.1);
+            color: #6b7280;
+        }
+
+        .stats-card {
+            text-align: center;
+            padding: 1.5rem;
+        }
+
+        .stats-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .stats-label {
+            font-size: 0.9rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{% url 'dashboard:asset_list' %}">
+                <i class="fas fa-chart-line me-2"></i>
+                Aave Dashboard
+            </a>
+            <div class="navbar-nav ms-auto me-4">
+                <a class="nav-link" href="{% url 'dashboard:asset_list' %}">
+                    <i class="fas fa-coins me-2"></i>
+                    Assets
+                </a>
+                <a class="nav-link active" href="{% url 'dashboard:prices_summary' %}">
+                    <i class="fas fa-dollar-sign me-2"></i>
+                    Prices
+                </a>
+            </div>
+            <div class="navbar-nav">
+                <span class="navbar-text me-3">
+                    <i class="fas fa-user me-1"></i>
+                    Welcome, {{ user.username }}
+                </span>
+                <a class="nav-link" href="/admin/logout/">
+                    <i class="fas fa-sign-out-alt me-1"></i>
+                    Logout
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card page-header">
+                        <div class="page-title">
+                            <i class="fas fa-chart-bar me-3"></i>
+                            Price Verification Summary
+                        </div>
+                        <div class="page-subtitle">
+                            Latest error percentages across all assets, sources, and price types
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary Stats -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body stats-card">
+                            <div class="stats-value">{{ price_records|length }}</div>
+                            <div class="stats-label">Total Records</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body stats-card">
+                            <div class="stats-value">{{ unique_assets_count }}</div>
+                            <div class="stats-label">Unique Assets</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body stats-card">
+                            <div class="stats-value">{{ unique_sources_count }}</div>
+                            <div class="stats-label">Unique Sources</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body stats-card">
+                            <div class="stats-value">30</div>
+                            <div class="stats-label">Days Coverage</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs Navigation -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <ul class="nav nav-tabs card-header-tabs" id="pricesTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="box-plots-tab" data-bs-toggle="tab" data-bs-target="#box-plots" type="button" role="tab" aria-controls="box-plots" aria-selected="true">
+                                        <i class="fas fa-chart-bar me-2"></i>Box Plots
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="table-tab" data-bs-toggle="tab" data-bs-target="#table" type="button" role="tab" aria-controls="table" aria-selected="false">
+                                        <i class="fas fa-table me-2"></i>Data Table
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="card-body">
+                            <div class="tab-content" id="pricesTabsContent">
+                                <!-- Box Plots Tab -->
+                                <div class="tab-pane fade show active" id="box-plots" role="tabpanel" aria-labelledby="box-plots-tab">
+                                    <!-- Time Window Selector -->
+                                    <div class="row mb-4">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label for="timeWindow" class="form-label">Time Window:</label>
+                                                <select class="form-select" id="timeWindow" onchange="updateBoxPlots()">
+                                                    <option value="1_hour" {% if current_time_window == '1_hour' %}selected{% endif %}>Last 1 Hour</option>
+                                                    <option value="1_day" {% if current_time_window == '1_day' %}selected{% endif %}>Last 1 Day</option>
+                                                    <option value="1_week" {% if current_time_window == '1_week' %}selected{% endif %}>Last 1 Week</option>
+                                                    <option value="1_month" {% if current_time_window == '1_month' %}selected{% endif %}>Last 1 Month</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Box Plots Container -->
+                                    <div id="boxPlotsContainer">
+                                        {% for price_type, div in box_plot_divs.items %}
+                                        <div class="row mb-4">
+                                            <div class="col-12">
+                                                <div class="card">
+                                                    <div class="card-header">
+                                                        <h6 class="mb-0">{{ price_type|title }}</h6>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        {{ div|safe }}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <!-- Data Table Tab -->
+                                <div class="tab-pane fade" id="table" role="tabpanel" aria-labelledby="table-tab">
+                                    <h6 class="mb-3">
+                                        <i class="fas fa-table me-2"></i>
+                                        Price Verification Records (Last 30 Days)
+                                    </h6>
+                        <div class="card-body p-0">
+                            {% if price_records %}
+                                <div class="table-responsive">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Asset</th>
+                                                <th>Asset Source</th>
+                                                <th>Name</th>
+                                                <th>Historical Event Error %</th>
+                                                <th>Historical Transaction Error %</th>
+                                                <th>Predicted Transaction Error %</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        {% for record in price_records %}
+                                            <tr>
+                                                <td>{{ record.row_number }}</td>
+                                                <td>
+                                                    {% if record.asset_url %}
+                                                        <a href="{{ record.asset_url }}" target="_blank" class="address-link">
+                                                            {{ record.asset|truncatechars:20 }}
+                                                        </a>
+                                                    {% else %}
+                                                        {{ record.asset|truncatechars:20 }}
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if record.asset_source_url %}
+                                                        <a href="{{ record.asset_source_url }}" target="_blank" class="address-link">
+                                                            {{ record.asset_source|truncatechars:20 }}
+                                                        </a>
+                                                    {% else %}
+                                                        {{ record.asset_source|truncatechars:20 }}
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <span class="fw-medium">{{ record.name }}</span>
+                                                </td>
+                                            <td>
+                                                {% if record.historical_event_error is not None %}
+                                                    <span class="error-badge {% if record.historical_event_error == 0.0 %}error-low{% elif record.historical_event_error <= 0.00001 %}error-medium{% else %}error-high{% endif %}">
+                                                        {{ record.historical_event_error|floatformat:6 }}%
+                                                    </span>
+                                                {% else %}
+                                                    <span class="error-badge error-none">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if record.historical_transaction_error is not None %}
+                                                    <span class="error-badge {% if record.historical_transaction_error == 0.0 %}error-low{% elif record.historical_transaction_error <= 0.00001 %}error-medium{% else %}error-high{% endif %}">
+                                                        {{ record.historical_transaction_error|floatformat:6 }}%
+                                                    </span>
+                                                {% else %}
+                                                    <span class="error-badge error-none">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if record.predicted_transaction_error is not None %}
+                                                    <span class="error-badge {% if record.predicted_transaction_error == 0.0 %}error-low{% elif record.predicted_transaction_error <= 0.00001 %}error-medium{% else %}error-high{% endif %}">
+                                                        {{ record.predicted_transaction_error|floatformat:6 }}%
+                                                    </span>
+                                                {% else %}
+                                                    <span class="error-badge error-none">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            </tr>
+                                        {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-5">
+                                    <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                                    <h5 class="text-muted">No Price Verification Records Found</h5>
+                                    <p class="text-muted">No price verification data is available for the last 30 days.</p>
+                                </div>
+                            {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Bokeh scripts -->
+    {% for name, script in box_plot_scripts.items %}
+        {{ script|safe }}
+    {% endfor %}
+
+    <script>
+        // Add loading animation
+        document.addEventListener('DOMContentLoaded', function () {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+
+                setTimeout(() => {
+                    card.style.transition = 'all 0.5s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 100);
+            });
+        });
+
+        // Update box plots based on time window selection
+        function updateBoxPlots() {
+            const timeWindow = document.getElementById('timeWindow').value;
+            const container = document.getElementById('boxPlotsContainer');
+
+            // Show loading state
+            container.innerHTML = '<div class="col-12 text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Loading box plots...</p></div>';
+
+            // Fetch new data
+            fetch(`/api/price-box-plot-data/?time_window=${timeWindow}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Redirect to reload page with new time window
+                    window.location.href = `?time_window=${timeWindow}`;
+                })
+                .catch(error => {
+                    console.error('Error fetching box plot data:', error);
+                    container.innerHTML = '<div class="col-12 text-center text-danger"><i class="fas fa-exclamation-triangle"></i> Error loading data</div>';
+                });
+        }
+    </script>
+</body>
+
+</html>

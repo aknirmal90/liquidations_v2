@@ -1,4 +1,4 @@
-CREATE TABLE aave_ethereum.LatestCollateralConfigurationChanged
+CREATE TABLE IF NOT EXISTS aave_ethereum.LatestCollateralConfigurationChanged
 (
     asset String,
     ltv UInt16,

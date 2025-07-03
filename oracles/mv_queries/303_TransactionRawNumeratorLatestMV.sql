@@ -5,6 +5,7 @@ SELECT
     asset,
     asset_source,
     name,
-    timestamp,
+    blockTimestamp,
+    blockNumber,
     numerator
 FROM aave_ethereum.TransactionRawNumerator;

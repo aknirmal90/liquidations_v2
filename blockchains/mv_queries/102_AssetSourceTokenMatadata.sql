@@ -1,4 +1,4 @@
-CREATE TABLE aave_ethereum.AssetSourceTokenMetadata
+CREATE TABLE IF NOT EXISTS aave_ethereum.AssetSourceTokenMetadata
 (
     asset_source String,
     decimals_places UInt64,

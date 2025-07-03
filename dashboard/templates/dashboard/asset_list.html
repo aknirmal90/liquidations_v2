@@ -30,6 +30,25 @@
             border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         }
 
+        .navbar-nav .nav-link {
+            color: rgba(255, 255, 255, 0.8) !important;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem !important;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            margin-right: 0.5rem;
+        }
+
+        .navbar-nav .nav-link:hover {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar-nav .nav-link.active {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
         .main-container {
             padding: 2rem 0;
         }
@@ -184,11 +203,21 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="#">
+            <a class="navbar-brand fw-bold" href="{% url 'dashboard:asset_list' %}">
                 <i class="fas fa-chart-line me-2"></i>
-                Aave Asset Dashboard
+                Aave Dashboard
             </a>
-            <div class="navbar-nav ms-auto">
+            <div class="navbar-nav ms-auto me-4">
+                <a class="nav-link active" href="{% url 'dashboard:asset_list' %}">
+                    <i class="fas fa-coins me-2"></i>
+                    Assets
+                </a>
+                <a class="nav-link" href="{% url 'dashboard:prices_summary' %}">
+                    <i class="fas fa-dollar-sign me-2"></i>
+                    Prices
+                </a>
+            </div>
+            <div class="navbar-nav">
                 <span class="navbar-text me-3">
                     <i class="fas fa-user me-1"></i>
                     Welcome, {{ user.username }}
@@ -249,6 +278,11 @@
                                     <div>
                                         <div class="asset-symbol mb-1">{{ asset.symbol }}</div>
                                         <div class="asset-name small text-muted">{{ asset.name }}</div>
+                                        {% if asset.price_event_name and asset.price_event_name != "Unknown" %}
+                                        <div class="small text-muted" style="font-size: 0.75rem; opacity: 0.7;">
+                                            <i class="fas fa-tag me-1"></i>{{ asset.price_event_name }}
+                                        </div>
+                                        {% endif %}
                                     </div>
                                 </div>
                                 <div class="text-end">

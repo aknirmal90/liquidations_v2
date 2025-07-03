@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 
 from oracles.contracts.numerator import get_numerator
 from oracles.management.commands.listen_base import WebsocketCommand
-from utils.constants import NETWORK_NAME, PROTOCOL_NAME
+from oracles.tasks import InsertTransactionNumeratorTask
 from utils.oracle import (
     InvalidMethodSignature,
     InvalidObservations,
@@ -24,9 +24,7 @@ class Command(WebsocketCommand, BaseCommand):
     help = "Subscribe to new pending transactions on a blockchain using websockets"
 
     def get_subscribe_message(self):
-        transmitters = cache.get(
-            f"price_events_transmitters_{PROTOCOL_NAME}_{NETWORK_NAME}"
-        )
+        transmitters = cache.get("transmitters_for_websockets")
         message = {
             "id": "1",
             "jsonrpc": "2.0",
@@ -99,10 +97,7 @@ class Command(WebsocketCommand, BaseCommand):
                     get_numerator(
                         asset=asset,
                         asset_source=asset_source,
-                        transaction=tx_data,
+                        transaction=parsed_data,
                     )
                 )
-
-        logger.info(
-            f"Processing oracle update for {oracle_address} with median price: {median_price}"
-        )
+            InsertTransactionNumeratorTask.delay(transaction_numerators)

@@ -12,6 +12,7 @@ from liquidations_v2.celery_app import app
 from oracles.models import PriceEvent
 from utils.clickhouse.client import clickhouse_client
 from utils.constants import (
+    NETWORK_BLOCK_TIME,
     NETWORK_NAME,
     PROTOCOL_ABI_PATH,
     PROTOCOL_CONFIG_PATH,
@@ -194,3 +195,35 @@ class ParentSynchronizeTask(ParentSynchronizeTaskMixin, Task):
 
 
 ParentSynchronizeTask = app.register_task(ParentSynchronizeTask())
+
+
+class UpdateNetworkBlockInfoTask(Task):
+    """Task to update network block information in ClickHouse."""
+
+    def run(self, block_number: int, block_timestamp: int):
+        """Update network block info table with latest block data.
+
+        Args:
+            block_number (int): Latest block number
+            block_timestamp (int): Latest block timestamp (Unix timestamp)
+        """
+        try:
+            query = f"""
+            INSERT INTO aave_ethereum.NetworkBlockInfo
+            (network_name, latest_block_number, latest_block_timestamp, network_time_for_new_block)
+            VALUES ('{NETWORK_NAME}', {block_number}, {block_timestamp * 1_000_000}, {NETWORK_BLOCK_TIME})
+            """
+
+            clickhouse_client.execute_query(query)
+            clickhouse_client.optimize_table("NetworkBlockInfo")
+
+            logger.info(
+                f"Updated NetworkBlockInfo for {NETWORK_NAME}: block {block_number}, timestamp {block_timestamp}"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to update NetworkBlockInfo: {e}")
+            raise
+
+
+UpdateNetworkBlockInfoTask = app.register_task(UpdateNetworkBlockInfoTask())

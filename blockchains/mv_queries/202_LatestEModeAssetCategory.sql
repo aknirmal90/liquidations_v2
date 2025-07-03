@@ -1,4 +1,4 @@
-CREATE TABLE aave_ethereum.LatestEModeAssetCategoryChanged
+CREATE TABLE IF NOT EXISTS aave_ethereum.LatestEModeAssetCategoryChanged
 (
     asset String,
     newCategoryId UInt8,

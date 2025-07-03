@@ -39,6 +39,29 @@
             "postDebugTask": "Docker Compose Down"
         },
         {
+            "name": "Celery High Priority",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "python": "${workspaceRoot}/.venv/bin/python",
+            "module": "celery",
+            "envFile": "${workspaceFolder}/.env",
+            "console": "integratedTerminal",
+            "args": [
+                "--app",
+                "liquidations_v2",
+                "worker",
+                "--loglevel",
+                "DEBUG",
+                "--pool",
+                "solo",
+                "-Q",
+                "High"
+            ],
+            "preLaunchTask": "Export Secrets and Start Docker",
+            "postDebugTask": "Docker Compose Down"
+        },
+        {
             "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",
