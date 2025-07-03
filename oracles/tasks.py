@@ -613,6 +613,26 @@ class VerifyHistoricalPriceTask(Task):
             except Exception as e:
                 logger.error(f"Error inserting verification records: {e}")
 
+        # Insert mismatch counts into ClickHouse table
+        mismatch_record = [
+            [
+                int(
+                    datetime.now().timestamp() * 1_000_000
+                ),  # insert_timestamp in microseconds
+                mismatch_counts["historical_event_vs_rpc"],
+                mismatch_counts["historical_transaction_vs_rpc"],
+                mismatch_counts["predicted_transaction_vs_rpc"],
+                num_verified,
+                num_different,
+            ]
+        ]
+
+        try:
+            clickhouse_client.insert_rows("PriceMismatchCounts", mismatch_record)
+            logger.info(f"Inserted mismatch counts: {mismatch_counts}")
+        except Exception as e:
+            logger.error(f"Error inserting mismatch counts: {e}")
+
         logger.info(f"Verified {num_verified} assets, {num_different} different")
         logger.info(f"Mismatch breakdown: {mismatch_counts}")
 

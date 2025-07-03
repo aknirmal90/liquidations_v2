@@ -1502,6 +1502,57 @@ def price_box_plot_data(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
+def price_mismatch_counts_data(request):
+    """API endpoint to get mismatch counts timeseries data"""
+    try:
+        time_window = request.GET.get("time_window", "1_day")
+
+        # Convert time window to ClickHouse interval
+        interval_map = {
+            "1_hour": "1 HOUR",
+            "1_day": "1 DAY",
+            "1_week": "7 DAY",
+            "1_month": "30 DAY",
+        }
+
+        interval = interval_map.get(time_window, "1 DAY")
+
+        query = f"""
+        SELECT
+            toDateTime(insert_timestamp) as timestamp,
+            historical_event_vs_rpc,
+            historical_transaction_vs_rpc,
+            predicted_transaction_vs_rpc,
+            total_assets_verified,
+            total_assets_different
+        FROM aave_ethereum.PriceMismatchCounts
+        WHERE insert_timestamp >= now() - INTERVAL {interval}
+        ORDER BY insert_timestamp DESC
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        # Convert to list of dictionaries for JSON response
+        data = []
+        for row in result.result_rows:
+            data.append(
+                {
+                    "timestamp": row[0].isoformat() if row[0] else None,
+                    "historical_event_vs_rpc": row[1],
+                    "historical_transaction_vs_rpc": row[2],
+                    "predicted_transaction_vs_rpc": row[3],
+                    "total_assets_verified": row[4],
+                    "total_assets_different": row[5],
+                }
+            )
+
+        return JsonResponse({"data": data})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
 def create_box_plots(box_plot_data):
     """Create 3 interactive box plots for price verification errors by type"""
     plots = {}

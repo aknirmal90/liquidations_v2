@@ -17,6 +17,7 @@
     <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.7.3.min.js"></script>
     <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.7.3.min.js"></script>
     <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-api-3.7.3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         :root {
@@ -191,6 +192,11 @@
             letter-spacing: 0.5px;
             margin-top: 0.5rem;
         }
+
+        #mismatchCountsContainer {
+            height: 400px;
+            position: relative;
+        }
     </style>
 </head>
 
@@ -286,7 +292,12 @@
                         <div class="card-header">
                             <ul class="nav nav-tabs card-header-tabs" id="pricesTabs" role="tablist">
                                 <li class="nav-item" role="presentation">
-                                    <button class="nav-link active" id="box-plots-tab" data-bs-toggle="tab" data-bs-target="#box-plots" type="button" role="tab" aria-controls="box-plots" aria-selected="true">
+                                    <button class="nav-link active" id="mismatch-counts-tab" data-bs-toggle="tab" data-bs-target="#mismatch-counts" type="button" role="tab" aria-controls="mismatch-counts" aria-selected="true">
+                                        <i class="fas fa-chart-line me-2"></i>Mismatch Counts
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="box-plots-tab" data-bs-toggle="tab" data-bs-target="#box-plots" type="button" role="tab" aria-controls="box-plots" aria-selected="false">
                                         <i class="fas fa-chart-bar me-2"></i>Box Plots
                                     </button>
                                 </li>
@@ -299,8 +310,31 @@
                         </div>
                         <div class="card-body">
                             <div class="tab-content" id="pricesTabsContent">
+                                <!-- Mismatch Counts Tab -->
+                                <div class="tab-pane fade show active" id="mismatch-counts" role="tabpanel" aria-labelledby="mismatch-counts-tab">
+                                    <!-- Time Window Selector -->
+                                    <div class="row mb-4">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label for="mismatchTimeWindow" class="form-label">Time Window:</label>
+                                                <select class="form-select" id="mismatchTimeWindow" onchange="updateMismatchCounts()">
+                                                    <option value="1_hour">Last 1 Hour</option>
+                                                    <option value="1_day" selected>Last 1 Day</option>
+                                                    <option value="1_week">Last 1 Week</option>
+                                                    <option value="1_month">Last 1 Month</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Mismatch Counts Chart Container -->
+                                    <div id="mismatchCountsContainer">
+                                        <canvas id="mismatchCountsChart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+
                                 <!-- Box Plots Tab -->
-                                <div class="tab-pane fade show active" id="box-plots" role="tabpanel" aria-labelledby="box-plots-tab">
+                                <div class="tab-pane fade" id="box-plots" role="tabpanel" aria-labelledby="box-plots-tab">
                                     <!-- Time Window Selector -->
                                     <div class="row mb-4">
                                         <div class="col-md-6">
@@ -473,6 +507,120 @@
                     container.innerHTML = '<div class="col-12 text-center text-danger"><i class="fas fa-exclamation-triangle"></i> Error loading data</div>';
                 });
         }
+
+        // Initialize mismatch counts chart
+        let mismatchCountsChart;
+
+        function initializeMismatchCountsChart() {
+            const ctx = document.getElementById('mismatchCountsChart').getContext('2d');
+
+            mismatchCountsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Historical Event vs RPC',
+                        data: [],
+                        borderColor: 'rgb(99, 102, 241)',
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        tension: 0.1
+                    }, {
+                        label: 'Historical Transaction vs RPC',
+                        data: [],
+                        borderColor: 'rgb(139, 92, 246)',
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                        tension: 0.1
+                    }, {
+                        label: 'Predicted Transaction vs RPC',
+                        data: [],
+                        borderColor: 'rgb(16, 185, 129)',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Mismatch Count'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Price Mismatch Counts Over Time'
+                        }
+                    }
+                }
+            });
+
+            // Load initial data
+            updateMismatchCounts();
+        }
+
+        // Update mismatch counts chart based on time window selection
+        function updateMismatchCounts() {
+            const timeWindow = document.getElementById('mismatchTimeWindow').value;
+
+            // Show loading state
+            const container = document.getElementById('mismatchCountsContainer');
+            container.style.opacity = '0.5';
+
+            // Fetch new data
+            fetch(`/api/price-mismatch-counts-data/?time_window=${timeWindow}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error fetching mismatch counts data:', data.error);
+                        return;
+                    }
+
+                    // Update chart data
+                    const chartData = data.data.reverse(); // Reverse to show chronological order
+
+                    mismatchCountsChart.data.labels = chartData.map(item =>
+                        new Date(item.timestamp).toLocaleString()
+                    );
+
+                    mismatchCountsChart.data.datasets[0].data = chartData.map(item =>
+                        item.historical_event_vs_rpc
+                    );
+                    mismatchCountsChart.data.datasets[1].data = chartData.map(item =>
+                        item.historical_transaction_vs_rpc
+                    );
+                    mismatchCountsChart.data.datasets[2].data = chartData.map(item =>
+                        item.predicted_transaction_vs_rpc
+                    );
+
+                    mismatchCountsChart.update();
+                    container.style.opacity = '1';
+                })
+                .catch(error => {
+                    console.error('Error fetching mismatch counts data:', error);
+                    container.style.opacity = '1';
+                });
+        }
+
+        // Initialize mismatch counts chart when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Delay initialization to ensure tab content is visible
+            setTimeout(initializeMismatchCountsChart, 500);
+        });
     </script>
 </body>
 

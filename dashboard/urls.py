@@ -14,4 +14,9 @@ urlpatterns = [
         views.price_box_plot_data,
         name="price_box_plot_data",
     ),
+    path(
+        "api/price-mismatch-counts-data/",
+        views.price_mismatch_counts_data,
+        name="price_mismatch_counts_data",
+    ),
 ]
