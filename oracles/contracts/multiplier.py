@@ -10,7 +10,7 @@ from oracles.contracts.utils import (
 from utils.encoding import decode_any
 from utils.rpc import rpc_adapter
 
-MULTIPLIER_LIVE_BLOCKS_CUTOFF = 50_000
+MULTIPLIER_LIVE_BLOCKS_CUTOFF = 15_000
 
 
 def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) -> int:
