@@ -15,7 +15,7 @@ SELECT
         ELSE CAST(0 AS Int64)
     END AS std_growth_per_sec
 FROM aave_ethereum.EventRawMultiplier
-WHERE blockTimestamp >= now() - INTERVAL 1 DAY AND multiplier > 1
+WHERE blockTimestamp >= now() - INTERVAL 1 DAY
 GROUP BY
     asset,
     asset_source,
