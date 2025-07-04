@@ -1,5 +1,6 @@
 from oracles.contracts.multiplier_abis import METHOD_ABI_MAPPING
 from oracles.contracts.utils import (
+    CACHE_TTL_4_HOURS,
     AssetSourceType,
     RpcCacheStorage,
     UnsupportedAssetSourceError,
@@ -234,10 +235,10 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
         block_timestamp = get_evm_block_timestamps([block_number])[block_number]
 
         maturity = RpcCacheStorage.get_cached_asset_source_function(
-            asset_source, "MATURITY"
+            asset_source, "MATURITY", ttl=CACHE_TTL_4_HOURS
         )
         discount_rate_per_year = RpcCacheStorage.get_cached_asset_source_function(
-            asset_source, "discountRatePerYear"
+            asset_source, "discountRatePerYear", ttl=CACHE_TTL_4_HOURS
         )
         seconds_per_year = RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "SECONDS_PER_YEAR"
