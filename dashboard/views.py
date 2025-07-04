@@ -1,9 +1,8 @@
 from datetime import datetime
 
 from bokeh.embed import components
-from bokeh.models import DatetimeTickFormatter, HoverTool
+from bokeh.models import ColumnDataSource, DatetimeTickFormatter, HoverTool
 from bokeh.plotting import figure
-from bokeh.models import ColumnDataSource
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -1378,7 +1377,7 @@ def prices_summary(request):
                 pct_error,
                 blockTimestamp,
                 ROW_NUMBER() OVER (
-                    PARTITION BY asset, asset_source, name, type
+                    PARTITION BY asset
                     ORDER BY blockTimestamp DESC
                 ) as rn
             FROM aave_ethereum.PriceVerificationRecords
