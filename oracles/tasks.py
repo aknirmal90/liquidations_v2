@@ -519,11 +519,6 @@ class VerifyHistoricalPriceTask(Task):
 
         if abs(price - rpc_price) / rpc_price > threshold:
             mismatch_counts[f"{price_type}_vs_rpc"] += 1
-            logger.error(
-                f"{price_type.replace('_', ' ').title()} price mismatch for {asset} {asset_source}: "
-                f"{price_type.replace('_', ' ').title()}: {price}, RPC: {rpc_price}, "
-                f"Difference: {percent_diff:.8f}%"
-            )
             return False
         return True
 
