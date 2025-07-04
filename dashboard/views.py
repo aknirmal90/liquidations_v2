@@ -1384,7 +1384,7 @@ def prices_summary(request):
             WHERE blockTimestamp >= now() - INTERVAL 30 DAY
         )
         SELECT
-            ROW_NUMBER() OVER (ORDER BY asset, asset_source, name) as row_number,
+            ROW_NUMBER() OVER (ORDER BY name, asset, asset_source) as row_number,
             asset,
             asset_source,
             name,
@@ -1394,7 +1394,7 @@ def prices_summary(request):
         FROM LatestRecords
         WHERE rn = 1
         GROUP BY asset, asset_source, name
-        ORDER BY asset, asset_source, name
+        ORDER BY name, asset, asset_source
         """
 
         result = clickhouse_client.execute_query(query)
