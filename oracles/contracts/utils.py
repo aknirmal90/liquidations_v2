@@ -1,4 +1,6 @@
+import json
 import logging
+import os
 import time
 from datetime import datetime
 from typing import Any, Optional, Union
@@ -121,12 +123,35 @@ class RpcCacheStorage:
         cache_abi_key = (
             f"{NETWORK_NAME}:{PROTOCOL_NAME}:{asset_source}:ASSET_SOURCE_ABI"
         )
+
+        # First attempt: Check Redis cache
         name = cache.get(cache_name_key)
         abi = cache.get(cache_abi_key)
 
         if name and abi:
             return name, abi
 
+        # Second attempt: Check file system
+        abi_file_path = os.path.join(
+            os.path.dirname(__file__), "abis", f"{asset_source}.json"
+        )
+
+        if os.path.exists(abi_file_path):
+            try:
+                with open(abi_file_path, "r") as f:
+                    abi_data = json.load(f)
+                    name = abi_data.get("name", "")
+                    abi = abi_data.get("abi", "")
+
+                    if name and abi:
+                        # Save to Redis for future use
+                        cls.set_cache(asset_source, "ASSET_SOURCE_NAME", name)
+                        cls.set_cache(asset_source, "ASSET_SOURCE_ABI", abi)
+                        return name, abi
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning(f"Failed to load ABI from file {abi_file_path}: {e}")
+
+        # Third attempt: Fetch from Etherscan
         response = requests.get(
             f"https://api.etherscan.io/api?module=contract&action=getsourcecode&address={asset_source}&apikey=KNVMN27EBAAE1E9MUMX75N2QKFZWB2HB6J"
         )
@@ -136,8 +161,19 @@ class RpcCacheStorage:
             logger.info(f"ABI is a string for {asset_source}")
         name = result["ContractName"]
         abi = result["ABI"]
+
+        # Save to Redis
         cls.set_cache(asset_source, "ASSET_SOURCE_NAME", name)
         cls.set_cache(asset_source, "ASSET_SOURCE_ABI", abi)
+
+        # Save to file
+        try:
+            os.makedirs(os.path.dirname(abi_file_path), exist_ok=True)
+            with open(abi_file_path, "w") as f:
+                json.dump({"name": name, "abi": abi}, f, indent=2)
+        except IOError as e:
+            logger.warning(f"Failed to save ABI to file {abi_file_path}: {e}")
+
         time.sleep(0.5)
         return name, abi
 
