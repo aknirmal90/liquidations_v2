@@ -83,19 +83,21 @@ def get_numerator(asset: str, asset_source: str, event=None, transaction=None) -
 
             # Cache the calculated price with TTL for future transactions
             if is_asset_to_peg:
-                RpcCacheStorage.set_cache_with_ttl(
-                    asset_source,
-                    "ASSET_TO_PEG_PRICE_FUTURE",
-                    this_price,
-                    ttl=NETWORK_BLOCK_TIME,
-                )
+                if this_price and this_price > 0:
+                    RpcCacheStorage.set_cache_with_ttl(
+                        asset_source,
+                        "ASSET_TO_PEG_PRICE_FUTURE",
+                        this_price,
+                        ttl=NETWORK_BLOCK_TIME,
+                    )
             else:
-                RpcCacheStorage.set_cache_with_ttl(
-                    asset_source,
-                    "PEG_TO_BASE_PRICE_FUTURE",
-                    this_price,
-                    ttl=NETWORK_BLOCK_TIME,
-                )
+                if this_price and this_price > 0:
+                    RpcCacheStorage.set_cache_with_ttl(
+                        asset_source,
+                        "PEG_TO_BASE_PRICE_FUTURE",
+                        this_price,
+                        ttl=NETWORK_BLOCK_TIME,
+                    )
 
     elif asset_source_type in (
         AssetSourceType.EACAggregatorProxy,
