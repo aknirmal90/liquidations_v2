@@ -1,0 +1,63 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Docker Compose Up",
+            "type": "shell",
+            "command": "docker compose up postgres redis -d",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Runs 'docker compose up' to start the development environment."
+        },
+        {
+            "label": "Docker Compose Down",
+            "type": "shell",
+            "command": "docker compose down redis postgres",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Runs 'docker compose down' to stop and remove the development environment containers."
+        },
+        {
+            "label": "Export Doppler Secrets",
+            "type": "shell",
+            "command": "doppler secrets download --no-file --format=env > .env",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Exports Doppler secrets to .env file for local development."
+        },
+        {
+            "label": "Export Secrets and Start Docker",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Export Doppler Secrets",
+                "Docker Compose Up"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": [],
+            "detail": "Exports Doppler secrets to .env file and then starts the development environment."
+        }
+    ]
+}

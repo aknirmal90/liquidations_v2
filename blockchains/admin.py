@@ -1,142 +1,71 @@
 from django.contrib import admin
-from django.db import models
-from django.forms import Textarea
+from django.utils.html import format_html
 
-from blockchains.models import ApproximateBlockTimestamp, Event, Network, Protocol
-from utils.admin import EnableDisableAdminMixin, format_pretty_json
-
-
-@admin.register(Protocol)
-class ProtocolAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
-    list_display = (
-        'name',
-        'is_enabled'
-    )
-
-    list_filter = (
-        'is_enabled',
-    )
-
-
-@admin.register(Network)
-class NetworkAdmin(admin.ModelAdmin):
-    list_display = (
-        'name',
-        'chain_id',
-        'rpc',
-        'latest_block'
-    )
-
-    formfield_overrides = {
-        models.URLField: {'widget': Textarea(attrs={'rows': 5, 'cols': '100'})},
-        models.CharField: {'widget': Textarea(attrs={'rows': 5, 'cols': '100'})},
-    }
-
-    readonly_fields = (
-        'name',
-        'latest_block',
-        'chain_id',
-    )
+from blockchains.models import Event
+from utils.admin import (
+    EnableDisableAdminMixin,
+    format_pretty_json,
+    get_explorer_address_url,
+)
 
 
 @admin.register(Event)
 class EventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
     list_display = (
-        'name',
-        'protocol',
-        'network',
-        'is_enabled',
-        'last_synced_block',
-        'blocks_to_sync',
-        'contract_addresses',
-        'updated_at'
+        "name",
+        "is_enabled",
+        "last_synced_block",
+        "blocks_to_sync",
+        "logs_count",
+        "get_contracts_display",
+        "updated_at",
     )
 
-    list_filter = (
-        'is_enabled',
-        'protocol',
-        'network',
-        'updated_at'
-    )
+    list_filter = ("is_enabled", "updated_at")
 
     search_fields = (
-        'name',
-        'signature',
-        'topic_0',
-        'model_class'
+        "name",
+        "signature",
+        "topic_0",
     )
 
     fieldsets = (
-        ('Basic Information', {
-            'fields': (
-                'name',
-                'protocol',
-                'network',
-                'is_enabled'
-            )
-        }),
-        ('Sync Status', {
-            'fields': (
-                'last_synced_block',
-                'blocks_to_sync'
-            )
-        }),
-        ('Event Details', {
-            'fields': (
-                'signature',
-                'topic_0',
-                'model_class',
-                'abi_display',
-                'contract_addresses'
-            )
-        }),
-        ('Timestamps', {
-            'fields': (
-                'created_at',
-                'updated_at'
-            )
-        })
+        ("Basic Information", {"fields": ("name", "is_enabled")}),
+        (
+            "Sync Status",
+            {"fields": ("last_synced_block", "blocks_to_sync", "logs_count")},
+        ),
+        (
+            "Event Details",
+            {"fields": ("signature", "topic_0", "abi_display", "contract_addresses")},
+        ),
+        ("Timestamps", {"fields": ("created_at", "updated_at")}),
     )
 
     readonly_fields = (
-        'created_at',
-        'updated_at',
-        'blocks_to_sync',
-        'name',
-        'protocol',
-        'network',
-        'signature',
-        'abi',
-        'topic_0',
-        'model_class',
-        'abi_display',
-        'contract_addresses'
+        "created_at",
+        "updated_at",
+        "blocks_to_sync",
+        "name",
+        "signature",
+        "abi",
+        "topic_0",
+        "abi_display",
+        "contract_addresses",
+        "logs_count",
+        "is_enabled",
+        "get_contracts_display",
     )
 
     def abi_display(self, obj):
         return format_pretty_json(obj.abi)
 
-    abi_display.short_description = 'ABI'
+    abi_display.short_description = "ABI"
 
+    def get_contracts_display(self, obj):
+        contract_links = []
+        for contract in obj.contract_addresses:
+            contract_links.append(get_explorer_address_url(contract))
+        return format_html("<br>".join(contract_links))
 
-@admin.register(ApproximateBlockTimestamp)
-class ApproximateBlockTimestampAdmin(admin.ModelAdmin):
-    list_display = (
-        'network',
-        'reference_block_number',
-        'timestamp',
-        'block_time_in_milliseconds'
-    )
-    list_filter = ('network',)
-    readonly_fields = (
-        'network',
-        'reference_block_number',
-        'timestamp',
-        'block_time_in_milliseconds'
-    )
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
+    get_contracts_display.short_description = "Contract Addresses"

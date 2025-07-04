@@ -1,0 +1,120 @@
+[
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint32",
+                "name": "aggregatorRoundId",
+                "type": "uint32"
+            },
+            {
+                "indexed": false,
+                "internalType": "int192",
+                "name": "answer",
+                "type": "int192"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "transmitter",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint32",
+                "name": "observationsTimestamp",
+                "type": "uint32"
+            },
+            {
+                "indexed": false,
+                "internalType": "int192[]",
+                "name": "observations",
+                "type": "int192[]"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes",
+                "name": "observers",
+                "type": "bytes"
+            },
+            {
+                "indexed": false,
+                "internalType": "int192",
+                "name": "juelsPerFeeCoin",
+                "type": "int192"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "configDigest",
+                "type": "bytes32"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint40",
+                "name": "epochAndRound",
+                "type": "uint40"
+            }
+        ],
+        "name": "NewTransmission",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "priceCap",
+                "type": "int256"
+            }
+        ],
+        "name": "PriceCapUpdated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint64",
+                "name": "oldDiscountRatePerYear",
+                "type": "uint64"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint64",
+                "name": "newDiscountRatePerYear",
+                "type": "uint64"
+            }
+        ],
+        "name": "DiscountRatePerYearUpdated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "transmitter",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "previous",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "current",
+                "type": "address"
+            }
+        ],
+        "name": "PayeeshipTransferred",
+        "type": "event"
+    }
+]

@@ -1,0 +1,76 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Django",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceRoot}/.venv/bin/python",
+            "envFile": "${workspaceFolder}/.env",
+            "program": "${workspaceFolder}/manage.py",
+            "args": [
+                "runserver"
+            ],
+            "django": true,
+            "preLaunchTask": "Docker Compose Up",
+            "postDebugTask": "Docker Compose Down"
+        },
+        {
+            "name": "Celery",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "python": "${workspaceRoot}/.venv/bin/python",
+            "module": "celery",
+            "envFile": "${workspaceFolder}/.env",
+            "console": "integratedTerminal",
+            "args": [
+                "--app",
+                "liquidations_v2",
+                "worker",
+                "--loglevel",
+                "DEBUG",
+                "--pool",
+                "solo",
+                "-Q",
+                "default"
+            ],
+            "preLaunchTask": "Export Secrets and Start Docker",
+            "postDebugTask": "Docker Compose Down"
+        },
+        {
+            "name": "Celery High Priority",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "python": "${workspaceRoot}/.venv/bin/python",
+            "module": "celery",
+            "envFile": "${workspaceFolder}/.env",
+            "console": "integratedTerminal",
+            "args": [
+                "--app",
+                "liquidations_v2",
+                "worker",
+                "--loglevel",
+                "DEBUG",
+                "--pool",
+                "solo",
+                "-Q",
+                "High"
+            ],
+            "preLaunchTask": "Export Secrets and Start Docker",
+            "postDebugTask": "Docker Compose Down"
+        },
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "envFile": "${workspaceFolder}/.env",
+            "python": "${workspaceRoot}/.venv/bin/python"
+        }
+    ]
+}

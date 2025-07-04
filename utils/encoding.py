@@ -16,25 +16,29 @@ def get_signature(event_abi: Dict[str, Any]) -> str:
     Returns:
         str: The function signature as a string.
     """
+
     def process_type(input_type: Dict[str, Any]) -> str:
         """Recursively process the type, handling tuples and nested structures."""
-        if input_type['type'] == 'tuple':
+        if input_type["type"] == "tuple":
             # Handle tuple components recursively
-            component_types = [process_type(component) for component in input_type.get('components', [])]
+            component_types = [
+                process_type(component)
+                for component in input_type.get("components", [])
+            ]
             return f"({','.join(component_types)})"
-        elif input_type['type'].endswith('[]'):
+        elif input_type["type"].endswith("[]"):
             # Handle arrays of simple or tuple types
-            base_type = {'type': input_type['type'][:-2]}
+            base_type = {"type": input_type["type"][:-2]}
             return f"{process_type(base_type)}[]"
         else:
             # Handle basic types
-            return input_type['type']
+            return input_type["type"]
 
     # Extract the function name
-    function_name = event_abi['name']
+    function_name = event_abi["name"]
 
     # Extract the input types
-    input_types = [process_type(input) for input in event_abi.get('inputs', [])]
+    input_types = [process_type(input) for input in event_abi.get("inputs", [])]
 
     # Construct the function signature
     return f"{function_name}({','.join(input_types)})"
@@ -83,6 +87,9 @@ def decode_any(data: Any) -> AttributeDict:
     if isinstance(data, (str, bytes, HexBytes)):
         return decode_hex(data)
 
+    elif isinstance(data, bool):
+        return int(data)
+
     # If the data is a list, apply decoding recursively to each element
     elif isinstance(data, list):
         return AttributeDict({str(i): decode_any(item) for i, item in enumerate(data)})
@@ -125,7 +132,9 @@ def get_encoded_params(function_abi: list, params: list) -> str:
             tuple_types = []
             for component in abi.get("components", []):
                 if component.get("type") == "tuple":
-                    sub_tuple_types = [c.get("type") for c in component.get("components", [])]
+                    sub_tuple_types = [
+                        c.get("type") for c in component.get("components", [])
+                    ]
                     tuple_types.append(f"({','.join(sub_tuple_types)})")
                 else:
                     tuple_types.append(component.get("type"))
@@ -145,7 +154,9 @@ def get_decoded_params(function_abi: dict, result: str) -> dict:
             tuple_types = []
             for component in output.get("components", []):
                 if component.get("type") == "tuple":
-                    sub_tuple_types = [c.get("type") for c in component.get("components", [])]
+                    sub_tuple_types = [
+                        c.get("type") for c in component.get("components", [])
+                    ]
                     tuple_types.append(f"({','.join(sub_tuple_types)})")
                 else:
                     tuple_types.append(component.get("type"))
@@ -163,3 +174,7 @@ def get_decoded_params(function_abi: dict, result: str) -> dict:
 
     # Create dictionary mapping output names to decoded values
     return dict(zip(output_names, decoded))
+
+
+def get_short_hex(hex_str: str) -> str:
+    return hex_str[:6] + "..." + hex_str[-4:]

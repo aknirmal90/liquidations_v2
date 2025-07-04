@@ -7,4 +7,4 @@ set -o nounset
 # Force Python to run in unbuffered mode
 export PYTHONUNBUFFERED=1
 
-doppler run --command "python -u manage.py listen_pending_transactions --network $1 --provider $2"
+doppler run --command "python -u manage.py listen_pending_transactions"

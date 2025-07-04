@@ -1,56 +1,18 @@
 events:
+  - CollateralConfigurationChanged
+  - ReserveInitialized
+  - AssetSourceUpdated
+  - EModeAssetCategoryChanged
+  - EModeCategoryAdded
+  - LiquidationCall
+  - Mint
+  - Burn
+  - BalanceTransfer
+  - ReserveUsedAsCollateralDisabled
+  - ReserveUsedAsCollateralEnabled
+  - UserEModeSet
 
-  - name: "CollateralConfigurationChanged"
-    model_class: "aave.models.Asset"
-
-  - name: "ReserveInitialized"
-    model_class: "aave.models.Asset"
-
-  - name: "AssetSourceUpdated"
-    model_class: "aave.models.Asset"
-
-  - name: "EModeAssetCategoryChanged"
-    model_class: "aave.models.Asset"
-
-  - name: "AssetCollateralInEModeChanged"
-    model_class: "aave.models.Asset"
-
-  - name: "AssetBorrowableInEModeChanged"
-    model_class: "aave.models.Asset"
-
-  - name: "EModeCategoryAdded"
-    model_class: "aave.models.Asset"
-
-  - name: "PriceCapUpdated"
-    model_class: "aave.models.Asset"
-
-  - name: "CapParametersUpdated"
-    model_class: "aave.models.Asset"
-
-  - name: "LiquidationCall"
-    model_class: "aave.models.AaveLiquidationLog"
-
-  - name: "Mint"
-    model_class: "aave.models.AaveBalanceLog"
-
-  - name: "Burn"
-    model_class: "aave.models.AaveBalanceLog"
-
-  - name: "BalanceTransfer"
-    model_class: "aave.models.AaveBalanceLog"
-
-  - name: "ReserveUsedAsCollateralDisabled"
-    model_class: "aave.models.AaveBalanceLog"
-
-  - name: "ReserveUsedAsCollateralEnabled"
-    model_class: "aave.models.AaveBalanceLog"
-
-  - name: "UserEModeSet"
-    model_class: "aave.models.AaveBalanceLog"
-
-networks:
-  - network: "arbitrum"
-    contract_addresses:
-      - "0x8145edddf43f50276641b55bd3ad95944510021e"
-      - "0xb56c2F0B653B2e0b10C9b928C8580Ac5Df02C7C7"
-      - "0x794a61358D6845594F94dc1DB02A252b5b4814aD"
+contract_addresses:
+  - "0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2"
+  - "0x54586be62e3c3580375ae3723c145253060ca0c2"
+  - "0x64b761d848206f447fe2dd461b0c635ec39ebb27"
