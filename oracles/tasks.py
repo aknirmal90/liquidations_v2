@@ -454,6 +454,9 @@ class PriceTransactionDynamicSynchronizeTask(BasePriceMixin, Task):
             table_name="TransactionRawMultiplier", logs=parsed_multiplier_logs
         )
 
+        self.bulk_insert_raw_price_events(
+            table_name="EventRawMultiplier", logs=parsed_multiplier_logs
+        )
         # Refresh MultiplierStatistics view and dictionary after updating multiplier data
         self.refresh_multiplier_statistics()
 
