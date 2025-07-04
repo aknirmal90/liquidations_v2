@@ -233,6 +233,7 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
     elif config_type == "pendle_discount":
         block_number = event.blockNumber
         block_timestamp = get_evm_block_timestamps([block_number])[block_number]
+        block_timestamp = block_timestamp / 1_000_000
 
         maturity = RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "MATURITY", ttl=CACHE_TTL_4_HOURS

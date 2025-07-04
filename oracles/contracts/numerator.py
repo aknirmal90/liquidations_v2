@@ -63,11 +63,15 @@ def get_numerator(asset: str, asset_source: str, event=None, transaction=None) -
 
             # Cache the calculated price
             if is_asset_to_peg:
-                RpcCacheStorage.set_cache(
-                    asset_source, "ASSET_TO_PEG_PRICE", this_price
-                )
+                if this_price and this_price > 0:
+                    RpcCacheStorage.set_cache(
+                        asset_source, "ASSET_TO_PEG_PRICE", this_price
+                    )
             else:
-                RpcCacheStorage.set_cache(asset_source, "PEG_TO_BASE_PRICE", this_price)
+                if this_price and this_price > 0:
+                    RpcCacheStorage.set_cache(
+                        asset_source, "PEG_TO_BASE_PRICE", this_price
+                    )
 
         # Handle transaction-based price updates
         elif transaction:
