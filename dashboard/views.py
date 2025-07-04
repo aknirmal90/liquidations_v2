@@ -1377,7 +1377,7 @@ def prices_summary(request):
                 pct_error,
                 blockTimestamp,
                 ROW_NUMBER() OVER (
-                    PARTITION BY asset
+                    PARTITION BY asset, asset_source
                     ORDER BY blockTimestamp DESC
                 ) as rn
             FROM aave_ethereum.PriceVerificationRecords
