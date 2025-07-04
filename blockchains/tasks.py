@@ -216,7 +216,9 @@ class UpdateNetworkBlockInfoTask(Task):
             """
 
             clickhouse_client.execute_query(query)
-            clickhouse_client.optimize_table("NetworkBlockInfo")
+            clickhouse_client.execute_query(
+                "SYSTEM RELOAD DICTIONARY aave_ethereum.NetworkBlockInfoDictionary"
+            )
 
             logger.info(
                 f"Updated NetworkBlockInfo for {NETWORK_NAME}: block {block_number}, timestamp {block_timestamp}"

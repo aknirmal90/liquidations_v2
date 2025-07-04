@@ -14,7 +14,7 @@ SELECT
             (toUnixTimestamp(max(blockTimestamp)) - toUnixTimestamp(min(blockTimestamp))) AS Int64)
         ELSE CAST(0 AS Int64)
     END AS std_growth_per_sec
-FROM aave_ethereum.EventRawMultiplier
+FROM aave_ethereum.TransactionRawMultiplier
 WHERE blockTimestamp >= now() - INTERVAL 1 DAY
 GROUP BY
     asset,
