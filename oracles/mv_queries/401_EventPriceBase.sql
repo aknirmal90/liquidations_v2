@@ -20,7 +20,7 @@ SELECT
     ) AS max_cap_uint256,
     IF(
         aave_ethereum.PriceLatestEventRawMaxCap.max_cap_type = 2,
-        aave_ethereum.PriceLatestEventRawMaxCap.max_cap,
+        CAST(aave_ethereum.PriceLatestEventRawMaxCap.max_cap / PriceLatestEventRawDenominator.denominator AS UInt256),
         CAST(1 AS UInt256)
     ) AS multiplier_cap,
     CAST((

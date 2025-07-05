@@ -749,6 +749,15 @@
                                                     <td>
                                                         {% if latest_components.max_cap > 0 %}
                                                             {{ latest_components.max_cap|floatformat:0 }}
+                                                            <br><small class="text-muted">
+                                                                {% if latest_components.max_cap_type == 1 %}
+                                                                    (Price Cap)
+                                                                {% elif latest_components.max_cap_type == 2 %}
+                                                                    (Multiplier Cap)
+                                                                {% else %}
+                                                                    (No Cap)
+                                                                {% endif %}
+                                                            </small>
                                                         {% else %}
                                                             <span class="text-muted">No cap</span>
                                                         {% endif %}
@@ -765,6 +774,28 @@
                                                         {% endif %}
                                                     </td>
                                                     <td><small class="text-muted">Standard growth rate per second for predictions</small></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><strong>Max Cap UInt256</strong></td>
+                                                    <td>
+                                                        {% if latest_components.max_cap_uint256 %}
+                                                            {{ latest_components.max_cap_uint256|floatformat:0 }}
+                                                        {% else %}
+                                                            <span class="text-muted">0</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td><small class="text-muted">Max cap value used in calculations (UInt256 format)</small></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><strong>Multiplier Cap</strong></td>
+                                                    <td>
+                                                        {% if latest_components.multiplier_cap %}
+                                                            {{ latest_components.multiplier_cap|floatformat:0 }}
+                                                        {% else %}
+                                                            <span class="text-muted">1</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td><small class="text-muted">Maximum multiplier cap for ratio-based calculations</small></td>
                                                 </tr>
 
                                                 <!-- Prices Section -->

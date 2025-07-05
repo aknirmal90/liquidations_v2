@@ -15,6 +15,6 @@ SELECT
     decimals_places,
     max_cap_uint256,
     multiplier_cap,
-    CAST(LEAST(multiplier, multiplier_cap) * LEAST(max_cap_uint256, historical_price) AS UInt256) AS historical_price_uint256,
+    CAST(LEAST(multiplier, multiplier_cap) * LEAST(max_cap_uint256, historical_price) AS UInt256) AS historical_price,
     CAST(LEAST(multiplier, multiplier_cap) * LEAST(max_cap_uint256, historical_price) / CAST(decimals_places AS Float64) AS UInt256) AS historical_price_usd
 FROM aave_ethereum.LatestPriceEventBase

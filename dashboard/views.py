@@ -553,7 +553,8 @@ def asset_detail(request, asset_address):
         SELECT
             blockTimestamp,
             toFloat64(max_cap) as max_cap_value,
-            name
+            name,
+            max_cap_type
         FROM aave_ethereum.EventRawMaxCap
         WHERE asset = '{asset_address}'
           AND blockTimestamp >= now() - INTERVAL 30 DAY
@@ -569,7 +570,12 @@ def asset_detail(request, asset_address):
                 max_cap_value = int(row[1]) if row[1] is not None else None
                 if max_cap_value is not None and max_cap_value > 0:
                     event_max_cap_data.append(
-                        {"timestamp": row[0], "max_cap": max_cap_value, "name": row[2]}
+                        {
+                            "timestamp": row[0],
+                            "max_cap": max_cap_value,
+                            "name": row[2],
+                            "max_cap_type": int(row[3]) if row[3] is not None else 0,
+                        }
                     )
             except (ValueError, TypeError):
                 continue
@@ -613,11 +619,14 @@ def asset_detail(request, asset_address):
             e.max_cap,
             e.multiplier as event_multiplier,
             e.multiplier_blockNumber,
-            e.std_growth_per_sec,
+            dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'std_growth_per_sec', (e.asset, e.asset_source, e.name), CAST(0 AS Int64)) as std_growth_per_sec,
             e.name,
             e.asset_source,
             t.numerator as transaction_numerator,
-            t.multiplier as transaction_multiplier
+            t.multiplier as transaction_multiplier,
+            e.max_cap_type,
+            e.max_cap_uint256,
+            e.multiplier_cap
         FROM aave_ethereum.LatestPriceEvent e
         LEFT JOIN aave_ethereum.LatestPriceTransaction t ON e.asset = t.asset
         WHERE e.asset = '{asset_address}'
@@ -643,6 +652,9 @@ def asset_detail(request, asset_address):
                     "asset_source": row[7] if row[7] is not None else "Unknown",
                     "transaction_numerator": int(row[8]) if row[8] is not None else 0,
                     "transaction_multiplier": int(row[9]) if row[9] is not None else 0,
+                    "max_cap_type": int(row[10]) if row[10] is not None else 0,
+                    "max_cap_uint256": int(row[11]) if row[11] is not None else 0,
+                    "multiplier_cap": int(row[12]) if row[12] is not None else 0,
                 }
 
                 # Add RPC price and calculated prices
