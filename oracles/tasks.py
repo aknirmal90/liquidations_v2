@@ -227,6 +227,10 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
                         )
                     )
                     network_event.logs_count += len(event_logs_for_address)
+                    max_block_number = max(
+                        event_log.blockNumber for event_log in event_logs_for_address
+                    )
+                    network_event.last_inserted_block = max_block_number
                     updated_network_events.append(network_event)
 
         self.bulk_insert_raw_price_events(
@@ -242,7 +246,9 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
             table_name="TransactionRawMultiplier", logs=parsed_multiplier_logs
         )
 
-        PriceEvent.objects.bulk_update(updated_network_events, ["logs_count"])
+        PriceEvent.objects.bulk_update(
+            updated_network_events, ["logs_count", "last_inserted_block"]
+        )
 
     def get_parsed_logs(
         self, network_event: PriceEvent, event_logs_for_address: List[Any], parser_func
@@ -415,12 +421,14 @@ class BasePriceMixin:
 
 class PriceEventStaticSynchronizeTask(BasePriceMixin, Task):
     def run(self):
-        network_events = PriceEvent.objects.all()
-        event = AttributeDict({"blockNumber": rpc_adapter.cached_block_height})
+        network_events = PriceEvent.objects.filter(
+            last_inserted_block__gt=(rpc_adapter.cached_block_height - 100_000)
+        )
         parsed_denominator_logs = []
         parsed_max_cap_logs = []
 
         for network_event in network_events.iterator():
+            event = AttributeDict({"blockNumber": rpc_adapter.cached_block_height})
             parsed_denominator_logs.extend(
                 self.get_parsed_logs(network_event, [event], get_denominator)
             )
@@ -441,11 +449,13 @@ PriceEventStaticSynchronizeTask = app.register_task(PriceEventStaticSynchronizeT
 
 class PriceTransactionDynamicSynchronizeTask(BasePriceMixin, Task):
     def run(self):
-        network_events = PriceEvent.objects.all()
-        event = AttributeDict({"blockNumber": rpc_adapter.block_height})
+        network_events = PriceEvent.objects.filter(
+            last_inserted_block__lt=(rpc_adapter.cached_block_height - 100_000)
+        )
         parsed_multiplier_logs = []
 
         for network_event in network_events.iterator():
+            event = AttributeDict({"blockNumber": rpc_adapter.cached_block_height})
             parsed_multiplier_logs.extend(
                 self.get_parsed_logs(network_event, [event], get_multiplier)
             )
@@ -516,7 +526,7 @@ class VerifyHistoricalPriceTask(Task):
                 name,
                 price_type,
                 int(datetime.now().timestamp() * 1_000_000),  # Convert to microseconds
-                abs(percent_diff),
+                (percent_diff),
             ]
         )
 

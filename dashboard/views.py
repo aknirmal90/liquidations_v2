@@ -1510,13 +1510,13 @@ def prices_summary(request):
                     "asset": row[1],
                     "asset_source": row[2],
                     "name": row[3],
-                    "historical_event_error": round(row[4], 6)
+                    "historical_event_error": round(row[4] * 10000, 2)
                     if row[4] is not None
                     else None,
-                    "historical_transaction_error": round(row[5], 6)
+                    "historical_transaction_error": round(row[5] * 10000, 2)
                     if row[5] is not None
                     else None,
-                    "predicted_transaction_error": round(row[6], 6)
+                    "predicted_transaction_error": round(row[6] * 10000, 2)
                     if row[6] is not None
                     else None,
                     "asset_url": get_simple_explorer_url(row[1]) if row[1] else None,

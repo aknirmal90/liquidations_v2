@@ -13,15 +13,25 @@ from utils.encoding import decode_any
 from utils.rpc import get_evm_block_timestamps, rpc_adapter
 
 
-def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> int:
+class MaxCapType:
+    NO_CAP = 0
+    MAX_PRICE_CAP = 1
+    MAX_MULTIPLIER_CAP = 2
+
+
+def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> list:
     asset_source = decode_any(asset_source)
     asset_source_type, abi = RpcCacheStorage.get_contract_info(asset_source)
 
     if transaction or (event is None and transaction is None):
         return RpcCacheStorage.get_cache(asset_source, "MAX_CAP") or 0
 
+    # Initialize max_cap_type: 0=no cap, 1=max price cap, 2=max ratio cap
+    max_cap_type = MaxCapType.NO_CAP
+
     # PriceCapAdapterStable: Get MAX_CAP from event data
     if asset_source_type == AssetSourceType.PriceCapAdapterStable:
+        max_cap_type = MaxCapType.MAX_PRICE_CAP
         events = rpc_adapter.extract_raw_event_data(
             topics=[
                 "0xa89f50d1caf6c404765ce94b422be388ce69c8ed68921620fa6a83c810000615"
@@ -43,6 +53,7 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
             )
 
     elif asset_source_type == AssetSourceType.EURPriceCapAdapterStable:
+        max_cap_type = MaxCapType.MAX_MULTIPLIER_CAP
         events = rpc_adapter.extract_raw_event_data(
             topics=[
                 "0x816ed2ec97505a2cbad39de6d4f0be098ab74467f5de87c86c000e64edf52c55"
@@ -87,6 +98,7 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
         AssetSourceType.EUSDePriceCapAdapter,
         AssetSourceType.sDAIMainnetPriceCapAdapter,
     ):
+        max_cap_type = MaxCapType.MAX_MULTIPLIER_CAP
         block_number = event.blockNumber
         block_timestamp = get_evm_block_timestamps([block_number])[block_number]
 
@@ -120,6 +132,7 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
         AssetSourceType.sDAISynchronicityPriceAdapter,
     ]:
         max_cap = 0
+        max_cap_type = MaxCapType.NO_CAP
     else:
         send_unsupported_asset_source_notification(
             asset_source, f"Unsupported in Max Cap {asset_source_type}"
@@ -135,4 +148,5 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
         get_timestamp(event, transaction),
         get_blockNumber(event, transaction),
         max_cap,
+        max_cap_type,
     ]
