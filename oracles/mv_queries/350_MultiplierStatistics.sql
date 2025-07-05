@@ -15,7 +15,7 @@ SELECT
         ELSE CAST(0 AS Float64)
     END AS std_growth_per_sec
 FROM aave_ethereum.TransactionRawMultiplier
-WHERE blockTimestamp >= now() - INTERVAL 7 DAY
+WHERE blockTimestamp >= now() - INTERVAL 3 HOUR
 GROUP BY
     asset,
     asset_source,
