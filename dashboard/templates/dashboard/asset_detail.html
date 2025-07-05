@@ -768,9 +768,9 @@
                                                     <td><strong>Growth Rate per Second</strong></td>
                                                     <td>
                                                         {% if latest_components.std_growth_per_sec != 0 %}
-                                                            {{ latest_components.std_growth_per_sec|floatformat:0 }}
+                                                            {{ latest_components.std_growth_per_sec|floatformat:6 }}
                                                         {% else %}
-                                                            <span class="text-muted">0</span>
+                                                            <span class="text-muted">0.0</span>
                                                         {% endif %}
                                                     </td>
                                                     <td><small class="text-muted">Standard growth rate per second for predictions</small></td>

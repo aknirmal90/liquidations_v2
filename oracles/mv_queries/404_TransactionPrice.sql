@@ -15,6 +15,16 @@ SELECT
     decimals_places,
     max_cap_uint256,
     multiplier_cap,
-    CAST(LEAST(CAST(multiplier AS Float64) * (1 + multiplier_growth_to_current_block / CAST(multiplier AS Float64)), CAST(multiplier_cap AS Float64)) * LEAST(CAST(max_cap_uint256 AS Float64), CAST(historical_price AS Float64)) AS UInt256) AS historical_price,
-    CAST(LEAST(CAST(multiplier AS Float64) * (1 + multiplier_growth_to_next_block / CAST(multiplier AS Float64)), CAST(multiplier_cap AS Float64)) * LEAST(CAST(max_cap_uint256 AS Float64), CAST(historical_price AS Float64)) AS UInt256) AS predicted_price
+    multiplier_growth_to_current_block,
+    multiplier_growth_to_next_block,
+    IF(
+        max_cap_type IN (0,1),
+        CAST(LEAST(max_cap_uint256, CAST(historical_price_max_cap_precomputed AS Float64)) AS UInt256),
+        CAST(LEAST(CAST(multiplier AS Float64) * (1 + multiplier_growth_to_current_block / CAST(multiplier AS Float64)), multiplier_cap) * CAST(numerator AS Float64) / CAST(denominator AS Float64) AS UInt256)
+    ) AS historical_price,
+    IF(
+        max_cap_type IN (0,1),
+        CAST(LEAST(max_cap_uint256, CAST(historical_price_max_cap_precomputed AS Float64)) AS UInt256),
+        CAST(LEAST(CAST(multiplier AS Float64) * (1 + multiplier_growth_to_next_block / CAST(multiplier AS Float64)), multiplier_cap) * CAST(numerator AS Float64) / CAST(denominator AS Float64) AS UInt256)
+    ) AS predicted_price
 FROM aave_ethereum.LatestPriceTransactionBase

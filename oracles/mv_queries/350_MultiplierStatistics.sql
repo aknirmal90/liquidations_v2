@@ -11,11 +11,11 @@ SELECT
     CASE
         WHEN toUnixTimestamp(max(blockTimestamp)) - toUnixTimestamp(min(blockTimestamp)) > 0 THEN
             CAST((max(toFloat64(multiplier)) - min(toFloat64(multiplier))) /
-            (toUnixTimestamp(max(blockTimestamp)) - toUnixTimestamp(min(blockTimestamp))) AS Int64)
-        ELSE CAST(0 AS Int64)
+            (toUnixTimestamp(max(blockTimestamp)) - toUnixTimestamp(min(blockTimestamp))) AS Float64)
+        ELSE CAST(0 AS Float64)
     END AS std_growth_per_sec
 FROM aave_ethereum.TransactionRawMultiplier
-WHERE blockTimestamp >= now() - INTERVAL 1 DAY
+WHERE blockTimestamp >= now() - INTERVAL 7 DAY
 GROUP BY
     asset,
     asset_source,

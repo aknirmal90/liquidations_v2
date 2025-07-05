@@ -53,7 +53,7 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
             )
 
     elif asset_source_type == AssetSourceType.EURPriceCapAdapterStable:
-        max_cap_type = MaxCapType.MAX_MULTIPLIER_CAP
+        max_cap_type = MaxCapType.MAX_PRICE_CAP
         events = rpc_adapter.extract_raw_event_data(
             topics=[
                 "0x816ed2ec97505a2cbad39de6d4f0be098ab74467f5de87c86c000e64edf52c55"
@@ -111,7 +111,6 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
         snapshot_timestamp = RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "getSnapshotTimestamp", ttl=CACHE_TTL_4_HOURS
         )
-
         max_cap = snapshot_ratio + max_ratio_growth_per_second * (
             block_timestamp - snapshot_timestamp
         )
