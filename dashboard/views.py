@@ -9,8 +9,10 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from oracles.contracts.interface import PriceOracleInterface
 from utils.clickhouse.client import clickhouse_client
 from utils.constants import NETWORK_NAME
+from utils.rpc import rpc_adapter
 
 
 def get_simple_explorer_url(address_id: str):
@@ -551,7 +553,8 @@ def asset_detail(request, asset_address):
         SELECT
             blockTimestamp,
             toFloat64(max_cap) as max_cap_value,
-            name
+            name,
+            max_cap_type
         FROM aave_ethereum.EventRawMaxCap
         WHERE asset = '{asset_address}'
           AND blockTimestamp >= now() - INTERVAL 30 DAY
@@ -567,7 +570,12 @@ def asset_detail(request, asset_address):
                 max_cap_value = int(row[1]) if row[1] is not None else None
                 if max_cap_value is not None and max_cap_value > 0:
                     event_max_cap_data.append(
-                        {"timestamp": row[0], "max_cap": max_cap_value, "name": row[2]}
+                        {
+                            "timestamp": row[0],
+                            "max_cap": max_cap_value,
+                            "name": row[2],
+                            "max_cap_type": int(row[3]) if row[3] is not None else 0,
+                        }
                     )
             except (ValueError, TypeError):
                 continue
@@ -602,6 +610,105 @@ def asset_detail(request, asset_address):
                 )
             except (ValueError, TypeError):
                 continue
+
+        # Get latest price components data (both event and transaction)
+        latest_components_query = f"""
+        SELECT
+            e.numerator as event_numerator,
+            e.denominator,
+            e.max_cap,
+            e.multiplier as event_multiplier,
+            e.multiplier_blockNumber,
+            dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'std_growth_per_sec', (e.asset, e.asset_source, e.name), CAST(0 AS Float64)) as std_growth_per_sec,
+            e.name,
+            e.asset_source,
+            t.numerator as transaction_numerator,
+            t.multiplier as transaction_multiplier,
+            e.max_cap_type,
+            e.max_cap_uint256,
+            e.multiplier_cap
+        FROM aave_ethereum.LatestPriceEvent e
+        LEFT JOIN aave_ethereum.LatestPriceTransaction t ON e.asset = t.asset
+        WHERE e.asset = '{asset_address}'
+        LIMIT 1
+        """
+
+        latest_components_result = clickhouse_client.execute_query(
+            latest_components_query
+        )
+        latest_components_data = None
+        if latest_components_result.result_rows:
+            row = latest_components_result.result_rows[0]
+            try:
+                # Basic component data
+                components_data = {
+                    "event_numerator": int(row[0]) if row[0] is not None else 0,
+                    "denominator": int(row[1]) if row[1] is not None else 0,
+                    "max_cap": int(row[2]) if row[2] is not None else 0,
+                    "event_multiplier": int(row[3]) if row[3] is not None else 0,
+                    "multiplier_blockNumber": int(row[4]) if row[4] is not None else 0,
+                    "std_growth_per_sec": float(row[5]) if row[5] is not None else 0.0,
+                    "name": row[6] if row[6] is not None else "Unknown",
+                    "asset_source": row[7] if row[7] is not None else "Unknown",
+                    "transaction_numerator": int(row[8]) if row[8] is not None else 0,
+                    "transaction_multiplier": int(row[9]) if row[9] is not None else 0,
+                    "max_cap_type": int(row[10]) if row[10] is not None else 0,
+                    "max_cap_uint256": int(row[11]) if row[11] is not None else 0,
+                    "multiplier_cap": int(row[12]) if row[12] is not None else 0,
+                }
+
+                # Add RPC price and calculated prices
+                rpc_price = None
+                calculated_event_price = None
+                calculated_transaction_price = None
+                calculated_predicted_price = None
+
+                if components_data["asset_source"] != "Unknown":
+                    try:
+                        # Initialize PriceOracleInterface
+                        price_oracle = PriceOracleInterface(
+                            asset_address, components_data["asset_source"]
+                        )
+
+                        # Get RPC price
+                        rpc_price = price_oracle.latest_price_from_rpc
+
+                        # Get calculated prices
+                        calculated_event_price = (
+                            price_oracle.historical_price_from_event
+                        )
+                        calculated_transaction_price = (
+                            price_oracle.historical_price_from_transaction
+                        )
+                        calculated_predicted_price = (
+                            price_oracle.predicted_price_from_transaction
+                        )
+
+                    except Exception as e:
+                        # Handle RPC or calculation errors gracefully
+                        rpc_price = f"Error: {str(e)}"
+
+                # Get RPC cached block height
+                rpc_cached_block_height = None
+                try:
+                    rpc_cached_block_height = rpc_adapter.cached_block_height
+                except Exception as e:
+                    rpc_cached_block_height = f"Error: {str(e)}"
+
+                components_data.update(
+                    {
+                        "rpc_price": rpc_price,
+                        "calculated_event_price": calculated_event_price,
+                        "calculated_transaction_price": calculated_transaction_price,
+                        "calculated_predicted_price": calculated_predicted_price,
+                        "rpc_cached_block_height": rpc_cached_block_height,
+                    }
+                )
+
+                latest_components_data = components_data
+
+            except (ValueError, TypeError):
+                latest_components_data = None
 
         # Calculate average time between consecutive blocks
         avg_block_time = calculate_average_block_time(historical_prices)
@@ -672,6 +779,7 @@ def asset_detail(request, asset_address):
                 "transaction_price": transaction_price_data,
                 "predicted_price": predicted_price_data,
             },
+            "latest_components": latest_components_data,
         }
 
         return render(request, "dashboard/asset_detail.html", context)
@@ -1377,14 +1485,14 @@ def prices_summary(request):
                 pct_error,
                 blockTimestamp,
                 ROW_NUMBER() OVER (
-                    PARTITION BY asset
+                    PARTITION BY asset, type
                     ORDER BY blockTimestamp DESC
                 ) as rn
             FROM aave_ethereum.PriceVerificationRecords
             WHERE blockTimestamp >= now() - INTERVAL 30 DAY
         )
         SELECT
-            ROW_NUMBER() OVER (ORDER BY asset, asset_source, name) as row_number,
+            ROW_NUMBER() OVER (ORDER BY name, asset, asset_source) as row_number,
             asset,
             asset_source,
             name,
@@ -1394,7 +1502,7 @@ def prices_summary(request):
         FROM LatestRecords
         WHERE rn = 1
         GROUP BY asset, asset_source, name
-        ORDER BY asset, asset_source, name
+        ORDER BY name, asset, asset_source
         """
 
         result = clickhouse_client.execute_query(query)
@@ -1414,13 +1522,13 @@ def prices_summary(request):
                     "asset": row[1],
                     "asset_source": row[2],
                     "name": row[3],
-                    "historical_event_error": round(row[4], 6)
+                    "historical_event_error": round(row[4] * 10000, 2)
                     if row[4] is not None
                     else None,
-                    "historical_transaction_error": round(row[5], 6)
+                    "historical_transaction_error": round(row[5] * 10000, 2)
                     if row[5] is not None
                     else None,
-                    "predicted_transaction_error": round(row[6], 6)
+                    "predicted_transaction_error": round(row[6] * 10000, 2)
                     if row[6] is not None
                     else None,
                     "asset_url": get_simple_explorer_url(row[1]) if row[1] else None,

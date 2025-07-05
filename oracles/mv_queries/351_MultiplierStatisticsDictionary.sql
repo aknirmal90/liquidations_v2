@@ -8,7 +8,7 @@ CREATE DICTIONARY IF NOT EXISTS aave_ethereum.MultiplierStatsDict
     max_blockTimestamp DateTime64(6),
     stddev_multiplier Float64,
     avg_time_bw_records Float64,
-    std_growth_per_sec Int64
+    std_growth_per_sec Float64
 )
 PRIMARY KEY asset, asset_source, name
 SOURCE(CLICKHOUSE(

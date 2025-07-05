@@ -8,6 +8,7 @@ class PriceEvent(BaseEvent):
     asset = models.CharField(max_length=256, null=False)
     asset_source = models.CharField(max_length=256, null=False)
     asset_source_name = models.CharField(max_length=256, null=False)
+    last_inserted_block = models.IntegerField(default=0)
 
     transmitters = models.JSONField(null=True, blank=True)
 

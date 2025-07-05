@@ -385,9 +385,9 @@
                                                 <th>Asset</th>
                                                 <th>Asset Source</th>
                                                 <th>Name</th>
-                                                <th>Historical Event Error %</th>
-                                                <th>Historical Transaction Error %</th>
-                                                <th>Predicted Transaction Error %</th>
+                                                <th>Historical Event Error (BPS)</th>
+                                                <th>Historical Transaction Error (BPS)</th>
+                                                <th>Predicted Transaction Error (BPS)</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -417,8 +417,8 @@
                                                 </td>
                                             <td>
                                                 {% if record.historical_event_error is not None %}
-                                                    <span class="error-badge {% if record.historical_event_error == 0.0 %}error-low{% elif record.historical_event_error <= 0.00001 %}error-medium{% else %}error-high{% endif %}">
-                                                        {{ record.historical_event_error|floatformat:6 }}%
+                                                    <span class="error-badge {% if record.historical_event_error == 0.0 %}error-low{% elif record.historical_event_error <= 0.1 %}error-medium{% else %}error-high{% endif %}">
+                                                        {{ record.historical_event_error|floatformat:2 }}
                                                     </span>
                                                 {% else %}
                                                     <span class="error-badge error-none">N/A</span>
@@ -426,8 +426,8 @@
                                             </td>
                                             <td>
                                                 {% if record.historical_transaction_error is not None %}
-                                                    <span class="error-badge {% if record.historical_transaction_error == 0.0 %}error-low{% elif record.historical_transaction_error <= 0.00001 %}error-medium{% else %}error-high{% endif %}">
-                                                        {{ record.historical_transaction_error|floatformat:6 }}%
+                                                    <span class="error-badge {% if record.historical_transaction_error == 0.0 %}error-low{% elif record.historical_transaction_error <= 0.1 %}error-medium{% else %}error-high{% endif %}">
+                                                        {{ record.historical_transaction_error|floatformat:2 }}
                                                     </span>
                                                 {% else %}
                                                     <span class="error-badge error-none">N/A</span>
@@ -435,8 +435,8 @@
                                             </td>
                                             <td>
                                                 {% if record.predicted_transaction_error is not None %}
-                                                    <span class="error-badge {% if record.predicted_transaction_error == 0.0 %}error-low{% elif record.predicted_transaction_error <= 0.00001 %}error-medium{% else %}error-high{% endif %}">
-                                                        {{ record.predicted_transaction_error|floatformat:6 }}%
+                                                    <span class="error-badge {% if record.predicted_transaction_error == 0.0 %}error-low{% elif record.predicted_transaction_error <= 0.1 %}error-medium{% else %}error-high{% endif %}">
+                                                        {{ record.predicted_transaction_error|floatformat:2 }}
                                                     </span>
                                                 {% else %}
                                                     <span class="error-badge error-none">N/A</span>

@@ -1,3 +1,4 @@
+from oracles.contracts.interface import PriceOracleInterface
 from oracles.contracts.utils import (
     AssetSourceType,
     RpcCacheStorage,
@@ -35,7 +36,7 @@ def get_numerator(asset: str, asset_source: str, event=None, transaction=None) -
         underlying_asset_address = RpcCacheStorage.get_cached_asset_source_function(
             asset_to_peg_address, "aggregator"
         )
-        is_asset_to_peg = address == underlying_asset_address
+        is_asset_to_peg = address == decode_any(underlying_asset_address)
 
         # Get cached prices based on address type
         if is_asset_to_peg:
@@ -45,6 +46,15 @@ def get_numerator(asset: str, asset_source: str, event=None, transaction=None) -
             other_price_future = RpcCacheStorage.get_cache(
                 asset_source, "PEG_TO_BASE_PRICE_FUTURE"
             )
+
+            if other_price_past is None:
+                peg_to_base_address = RpcCacheStorage.get_cached_asset_source_function(
+                    asset_source, "PEG_TO_BASE"
+                )
+                other_price_past = PriceOracleInterface(
+                    asset=asset,
+                    asset_source=peg_to_base_address,
+                ).latest_price_from_rpc
         else:
             other_price_past = RpcCacheStorage.get_cache(
                 asset_source, "ASSET_TO_PEG_PRICE"
@@ -52,10 +62,11 @@ def get_numerator(asset: str, asset_source: str, event=None, transaction=None) -
             other_price_future = RpcCacheStorage.get_cache(
                 asset_source, "ASSET_TO_PEG_PRICE_FUTURE"
             )
-
-        # Use 0 if no cached past price available
-        if other_price_past is None:
-            other_price_past = 0
+            if other_price_past is None:
+                other_price_past = PriceOracleInterface(
+                    asset=asset,
+                    asset_source=asset_to_peg_address,
+                ).latest_price_from_rpc
 
         # Handle event-based price updates
         if event:
@@ -63,11 +74,15 @@ def get_numerator(asset: str, asset_source: str, event=None, transaction=None) -
 
             # Cache the calculated price
             if is_asset_to_peg:
-                RpcCacheStorage.set_cache(
-                    asset_source, "ASSET_TO_PEG_PRICE", this_price
-                )
+                if this_price and this_price > 0:
+                    RpcCacheStorage.set_cache(
+                        asset_source, "ASSET_TO_PEG_PRICE", this_price
+                    )
             else:
-                RpcCacheStorage.set_cache(asset_source, "PEG_TO_BASE_PRICE", this_price)
+                if this_price and this_price > 0:
+                    RpcCacheStorage.set_cache(
+                        asset_source, "PEG_TO_BASE_PRICE", this_price
+                    )
 
         # Handle transaction-based price updates
         elif transaction:
@@ -79,19 +94,21 @@ def get_numerator(asset: str, asset_source: str, event=None, transaction=None) -
 
             # Cache the calculated price with TTL for future transactions
             if is_asset_to_peg:
-                RpcCacheStorage.set_cache_with_ttl(
-                    asset_source,
-                    "ASSET_TO_PEG_PRICE_FUTURE",
-                    this_price,
-                    ttl=NETWORK_BLOCK_TIME,
-                )
+                if this_price and this_price > 0:
+                    RpcCacheStorage.set_cache_with_ttl(
+                        asset_source,
+                        "ASSET_TO_PEG_PRICE_FUTURE",
+                        this_price,
+                        ttl=NETWORK_BLOCK_TIME,
+                    )
             else:
-                RpcCacheStorage.set_cache_with_ttl(
-                    asset_source,
-                    "PEG_TO_BASE_PRICE_FUTURE",
-                    this_price,
-                    ttl=NETWORK_BLOCK_TIME,
-                )
+                if this_price and this_price > 0:
+                    RpcCacheStorage.set_cache_with_ttl(
+                        asset_source,
+                        "PEG_TO_BASE_PRICE_FUTURE",
+                        this_price,
+                        ttl=NETWORK_BLOCK_TIME,
+                    )
 
     elif asset_source_type in (
         AssetSourceType.EACAggregatorProxy,
