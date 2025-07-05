@@ -48,7 +48,7 @@ def get_numerator(asset: str, asset_source: str, event=None, transaction=None) -
             )
 
             if other_price_past is None:
-                peg_to_base_address = RpcCacheStorage.get_cache(
+                peg_to_base_address = RpcCacheStorage.get_cached_asset_source_function(
                     asset_source, "PEG_TO_BASE"
                 )
                 other_price_past = PriceOracleInterface(
@@ -62,14 +62,11 @@ def get_numerator(asset: str, asset_source: str, event=None, transaction=None) -
             other_price_future = RpcCacheStorage.get_cache(
                 asset_source, "ASSET_TO_PEG_PRICE_FUTURE"
             )
-            other_price_past = PriceOracleInterface(
-                asset=asset,
-                asset_source=asset_to_peg_address,
-            ).latest_price_from_rpc
-
-        # Use 0 if no cached past price available
-        if other_price_past is None:
-            other_price_past = 0
+            if other_price_past is None:
+                other_price_past = PriceOracleInterface(
+                    asset=asset,
+                    asset_source=asset_to_peg_address,
+                ).latest_price_from_rpc
 
         # Handle event-based price updates
         if event:

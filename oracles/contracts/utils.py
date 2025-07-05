@@ -133,7 +133,7 @@ class RpcCacheStorage:
 
         # Second attempt: Check file system
         abi_file_path = os.path.join(
-            os.path.dirname(__file__), "abis", f"{asset_source}.json"
+            os.path.dirname(__file__), "abis", f"{asset_source.lower()}.json"
         )
 
         if os.path.exists(abi_file_path):
