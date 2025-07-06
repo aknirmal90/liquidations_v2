@@ -1,5 +1,6 @@
 from oracles.contracts.multiplier_abis import METHOD_ABI_MAPPING
 from oracles.contracts.utils import (
+    CACHE_TTL_1_MINUTE,
     AssetSourceType,
     RpcCacheStorage,
     UnsupportedAssetSourceError,
@@ -8,16 +9,12 @@ from oracles.contracts.utils import (
     send_unsupported_asset_source_notification,
 )
 from utils.encoding import decode_any
-from utils.rpc import rpc_adapter
-
-MULTIPLIER_LIVE_BLOCKS_CUTOFF = 15_000
 
 
 def _calculate_ratio_provider_multiplier(asset_source: str, config: dict, event) -> int:
     """Calculate multiplier for ratio provider asset source types."""
-    block_number = event.blockNumber
     provider = RpcCacheStorage.get_cached_asset_source_function(
-        asset_source, config["provider_key"]
+        asset_source, config["provider_key"], ttl=CACHE_TTL_1_MINUTE
     )
     method = config["method"]
     requires_parameter = config.get("requires_parameter", False)
@@ -29,69 +26,51 @@ def _calculate_ratio_provider_multiplier(asset_source: str, config: dict, event)
 
     if requires_parameter:
         ratio_decimals = RpcCacheStorage.get_cached_asset_source_function(
-            asset_source, config["decimals_key"]
+            asset_source, config["decimals_key"], ttl=CACHE_TTL_1_MINUTE
         )
         parameter = int(10**ratio_decimals)
-        if (
-            block_number
-            < rpc_adapter.cached_block_height - MULTIPLIER_LIVE_BLOCKS_CUTOFF
-        ):
-            multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
-            if multiplier is None:
-                multiplier = RpcCacheStorage.call_function(
-                    provider,
-                    method,
-                    parameter,
-                    block_number=block_number,
-                    abi=abi,
-                )
-                RpcCacheStorage.set_cache(asset_source, "MULTIPLIER", multiplier)
-        else:
+        multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
+        if multiplier is None:
             multiplier = RpcCacheStorage.call_function(
-                provider, method, parameter, block_number=block_number, abi=abi
+                provider,
+                method,
+                parameter,
+                abi=abi,
+            )
+            RpcCacheStorage.set_cache_with_ttl(
+                asset_source, "MULTIPLIER", multiplier, CACHE_TTL_1_MINUTE
             )
     else:
-        if (
-            block_number
-            < rpc_adapter.cached_block_height - MULTIPLIER_LIVE_BLOCKS_CUTOFF
-        ):
-            multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
-            if multiplier is None:
-                multiplier = RpcCacheStorage.call_function(
-                    provider, method, block_number=block_number, abi=abi
-                )
-                RpcCacheStorage.set_cache(asset_source, "MULTIPLIER", multiplier)
-        else:
-            multiplier = RpcCacheStorage.call_function(
-                provider, method, block_number=block_number, abi=abi
+        multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
+        if multiplier is None:
+            multiplier = RpcCacheStorage.get_cached_asset_source_function(
+                provider, method, abi=abi, ttl=CACHE_TTL_1_MINUTE
+            )
+            RpcCacheStorage.set_cache_with_ttl(
+                asset_source, "MULTIPLIER", multiplier, CACHE_TTL_1_MINUTE
             )
 
-    RpcCacheStorage.set_cache(asset_source, "MULTIPLIER", multiplier)
     return multiplier
 
 
 def _calculate_pendle_discount_multiplier(asset_source: str, event) -> int:
     """Calculate multiplier for pendle discount asset source types."""
-    block_number = event.blockNumber
     percentage_factor = RpcCacheStorage.get_cached_asset_source_function(
         asset_source, "PERCENTAGE_FACTOR"
     )
-    if block_number < rpc_adapter.cached_block_height - MULTIPLIER_LIVE_BLOCKS_CUTOFF:
-        current_discount = RpcCacheStorage.get_cache(asset_source, "CURRENT_DISCOUNT")
-        if current_discount is None:
-            current_discount = RpcCacheStorage.call_function(
-                asset_source, "getCurrentDiscount", block_number=block_number
-            )
-            RpcCacheStorage.set_cache(
-                asset_source, "CURRENT_DISCOUNT", current_discount
-            )
-    else:
+    current_discount = RpcCacheStorage.get_cache(asset_source, "CURRENT_DISCOUNT")
+    if current_discount is None:
         current_discount = RpcCacheStorage.call_function(
-            asset_source, "getCurrentDiscount", block_number=block_number
+            asset_source, "getCurrentDiscount"
+        )
+        RpcCacheStorage.set_cache_with_ttl(
+            asset_source, "CURRENT_DISCOUNT", current_discount, ttl=CACHE_TTL_1_MINUTE
         )
 
     multiplier = int(percentage_factor - current_discount)
-    RpcCacheStorage.set_cache(asset_source, "MULTIPLIER", multiplier)
+    RpcCacheStorage.set_cache_with_ttl(
+        asset_source, "MULTIPLIER", multiplier, CACHE_TTL_1_MINUTE
+    )
     return multiplier
 
 

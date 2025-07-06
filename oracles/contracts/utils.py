@@ -17,6 +17,8 @@ from utils.simplepush import send_simplepush_notification
 logger = logging.getLogger(__name__)
 
 
+CACHE_TTL_1_MINUTE = 60
+
 CACHE_TTL_4_HOURS = 60 * 60 * 4
 
 CACHE_TTL_24_HOURS = 60 * 60 * 24
@@ -40,6 +42,13 @@ def get_blockNumber(event=None, transaction=None) -> int:
         return event.blockNumber
     else:
         return rpc_adapter.cached_block_height
+
+
+def get_transaction_hash(event=None, transaction=None) -> str:
+    if event:
+        return event.transactionHash
+    else:
+        return transaction["hash"]
 
 
 class RpcCacheStorage:

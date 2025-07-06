@@ -516,7 +516,7 @@ class VerifyHistoricalPriceTask(Task):
         if price is None:
             return True
 
-        percent_diff = (price - rpc_price) / rpc_price * 100
+        percent_diff = (price - rpc_price) / rpc_price
 
         # Store verification record
         verification_records.append(

@@ -1456,8 +1456,8 @@ def asset_data_api(request, asset_address):
 def prices_summary(request):
     """View to show price verification summary across all assets"""
     try:
-        # Get initial box plot data for default time window (1 month)
-        time_window = request.GET.get("time_window", "1_month")
+        # Get initial box plot data for default time window (1 hour)
+        time_window = request.GET.get("time_window", "1_hour")
 
         # Get box plot data directly without going through the API
         box_plot_json = get_box_plot_data(time_window)
@@ -1553,7 +1553,7 @@ def prices_summary(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-def get_box_plot_data(time_window="1_month"):
+def get_box_plot_data(time_window="1_hour"):
     """Helper function to get box plot data for price verification errors"""
     # Map time window to SQL interval
     interval_map = {

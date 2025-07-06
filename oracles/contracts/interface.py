@@ -1,8 +1,5 @@
-from web3 import Web3
-
-from oracles.contracts.utils import RpcCacheStorage
+from oracles.contracts.utils import CACHE_TTL_1_MINUTE, RpcCacheStorage
 from utils.clickhouse.client import clickhouse_client
-from utils.rpc import rpc_adapter
 
 
 class PriceOracleInterface:
@@ -13,12 +10,12 @@ class PriceOracleInterface:
 
     @property
     def latest_price_from_rpc(self) -> float:
-        return (
-            rpc_adapter.client.eth.contract(
-                address=Web3.to_checksum_address(self.asset_source), abi=self.abi
-            )
-            .functions.latestAnswer()
-            .call()
+        if self.name in ("EACAggregatorProxy", "PriceCapAdapterStable", "GhoOracle"):
+            ttl = CACHE_TTL_1_MINUTE
+        else:
+            ttl = 2  # 2 seconds
+        return RpcCacheStorage.get_cached_asset_source_function(
+            self.asset_source, "latestAnswer", abi=self.abi, ttl=ttl
         )
 
     @property

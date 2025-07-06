@@ -4,6 +4,7 @@ from oracles.contracts.utils import (
     RpcCacheStorage,
     get_blockNumber,
     get_timestamp,
+    get_transaction_hash,
     send_unsupported_asset_source_notification,
 )
 from utils.constants import NETWORK_BLOCK_TIME
@@ -152,5 +153,7 @@ def get_numerator(asset: str, asset_source: str, event=None, transaction=None) -
         asset_source_type,
         get_timestamp(event, transaction),
         get_blockNumber(event, transaction),
+        get_transaction_hash(event, transaction),
+        "event" if event else "transaction",
         price,
     ]
