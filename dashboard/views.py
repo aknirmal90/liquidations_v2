@@ -1735,6 +1735,158 @@ def price_zero_error_stats_data(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
+def transaction_coverage_metrics(request):
+    """API endpoint to get transaction coverage metrics"""
+    try:
+        time_window = request.GET.get("time_window", "1_hour")
+
+        # Convert time window to ClickHouse interval
+        interval_map = {
+            "1_hour": "1 HOUR",
+            "1_day": "1 DAY",
+            "1_week": "7 DAY",
+            "1_month": "30 DAY",
+        }
+
+        interval = interval_map.get(time_window, "1 HOUR")
+
+        # First, get the minimum blockTimestamp where type='transaction'
+        min_timestamp_query = f"""
+        SELECT MIN(blockTimestamp) as min_timestamp
+        FROM aave_ethereum.TransactionRawNumerator
+        WHERE type = 'transaction'
+        AND blockTimestamp >= now() - INTERVAL {interval}
+        """
+
+        min_result = clickhouse_client.execute_query(min_timestamp_query)
+        min_timestamp = min_result.result_rows[0][0] if min_result.result_rows else None
+
+        if not min_timestamp:
+            return JsonResponse(
+                {"event_only": 0, "transaction_only": 0, "both_types": 0}
+            )
+
+        # Query to analyze transaction coverage
+        coverage_query = f"""
+        WITH transaction_analysis AS (
+            SELECT
+                transactionHash,
+                SUM(CASE WHEN type = 'event' THEN 1 ELSE 0 END) as has_event,
+                SUM(CASE WHEN type = 'transaction' THEN 1 ELSE 0 END) as has_transaction
+            FROM aave_ethereum.TransactionRawNumerator
+            WHERE blockTimestamp >= '{min_timestamp}'
+            GROUP BY transactionHash
+        )
+        SELECT
+            SUM(CASE WHEN has_event > 0 AND has_transaction = 0 THEN 1 ELSE 0 END) as event_only,
+            SUM(CASE WHEN has_event = 0 AND has_transaction > 0 THEN 1 ELSE 0 END) as transaction_only,
+            SUM(CASE WHEN has_event > 0 AND has_transaction > 0 THEN 1 ELSE 0 END) as both_types
+        FROM transaction_analysis
+        """
+
+        result = clickhouse_client.execute_query(coverage_query)
+
+        if result.result_rows:
+            row = result.result_rows[0]
+            data = {
+                "event_only": row[0],
+                "transaction_only": row[1],
+                "both_types": row[2],
+            }
+        else:
+            data = {"event_only": 0, "transaction_only": 0, "both_types": 0}
+
+        return JsonResponse(data)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def transaction_timestamp_differences(request):
+    """API endpoint to get timestamp differences for transactions with both types"""
+    try:
+        time_window = request.GET.get("time_window", "1_hour")
+
+        # Convert time window to ClickHouse interval
+        interval_map = {
+            "1_hour": "1 HOUR",
+            "1_day": "1 DAY",
+            "1_week": "7 DAY",
+            "1_month": "30 DAY",
+        }
+
+        interval = interval_map.get(time_window, "1 HOUR")
+
+        # First, get the minimum blockTimestamp where type='transaction'
+        min_timestamp_query = f"""
+        SELECT MIN(blockTimestamp) as min_timestamp
+        FROM aave_ethereum.TransactionRawNumerator
+        WHERE type = 'transaction'
+        AND blockTimestamp >= now() - INTERVAL {interval}
+        """
+
+        min_result = clickhouse_client.execute_query(min_timestamp_query)
+        min_timestamp = min_result.result_rows[0][0] if min_result.result_rows else None
+
+        if not min_timestamp:
+            return JsonResponse({"data": []})
+
+        # Query to get timestamp differences for transactions with both types
+        diff_query = f"""
+        WITH transaction_pairs AS (
+            SELECT
+                asset,
+                asset_source,
+                name,
+                transactionHash,
+                MAX(CASE WHEN type = 'event' THEN blockTimestamp ELSE NULL END) as event_timestamp,
+                MAX(CASE WHEN type = 'transaction' THEN blockTimestamp ELSE NULL END) as transaction_timestamp
+            FROM aave_ethereum.TransactionRawNumerator
+            WHERE blockTimestamp >= '{min_timestamp}'
+            GROUP BY asset, asset_source, name, transactionHash
+            HAVING event_timestamp IS NOT NULL AND transaction_timestamp IS NOT NULL
+        )
+        SELECT
+            asset,
+            asset_source,
+            name,
+            transactionHash,
+            event_timestamp,
+            transaction_timestamp,
+            toInt64(transaction_timestamp) - toInt64(event_timestamp) as timestamp_diff_microseconds,
+            (toInt64(transaction_timestamp) - toInt64(event_timestamp)) / 1000000.0 as timestamp_diff_seconds
+        FROM transaction_pairs
+        ORDER BY asset, asset_source, timestamp_diff_seconds
+        """
+
+        result = clickhouse_client.execute_query(diff_query)
+
+        # Convert to list of dictionaries for JSON response
+        data = []
+        for row in result.result_rows:
+            data.append(
+                {
+                    "asset": row[0],
+                    "asset_source": row[1],
+                    "name": row[2],
+                    "transaction_hash": row[3],
+                    "event_timestamp": row[4].isoformat() if row[4] else None,
+                    "transaction_timestamp": row[5].isoformat() if row[5] else None,
+                    "timestamp_diff_microseconds": row[6],
+                    "timestamp_diff_seconds": float(row[7])
+                    if row[7] is not None
+                    else 0.0,
+                }
+            )
+
+        return JsonResponse({"data": data})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
 def create_box_plots(box_plot_data):
     """Create 3 interactive box plots for price verification errors by type"""
     plots = {}

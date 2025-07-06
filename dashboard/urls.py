@@ -24,4 +24,14 @@ urlpatterns = [
         views.price_zero_error_stats_data,
         name="price_zero_error_stats_data",
     ),
+    path(
+        "api/transaction-coverage-metrics/",
+        views.transaction_coverage_metrics,
+        name="transaction_coverage_metrics",
+    ),
+    path(
+        "api/transaction-timestamp-differences/",
+        views.transaction_timestamp_differences,
+        name="transaction_timestamp_differences",
+    ),
 ]

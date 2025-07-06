@@ -6,6 +6,8 @@ INSERT INTO aave_ethereum.TransactionRawNumerator
     name,
     blockTimestamp,
     blockNumber,
+    transactionHash,
+    type,
     numerator
 )
 VALUES
@@ -15,5 +17,7 @@ VALUES
     'GhoOracle',
     now(),
     1,
+    '0x0000000000000000000000000000000000000000000000000000000000000000',
+    'transaction',
     100000000
 );

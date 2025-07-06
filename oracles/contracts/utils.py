@@ -7,8 +7,12 @@ from typing import Any, Optional, Union
 
 import requests
 from django.core.cache import cache
+from django.db.models import QuerySet
+from django.db.models.functions import Concat
 from web3 import Web3
 
+from oracles.models import PriceEvent
+from utils.clickhouse.client import clickhouse_client
 from utils.constants import NETWORK_NAME, PROTOCOL_NAME
 from utils.encoding import decode_any
 from utils.rpc import get_evm_block_timestamps, rpc_adapter
@@ -49,6 +53,33 @@ def get_transaction_hash(event=None, transaction=None) -> str:
         return event.transactionHash
     else:
         return transaction["hash"]
+
+
+def get_latest_asset_sources() -> QuerySet:
+    active_asset_sources = get_latest_asset_tuple()
+    active_asset_sources_set = {(row[0], row[1]) for row in active_asset_sources}
+
+    # Filter PriceEvents to only include those with active asset sources using composite key
+    network_events = PriceEvent.objects.all()
+    network_events = network_events.annotate(
+        composite_key=Concat("asset", "asset_source")
+    )
+    network_events = network_events.filter(
+        composite_key__in=[
+            f"{asset}{source}" for asset, source in active_asset_sources_set
+        ]
+    )
+    return network_events
+
+
+def get_latest_asset_tuple() -> list[str]:
+    query = """
+    SELECT asset, source
+    FROM aave_ethereum.LatestAssetSourceUpdated
+    GROUP BY asset, source
+    """
+    result = clickhouse_client.execute_query(query)
+    return result.result_rows
 
 
 class RpcCacheStorage:

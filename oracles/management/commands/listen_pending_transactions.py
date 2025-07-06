@@ -85,6 +85,7 @@ class Command(WebsocketCommand, BaseCommand):
         """
         median_price = parsed_data["median_price"]
         oracle_address = parsed_data["oracle_address"]
+        parsed_data["hash"] = tx_data["hash"]
 
         asset_sources = cache.get(f"underlying_asset_source_{oracle_address}")
         transaction_numerators = []

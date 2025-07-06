@@ -303,12 +303,17 @@
                                 </li>
                                 <li class="nav-item" role="presentation">
                                     <button class="nav-link" id="table-tab" data-bs-toggle="tab" data-bs-target="#table" type="button" role="tab" aria-controls="table" aria-selected="false">
-                                        <i class="fas fa-table me-2"></i>Data Table
+                                        <i class="fas fa-table me-2"></i>Latest Pricing Diffs
                                     </button>
                                 </li>
                                 <li class="nav-item" role="presentation">
                                     <button class="nav-link" id="zero-stats-tab" data-bs-toggle="tab" data-bs-target="#zero-stats" type="button" role="tab" aria-controls="zero-stats" aria-selected="false">
                                         <i class="fas fa-bullseye me-2"></i>Accuracy by Time
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="transaction-coverage-tab" data-bs-toggle="tab" data-bs-target="#transaction-coverage" type="button" role="tab" aria-controls="transaction-coverage" aria-selected="false">
+                                        <i class="fas fa-exchange-alt me-2"></i>Transaction Coverage
                                     </button>
                                 </li>
                             </ul>
@@ -523,6 +528,83 @@
                                         <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
                                         <h5 class="text-muted">Error Loading Data</h5>
                                         <p class="text-muted" id="zeroStatsErrorMessage">Failed to load zero error statistics.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Transaction Coverage Tab -->
+                            <div class="tab-pane fade" id="transaction-coverage" role="tabpanel" aria-labelledby="transaction-coverage-tab">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-exchange-alt me-2"></i>
+                                        Transaction Coverage Analysis
+                                    </h6>
+                                    <div class="form-group">
+                                        <label for="coverageTimeWindow" class="form-label">Time Window:</label>
+                                        <select class="form-select" id="coverageTimeWindow" onchange="updateCoverageData()">
+                                            <option value="1_hour" selected>Last 1 Hour</option>
+                                            <option value="1_day">Last 1 Day</option>
+                                            <option value="1_week">Last 1 Week</option>
+                                            <option value="1_month">Last 1 Month</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Coverage Summary Cards -->
+                                <div class="row mb-4">
+                                    <div class="col-md-4">
+                                        <div class="card bg-primary text-white">
+                                            <div class="card-body text-center">
+                                                <h4 id="eventOnlyCount" class="mb-2">-</h4>
+                                                <p class="mb-0">Event Only</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card bg-warning text-white">
+                                            <div class="card-body text-center">
+                                                <h4 id="transactionOnlyCount" class="mb-2">-</h4>
+                                                <p class="mb-0">Transaction Only</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card bg-success text-white">
+                                            <div class="card-body text-center">
+                                                <h4 id="bothTypesCount" class="mb-2">-</h4>
+                                                <p class="mb-0">Both Types</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Timestamp Difference Visualization -->
+                                <div class="row">
+                                    <div class="col-12">
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h6 class="mb-0">
+                                                    <i class="fas fa-clock me-2"></i>
+                                                    Timestamp Differences (Transaction - Event) by Asset/Source
+                                                </h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <div id="timestampDiffContainer">
+                                                    <div id="timestampDiffLoading" class="text-center py-5">
+                                                        <div class="spinner-border text-primary" role="status">
+                                                            <span class="visually-hidden">Loading...</span>
+                                                        </div>
+                                                        <p class="mt-3 text-muted">Loading timestamp difference analysis...</p>
+                                                    </div>
+                                                    <div id="timestampDiffChart" style="display: none; height: 400px;"></div>
+                                                    <div id="timestampDiffError" class="text-center py-5" style="display: none;">
+                                                        <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                                                        <h5 class="text-muted">Error Loading Data</h5>
+                                                        <p class="text-muted" id="timestampDiffErrorMessage">Failed to load timestamp difference data.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -827,6 +909,178 @@
             document.getElementById('zeroStatsErrorMessage').textContent = errorMessage;
         }
 
+        // Function to update transaction coverage data
+        function updateCoverageData() {
+            const timeWindow = document.getElementById('coverageTimeWindow').value;
+
+            // Update coverage metrics
+            updateCoverageMetrics(timeWindow);
+
+            // Update timestamp differences chart
+            updateTimestampDifferences(timeWindow);
+        }
+
+        // Function to update coverage metrics (summary cards)
+        function updateCoverageMetrics(timeWindow) {
+            fetch(`/api/transaction-coverage-metrics/?time_window=${timeWindow}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error fetching coverage metrics:', data.error);
+                        document.getElementById('eventOnlyCount').textContent = 'Error';
+                        document.getElementById('transactionOnlyCount').textContent = 'Error';
+                        document.getElementById('bothTypesCount').textContent = 'Error';
+                        return;
+                    }
+
+                    // Update the summary cards
+                    document.getElementById('eventOnlyCount').textContent = data.event_only.toLocaleString();
+                    document.getElementById('transactionOnlyCount').textContent = data.transaction_only.toLocaleString();
+                    document.getElementById('bothTypesCount').textContent = data.both_types.toLocaleString();
+                })
+                .catch(error => {
+                    console.error('Error fetching coverage metrics:', error);
+                    document.getElementById('eventOnlyCount').textContent = 'Error';
+                    document.getElementById('transactionOnlyCount').textContent = 'Error';
+                    document.getElementById('bothTypesCount').textContent = 'Error';
+                });
+        }
+
+        // Function to update timestamp differences visualization
+        function updateTimestampDifferences(timeWindow) {
+            // Show loading state
+            document.getElementById('timestampDiffLoading').style.display = 'block';
+            document.getElementById('timestampDiffChart').style.display = 'none';
+            document.getElementById('timestampDiffError').style.display = 'none';
+
+            fetch(`/api/transaction-timestamp-differences/?time_window=${timeWindow}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error fetching timestamp differences:', data.error);
+                        showTimestampDiffError(data.error);
+                        return;
+                    }
+
+                    // Create the chart
+                    createTimestampDifferenceChart(data.data);
+
+                    // Hide loading and show chart
+                    document.getElementById('timestampDiffLoading').style.display = 'none';
+                    document.getElementById('timestampDiffChart').style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error fetching timestamp differences:', error);
+                    showTimestampDiffError('Failed to fetch data from server');
+                });
+        }
+
+        // Function to create timestamp difference chart
+        function createTimestampDifferenceChart(data) {
+            const container = document.getElementById('timestampDiffChart');
+
+            if (data.length === 0) {
+                container.innerHTML = '<div class="text-center py-5"><p class="text-muted">No data available for the selected time period.</p></div>';
+                return;
+            }
+
+            // Group data by asset/asset_source for better visualization
+            const groupedData = {};
+            data.forEach(item => {
+                const key = `${item.name} (${item.asset.substring(0, 8)}...${item.asset.substring(item.asset.length - 6)})`;
+                if (!groupedData[key]) {
+                    groupedData[key] = [];
+                }
+                groupedData[key].push(item.timestamp_diff_seconds);
+            });
+
+            // Prepare data for Chart.js
+            const labels = Object.keys(groupedData);
+            const chartData = labels.map(label => {
+                const values = groupedData[label];
+                const avg = values.reduce((a, b) => a + b, 0) / values.length;
+                return {
+                    label: label,
+                    avg: avg,
+                    min: Math.min(...values),
+                    max: Math.max(...values),
+                    count: values.length
+                };
+            });
+
+            // Create a simple bar chart showing average timestamp differences
+            const canvas = document.createElement('canvas');
+            container.innerHTML = '';
+            container.appendChild(canvas);
+
+            new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: chartData.map(d => d.label),
+                    datasets: [{
+                        label: 'Average Timestamp Difference (seconds)',
+                        data: chartData.map(d => d.avg),
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Timestamp Difference (seconds)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Asset/Source'
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Average Timestamp Differences (Transaction - Event)'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const dataPoint = chartData[context.dataIndex];
+                                    return [
+                                        `Count: ${dataPoint.count}`,
+                                        `Min: ${dataPoint.min.toFixed(3)}s`,
+                                        `Max: ${dataPoint.max.toFixed(3)}s`
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Function to show timestamp difference error
+        function showTimestampDiffError(errorMessage) {
+            document.getElementById('timestampDiffLoading').style.display = 'none';
+            document.getElementById('timestampDiffChart').style.display = 'none';
+            document.getElementById('timestampDiffError').style.display = 'block';
+            document.getElementById('timestampDiffErrorMessage').textContent = errorMessage;
+        }
+
         // Initialize mismatch counts chart when page loads
         document.addEventListener('DOMContentLoaded', function() {
             // Delay initialization to ensure tab content is visible
@@ -837,6 +1091,9 @@
 
             // Load initial zero stats data
             setTimeout(updateZeroStats, 100);
+
+            // Load initial transaction coverage data
+            setTimeout(updateCoverageData, 100);
         });
     </script>
 </body>
