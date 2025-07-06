@@ -19,4 +19,9 @@ urlpatterns = [
         views.price_mismatch_counts_data,
         name="price_mismatch_counts_data",
     ),
+    path(
+        "api/price-zero-error-stats-data/",
+        views.price_zero_error_stats_data,
+        name="price_zero_error_stats_data",
+    ),
 ]

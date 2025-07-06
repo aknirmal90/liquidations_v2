@@ -1660,6 +1660,81 @@ def price_mismatch_counts_data(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
+def price_zero_error_stats_data(request):
+    """API endpoint to get zero error statistics by type"""
+    try:
+        time_window = request.GET.get("time_window", "1_hour")
+
+        # Convert time window to ClickHouse interval
+        interval_map = {
+            "1_hour": "1 HOUR",
+            "1_day": "1 DAY",
+            "1_week": "7 DAY",
+            "1_month": "30 DAY",
+        }
+
+        interval = interval_map.get(time_window, "1 HOUR")
+
+        query = f"""
+        SELECT
+            name as error_type,
+            COUNT(*) as total_records,
+            SUM(CASE WHEN type = 'historical_event' AND pct_error = 0.0 THEN 1 ELSE 0 END) as historical_event_zero_count,
+            SUM(CASE WHEN type = 'historical_transaction' AND pct_error = 0.0 THEN 1 ELSE 0 END) as historical_transaction_zero_count,
+            SUM(CASE WHEN type = 'predicted_transaction' AND pct_error = 0.0 THEN 1 ELSE 0 END) as predicted_transaction_zero_count,
+            SUM(CASE WHEN type = 'historical_event' THEN 1 ELSE 0 END) as historical_event_total_count,
+            SUM(CASE WHEN type = 'historical_transaction' THEN 1 ELSE 0 END) as historical_transaction_total_count,
+            SUM(CASE WHEN type = 'predicted_transaction' THEN 1 ELSE 0 END) as predicted_transaction_total_count,
+            CASE
+                WHEN SUM(CASE WHEN type = 'historical_event' THEN 1 ELSE 0 END) > 0
+                THEN ROUND((SUM(CASE WHEN type = 'historical_event' AND pct_error = 0.0 THEN 1 ELSE 0 END) * 100.0 / SUM(CASE WHEN type = 'historical_event' THEN 1 ELSE 0 END)), 2)
+                ELSE 0.0
+            END as historical_event_zero_percentage,
+            CASE
+                WHEN SUM(CASE WHEN type = 'historical_transaction' THEN 1 ELSE 0 END) > 0
+                THEN ROUND((SUM(CASE WHEN type = 'historical_transaction' AND pct_error = 0.0 THEN 1 ELSE 0 END) * 100.0 / SUM(CASE WHEN type = 'historical_transaction' THEN 1 ELSE 0 END)), 2)
+                ELSE 0.0
+            END as historical_transaction_zero_percentage,
+            CASE
+                WHEN SUM(CASE WHEN type = 'predicted_transaction' THEN 1 ELSE 0 END) > 0
+                THEN ROUND((SUM(CASE WHEN type = 'predicted_transaction' AND pct_error = 0.0 THEN 1 ELSE 0 END) * 100.0 / SUM(CASE WHEN type = 'predicted_transaction' THEN 1 ELSE 0 END)), 2)
+                ELSE 0.0
+            END as predicted_transaction_zero_percentage
+        FROM aave_ethereum.PriceVerificationRecords
+        WHERE blockTimestamp >= now() - INTERVAL {interval}
+        AND pct_error IS NOT NULL
+        GROUP BY name
+        ORDER BY name
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        # Convert to list of dictionaries for JSON response
+        data = []
+        for row in result.result_rows:
+            data.append(
+                {
+                    "error_type": row[0],
+                    "total_records": row[1],
+                    "historical_event_zero_count": row[2],
+                    "historical_transaction_zero_count": row[3],
+                    "predicted_transaction_zero_count": row[4],
+                    "historical_event_total_count": row[5],
+                    "historical_transaction_total_count": row[6],
+                    "predicted_transaction_total_count": row[7],
+                    "historical_event_zero_percentage": row[8],
+                    "historical_transaction_zero_percentage": row[9],
+                    "predicted_transaction_zero_percentage": row[10],
+                }
+            )
+
+        return JsonResponse({"data": data})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
 def create_box_plots(box_plot_data):
     """Create 3 interactive box plots for price verification errors by type"""
     plots = {}
