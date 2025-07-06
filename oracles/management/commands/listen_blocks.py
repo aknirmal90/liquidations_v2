@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 
 from blockchains.tasks import ParentSynchronizeTask, UpdateNetworkBlockInfoTask
 from oracles.management.commands.listen_base import WebsocketCommand
-from oracles.tasks import PriceEventSynchronizeTask
+from oracles.tasks import PriceEventDynamicSynchronizeTask
 from utils.constants import NETWORK_NAME
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,7 @@ class Command(WebsocketCommand, BaseCommand):
                     logger.error(f"Failed to queue NetworkBlockInfo update task: {e}")
 
             ParentSynchronizeTask.delay()
-            PriceEventSynchronizeTask.delay()
+            PriceEventDynamicSynchronizeTask.delay()
 
         except Exception as e:
             logger.error(f"Error processing block data: {e}")
