@@ -1768,15 +1768,23 @@ def transaction_coverage_metrics(request):
             )
 
         # Query to analyze transaction coverage
+        # Only include latest asset/asset_source combinations
         coverage_query = f"""
-        WITH transaction_analysis AS (
+        WITH latest_asset_sources AS (
+            SELECT asset, source as asset_source
+            FROM aave_ethereum.LatestAssetSourceUpdated
+            GROUP BY asset, source
+        ),
+        transaction_analysis AS (
             SELECT
-                transactionHash,
-                SUM(CASE WHEN type = 'event' THEN 1 ELSE 0 END) as has_event,
-                SUM(CASE WHEN type = 'transaction' THEN 1 ELSE 0 END) as has_transaction
-            FROM aave_ethereum.TransactionRawNumerator
-            WHERE blockTimestamp >= '{min_timestamp}'
-            GROUP BY transactionHash
+                t.transactionHash,
+                SUM(CASE WHEN t.type = 'event' THEN 1 ELSE 0 END) as has_event,
+                SUM(CASE WHEN t.type = 'transaction' THEN 1 ELSE 0 END) as has_transaction
+            FROM aave_ethereum.TransactionRawNumerator t
+            INNER JOIN latest_asset_sources las
+                ON t.asset = las.asset AND t.asset_source = las.asset_source
+            WHERE t.blockTimestamp >= '{min_timestamp}'
+            GROUP BY t.transactionHash
         )
         SELECT
             SUM(CASE WHEN has_event > 0 AND has_transaction = 0 THEN 1 ELSE 0 END) as event_only,
@@ -1833,32 +1841,48 @@ def transaction_timestamp_differences(request):
         if not min_timestamp:
             return JsonResponse({"data": []})
 
-        # Query to get timestamp differences for transactions with both types
+        # Query to get aggregated timestamp differences for transactions with both types
+        # Only include latest asset/asset_source combinations
         diff_query = f"""
-        WITH transaction_pairs AS (
+        WITH latest_asset_sources AS (
+            SELECT asset, source as asset_source
+            FROM aave_ethereum.LatestAssetSourceUpdated
+            GROUP BY asset, source
+        ),
+        transaction_pairs AS (
+            SELECT
+                t.asset,
+                t.asset_source,
+                t.name,
+                t.transactionHash,
+                MAX(CASE WHEN t.type = 'event' THEN t.blockTimestamp ELSE NULL END) as event_timestamp,
+                MAX(CASE WHEN t.type = 'transaction' THEN t.blockTimestamp ELSE NULL END) as transaction_timestamp
+            FROM aave_ethereum.TransactionRawNumerator t
+            INNER JOIN latest_asset_sources las
+                ON t.asset = las.asset AND t.asset_source = las.asset_source
+            WHERE t.blockTimestamp >= '{min_timestamp}'
+            GROUP BY t.asset, t.asset_source, t.name, t.transactionHash
+            HAVING event_timestamp IS NOT NULL AND transaction_timestamp IS NOT NULL
+        ),
+        timestamp_diffs AS (
             SELECT
                 asset,
                 asset_source,
                 name,
-                transactionHash,
-                MAX(CASE WHEN type = 'event' THEN blockTimestamp ELSE NULL END) as event_timestamp,
-                MAX(CASE WHEN type = 'transaction' THEN blockTimestamp ELSE NULL END) as transaction_timestamp
-            FROM aave_ethereum.TransactionRawNumerator
-            WHERE blockTimestamp >= '{min_timestamp}'
-            GROUP BY asset, asset_source, name, transactionHash
-            HAVING event_timestamp IS NOT NULL AND transaction_timestamp IS NOT NULL
+                (toInt64(transaction_timestamp) - toInt64(event_timestamp)) / 1000000.0 as timestamp_diff_seconds
+            FROM transaction_pairs
         )
         SELECT
             asset,
             asset_source,
             name,
-            transactionHash,
-            event_timestamp,
-            transaction_timestamp,
-            toInt64(transaction_timestamp) - toInt64(event_timestamp) as timestamp_diff_microseconds,
-            (toInt64(transaction_timestamp) - toInt64(event_timestamp)) / 1000000.0 as timestamp_diff_seconds
-        FROM transaction_pairs
-        ORDER BY asset, asset_source, timestamp_diff_seconds
+            MIN(timestamp_diff_seconds) as min_diff,
+            MAX(timestamp_diff_seconds) as max_diff,
+            AVG(timestamp_diff_seconds) as avg_diff,
+            COUNT(*) as count_transactions
+        FROM timestamp_diffs
+        GROUP BY asset, asset_source, name
+        ORDER BY asset, asset_source, name
         """
 
         result = clickhouse_client.execute_query(diff_query)
@@ -1871,13 +1895,10 @@ def transaction_timestamp_differences(request):
                     "asset": row[0],
                     "asset_source": row[1],
                     "name": row[2],
-                    "transaction_hash": row[3],
-                    "event_timestamp": row[4].isoformat() if row[4] else None,
-                    "transaction_timestamp": row[5].isoformat() if row[5] else None,
-                    "timestamp_diff_microseconds": row[6],
-                    "timestamp_diff_seconds": float(row[7])
-                    if row[7] is not None
-                    else 0.0,
+                    "min_diff": float(row[3]) if row[3] is not None else 0.0,
+                    "max_diff": float(row[4]) if row[4] is not None else 0.0,
+                    "avg_diff": float(row[5]) if row[5] is not None else 0.0,
+                    "count_transactions": int(row[6]) if row[6] is not None else 0,
                 }
             )
 
