@@ -11,39 +11,18 @@ SELECT
     denominator,
     multiplier,
     max_cap,
+    max_cap_type,
     decimals_places,
-    -- Calculate base price: numerator / denominator * multiplier
-    CASE
-    WHEN max_cap > 0 THEN
-        -- Apply max cap when it exists
-        LEAST(
-            historical_price,
-            CASE
-                WHEN multiplier = 1 THEN CAST(max_cap AS UInt256)
-                ELSE CAST(CAST(numerator AS Float64) / CAST(denominator AS Float64) * CAST(max_cap AS Float64) AS UInt256)
-            END
-        )
-    ELSE
-        -- No max cap applied
-        historical_price
-    END AS historical_price,
-    CAST(
-        CASE
-        WHEN max_cap > 0 THEN
-            -- Apply max cap when it exists
-            LEAST(
-                historical_price,
-                CASE
-                    WHEN multiplier = 1 THEN CAST(max_cap AS UInt256)
-                    ELSE CAST(CAST(numerator AS Float64) / CAST(denominator AS Float64) * CAST(max_cap AS Float64) AS UInt256)
-                END
-            )
-        ELSE
-            -- No max cap applied
-            historical_price
-        END AS Float64
-    ) / CAST(decimals_places AS Float64) AS historical_price_usd,
-    -- Add multiplier statistics from dictionary
-    dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'std_growth_per_sec', (asset, asset_source, name), CAST(0 AS Int64)) AS std_growth_per_sec,
-    dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'avg_time_bw_records', (asset, asset_source, name), CAST(0 AS Float64)) AS avg_time_bw_records
+    max_cap_uint256,
+    multiplier_cap,
+    IF(
+        max_cap_type IN (0,1),
+        CAST(LEAST(max_cap_uint256, CAST(historical_price_max_cap_precomputed AS Float64)) AS UInt256),
+        CAST(LEAST(CAST(multiplier AS Float64), multiplier_cap) * CAST(numerator AS Float64) / CAST(denominator AS Float64) AS UInt256)
+    ) AS historical_price,
+    IF(
+        max_cap_type IN (0,1),
+        CAST(LEAST(max_cap_uint256, CAST(historical_price_max_cap_precomputed AS Float64)) AS Float64),
+        CAST(LEAST(CAST(multiplier AS Float64), multiplier_cap) * CAST(numerator AS Float64) / CAST(denominator AS Float64) AS Float64)
+    ) / CAST(decimals_places AS Float64) AS historical_price_usd
 FROM aave_ethereum.LatestPriceEventBase

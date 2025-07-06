@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS aave_ethereum.EventRawNumerator
     name String,
     blockTimestamp DateTime64(6),
     blockNumber UInt64,
+    transactionHash String,
+    type String,
     numerator UInt256
 )
 ENGINE = Log;

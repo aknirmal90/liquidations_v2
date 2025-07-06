@@ -7,5 +7,7 @@ SELECT
     name,
     blockTimestamp,
     blockNumber,
+    transactionHash,
+    type,
     numerator
 FROM aave_ethereum.EventRawNumerator;

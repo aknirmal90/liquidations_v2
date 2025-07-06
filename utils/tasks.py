@@ -124,7 +124,7 @@ class EventSynchronizeMixin:
 
             except Web3RPCError as e:
                 if e.rpc_response["error"]["code"] == -32005:
-                    logger.error(e)
+                    logger.info(e)
                     iter_delta = iter_delta // 2
                     iter_to_block = iter_from_block + iter_delta
 

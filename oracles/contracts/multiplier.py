@@ -1,5 +1,6 @@
 from oracles.contracts.multiplier_abis import METHOD_ABI_MAPPING
 from oracles.contracts.utils import (
+    CACHE_TTL_1_MINUTE,
     AssetSourceType,
     RpcCacheStorage,
     UnsupportedAssetSourceError,
@@ -8,7 +9,74 @@ from oracles.contracts.utils import (
     send_unsupported_asset_source_notification,
 )
 from utils.encoding import decode_any
-from utils.rpc import get_evm_block_timestamps, rpc_adapter
+
+
+def _calculate_ratio_provider_multiplier(asset_source: str, config: dict, event) -> int:
+    """Calculate multiplier for ratio provider asset source types."""
+    provider = RpcCacheStorage.get_cached_asset_source_function(
+        asset_source, config["provider_key"], ttl=CACHE_TTL_1_MINUTE
+    )
+    method = config["method"]
+    requires_parameter = config.get("requires_parameter", False)
+
+    # Get the appropriate ABI for this method
+    abi = METHOD_ABI_MAPPING.get(method)
+    if not abi:
+        raise ValueError(f"No ABI found for method: {method}")
+
+    if requires_parameter:
+        ratio_decimals = RpcCacheStorage.get_cached_asset_source_function(
+            asset_source, config["decimals_key"], ttl=CACHE_TTL_1_MINUTE
+        )
+        parameter = int(10**ratio_decimals)
+        multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
+        if multiplier is None:
+            multiplier = RpcCacheStorage.call_function(
+                provider,
+                method,
+                parameter,
+                abi=abi,
+            )
+            RpcCacheStorage.set_cache_with_ttl(
+                asset_source, "MULTIPLIER", multiplier, CACHE_TTL_1_MINUTE
+            )
+    else:
+        multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
+        if multiplier is None:
+            multiplier = RpcCacheStorage.get_cached_asset_source_function(
+                provider, method, abi=abi, ttl=CACHE_TTL_1_MINUTE
+            )
+            RpcCacheStorage.set_cache_with_ttl(
+                asset_source, "MULTIPLIER", multiplier, CACHE_TTL_1_MINUTE
+            )
+
+    return multiplier
+
+
+def _calculate_pendle_discount_multiplier(asset_source: str, event) -> int:
+    """Calculate multiplier for pendle discount asset source types."""
+    percentage_factor = RpcCacheStorage.get_cached_asset_source_function(
+        asset_source, "PERCENTAGE_FACTOR"
+    )
+    current_discount = RpcCacheStorage.get_cache(asset_source, "CURRENT_DISCOUNT")
+    if current_discount is None:
+        current_discount = RpcCacheStorage.call_function(
+            asset_source, "getCurrentDiscount"
+        )
+        RpcCacheStorage.set_cache_with_ttl(
+            asset_source, "CURRENT_DISCOUNT", current_discount, ttl=CACHE_TTL_1_MINUTE
+        )
+
+    multiplier = int(percentage_factor - current_discount)
+    RpcCacheStorage.set_cache_with_ttl(
+        asset_source, "MULTIPLIER", multiplier, CACHE_TTL_1_MINUTE
+    )
+    return multiplier
+
+
+def _calculate_default_multiplier() -> int:
+    """Calculate multiplier for default asset source types."""
+    return 1
 
 
 def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) -> int:
@@ -111,18 +179,21 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
         AssetSourceType.sDAIMainnetPriceCapAdapter: {
             "type": "ratio_provider",
             "provider_key": "RATIO_PROVIDER",
+            "decimals_key": "RATIO_DECIMALS",
             "method": "chi",
             "requires_parameter": False,
         },
         AssetSourceType.sDAISynchronicityPriceAdapter: {
             "type": "ratio_provider",
             "provider_key": "RATE_PROVIDER",
+            "decimals_key": "RATIO_DECIMALS",
             "method": "chi",
             "requires_parameter": False,
         },
         AssetSourceType.CLrETHSynchronicityPriceAdapter: {
             "type": "ratio_provider",
             "provider_key": "RETH",
+            "decimals_key": "RATIO_DECIMALS",
             "method": "getExchangeRate",
             "requires_parameter": False,
         },
@@ -130,6 +201,7 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
             "type": "ratio_provider",
             "provider_key": "STETH",
             "method": "getPooledEthByShares",
+            "decimals_key": "RATIO_DECIMALS",
             "requires_parameter": True,
         },
         # Default multiplier of 1
@@ -154,109 +226,15 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
 
     # Handle ratio provider type
     if config_type == "ratio_provider":
-        block_number = event.blockNumber
-        provider = RpcCacheStorage.get_cached_asset_source_function(
-            asset_source, config["provider_key"]
-        )
-        method = config["method"]
-        requires_parameter = config.get("requires_parameter", False)
-
-        # Get the appropriate ABI for this method
-        abi = METHOD_ABI_MAPPING.get(method)
-        if not abi:
-            raise ValueError(f"No ABI found for method: {method}")
-
-        if requires_parameter:
-            decimals_key = config.get("decimals_key")
-            if decimals_key:
-                ratio_decimals = RpcCacheStorage.get_cached_asset_source_function(
-                    asset_source, decimals_key
-                )
-                parameter = int(10**ratio_decimals)
-                if block_number < rpc_adapter.cached_block_height:
-                    multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
-                    if multiplier is None:
-                        multiplier = RpcCacheStorage.call_function(
-                            provider,
-                            method,
-                            parameter,
-                            block_number=block_number,
-                            abi=abi,
-                        )
-                        RpcCacheStorage.set_cache(
-                            asset_source, "MULTIPLIER", multiplier
-                        )
-                else:
-                    multiplier = RpcCacheStorage.call_function(
-                        provider, method, parameter, block_number=block_number, abi=abi
-                    )
-            else:
-                # Handle case where parameter is needed but no decimals specified
-                if block_number < rpc_adapter.cached_block_height:
-                    multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
-                    if multiplier is None:
-                        multiplier = RpcCacheStorage.call_function(
-                            provider,
-                            method,
-                            int(1e18),  # Default parameter as integer
-                            block_number=block_number,
-                            abi=abi,
-                        )
-                        RpcCacheStorage.set_cache(
-                            asset_source, "MULTIPLIER", multiplier
-                        )
-                else:
-                    multiplier = RpcCacheStorage.call_function(
-                        provider,
-                        method,
-                        int(1e18),  # Default parameter as integer
-                        block_number=block_number,
-                        abi=abi,
-                    )
-        else:
-            if block_number < rpc_adapter.cached_block_height:
-                multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
-                if multiplier is None:
-                    multiplier = RpcCacheStorage.call_function(
-                        provider, method, block_number=block_number, abi=abi
-                    )
-                    RpcCacheStorage.set_cache(asset_source, "MULTIPLIER", multiplier)
-            else:
-                multiplier = RpcCacheStorage.call_function(
-                    provider, method, block_number=block_number, abi=abi
-                )
-
-        RpcCacheStorage.set_cache(asset_source, "MULTIPLIER", multiplier)
+        multiplier = _calculate_ratio_provider_multiplier(asset_source, config, event)
 
     # Handle Pendle discount calculation
     elif config_type == "pendle_discount":
-        block_number = event.blockNumber
-        block_timestamp = get_evm_block_timestamps([block_number])[block_number]
-
-        maturity = RpcCacheStorage.get_cached_asset_source_function(
-            asset_source, "MATURITY"
-        )
-        discount_rate_per_year = RpcCacheStorage.get_cached_asset_source_function(
-            asset_source, "discountRatePerYear"
-        )
-        seconds_per_year = RpcCacheStorage.get_cached_asset_source_function(
-            asset_source, "SECONDS_PER_YEAR"
-        )
-        percentage_factor = RpcCacheStorage.get_cached_asset_source_function(
-            asset_source, "PERCENTAGE_FACTOR"
-        )
-
-        time_to_maturity = max(maturity - block_timestamp, 0)
-        current_discount = int(
-            (discount_rate_per_year * time_to_maturity) / seconds_per_year
-        )
-        multiplier = int(percentage_factor - current_discount)
-
-        RpcCacheStorage.set_cache(asset_source, "MULTIPLIER", multiplier)
+        multiplier = _calculate_pendle_discount_multiplier(asset_source, event)
 
     # Handle default multiplier of 1
     elif config_type == "default":
-        multiplier = 1
+        multiplier = _calculate_default_multiplier()
 
     else:
         raise UnsupportedAssetSourceError(f"Unknown config type: {config_type}")

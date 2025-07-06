@@ -1,6 +1,5 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.utils.html import format_html
-from django.contrib import messages
 
 from oracles.models import PriceEvent
 from utils.admin import (
@@ -20,6 +19,7 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         "get_asset_source_display",
         "is_enabled",
         "last_synced_block",
+        "last_inserted_block",
         "blocks_to_sync",
         "logs_count",
         "get_contracts_display",
@@ -41,7 +41,14 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         ),
         (
             "Sync Status",
-            {"fields": ("last_synced_block", "blocks_to_sync", "logs_count")},
+            {
+                "fields": (
+                    "last_synced_block",
+                    "blocks_to_sync",
+                    "last_inserted_block",
+                    "logs_count",
+                )
+            },
         ),
         (
             "Event Details",
@@ -75,6 +82,7 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         "asset_source_name",
         "transmitters",
         "get_transmitters_display",
+        "last_inserted_block",
     )
 
     def abi_display(self, obj):

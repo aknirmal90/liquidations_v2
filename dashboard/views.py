@@ -9,8 +9,10 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from oracles.contracts.interface import PriceOracleInterface
 from utils.clickhouse.client import clickhouse_client
 from utils.constants import NETWORK_NAME
+from utils.rpc import rpc_adapter
 
 
 def get_simple_explorer_url(address_id: str):
@@ -551,7 +553,8 @@ def asset_detail(request, asset_address):
         SELECT
             blockTimestamp,
             toFloat64(max_cap) as max_cap_value,
-            name
+            name,
+            max_cap_type
         FROM aave_ethereum.EventRawMaxCap
         WHERE asset = '{asset_address}'
           AND blockTimestamp >= now() - INTERVAL 30 DAY
@@ -567,7 +570,12 @@ def asset_detail(request, asset_address):
                 max_cap_value = int(row[1]) if row[1] is not None else None
                 if max_cap_value is not None and max_cap_value > 0:
                     event_max_cap_data.append(
-                        {"timestamp": row[0], "max_cap": max_cap_value, "name": row[2]}
+                        {
+                            "timestamp": row[0],
+                            "max_cap": max_cap_value,
+                            "name": row[2],
+                            "max_cap_type": int(row[3]) if row[3] is not None else 0,
+                        }
                     )
             except (ValueError, TypeError):
                 continue
@@ -602,6 +610,105 @@ def asset_detail(request, asset_address):
                 )
             except (ValueError, TypeError):
                 continue
+
+        # Get latest price components data (both event and transaction)
+        latest_components_query = f"""
+        SELECT
+            e.numerator as event_numerator,
+            e.denominator,
+            e.max_cap,
+            e.multiplier as event_multiplier,
+            e.multiplier_blockNumber,
+            dictGetOrDefault('aave_ethereum.MultiplierStatsDict', 'std_growth_per_sec', (e.asset, e.asset_source, e.name), CAST(0 AS Float64)) as std_growth_per_sec,
+            e.name,
+            e.asset_source,
+            t.numerator as transaction_numerator,
+            t.multiplier as transaction_multiplier,
+            e.max_cap_type,
+            e.max_cap_uint256,
+            e.multiplier_cap
+        FROM aave_ethereum.LatestPriceEvent e
+        LEFT JOIN aave_ethereum.LatestPriceTransaction t ON e.asset = t.asset
+        WHERE e.asset = '{asset_address}'
+        LIMIT 1
+        """
+
+        latest_components_result = clickhouse_client.execute_query(
+            latest_components_query
+        )
+        latest_components_data = None
+        if latest_components_result.result_rows:
+            row = latest_components_result.result_rows[0]
+            try:
+                # Basic component data
+                components_data = {
+                    "event_numerator": int(row[0]) if row[0] is not None else 0,
+                    "denominator": int(row[1]) if row[1] is not None else 0,
+                    "max_cap": int(row[2]) if row[2] is not None else 0,
+                    "event_multiplier": int(row[3]) if row[3] is not None else 0,
+                    "multiplier_blockNumber": int(row[4]) if row[4] is not None else 0,
+                    "std_growth_per_sec": float(row[5]) if row[5] is not None else 0.0,
+                    "name": row[6] if row[6] is not None else "Unknown",
+                    "asset_source": row[7] if row[7] is not None else "Unknown",
+                    "transaction_numerator": int(row[8]) if row[8] is not None else 0,
+                    "transaction_multiplier": int(row[9]) if row[9] is not None else 0,
+                    "max_cap_type": int(row[10]) if row[10] is not None else 0,
+                    "max_cap_uint256": int(row[11]) if row[11] is not None else 0,
+                    "multiplier_cap": int(row[12]) if row[12] is not None else 0,
+                }
+
+                # Add RPC price and calculated prices
+                rpc_price = None
+                calculated_event_price = None
+                calculated_transaction_price = None
+                calculated_predicted_price = None
+
+                if components_data["asset_source"] != "Unknown":
+                    try:
+                        # Initialize PriceOracleInterface
+                        price_oracle = PriceOracleInterface(
+                            asset_address, components_data["asset_source"]
+                        )
+
+                        # Get RPC price
+                        rpc_price = price_oracle.latest_price_from_rpc
+
+                        # Get calculated prices
+                        calculated_event_price = (
+                            price_oracle.historical_price_from_event
+                        )
+                        calculated_transaction_price = (
+                            price_oracle.historical_price_from_transaction
+                        )
+                        calculated_predicted_price = (
+                            price_oracle.predicted_price_from_transaction
+                        )
+
+                    except Exception as e:
+                        # Handle RPC or calculation errors gracefully
+                        rpc_price = f"Error: {str(e)}"
+
+                # Get RPC cached block height
+                rpc_cached_block_height = None
+                try:
+                    rpc_cached_block_height = rpc_adapter.cached_block_height
+                except Exception as e:
+                    rpc_cached_block_height = f"Error: {str(e)}"
+
+                components_data.update(
+                    {
+                        "rpc_price": rpc_price,
+                        "calculated_event_price": calculated_event_price,
+                        "calculated_transaction_price": calculated_transaction_price,
+                        "calculated_predicted_price": calculated_predicted_price,
+                        "rpc_cached_block_height": rpc_cached_block_height,
+                    }
+                )
+
+                latest_components_data = components_data
+
+            except (ValueError, TypeError):
+                latest_components_data = None
 
         # Calculate average time between consecutive blocks
         avg_block_time = calculate_average_block_time(historical_prices)
@@ -672,6 +779,7 @@ def asset_detail(request, asset_address):
                 "transaction_price": transaction_price_data,
                 "predicted_price": predicted_price_data,
             },
+            "latest_components": latest_components_data,
         }
 
         return render(request, "dashboard/asset_detail.html", context)
@@ -1348,8 +1456,8 @@ def asset_data_api(request, asset_address):
 def prices_summary(request):
     """View to show price verification summary across all assets"""
     try:
-        # Get initial box plot data for default time window (1 month)
-        time_window = request.GET.get("time_window", "1_month")
+        # Get initial box plot data for default time window (1 hour)
+        time_window = request.GET.get("time_window", "1_hour")
 
         # Get box plot data directly without going through the API
         box_plot_json = get_box_plot_data(time_window)
@@ -1377,14 +1485,14 @@ def prices_summary(request):
                 pct_error,
                 blockTimestamp,
                 ROW_NUMBER() OVER (
-                    PARTITION BY asset
+                    PARTITION BY asset, type
                     ORDER BY blockTimestamp DESC
                 ) as rn
             FROM aave_ethereum.PriceVerificationRecords
             WHERE blockTimestamp >= now() - INTERVAL 30 DAY
         )
         SELECT
-            ROW_NUMBER() OVER (ORDER BY asset, asset_source, name) as row_number,
+            ROW_NUMBER() OVER (ORDER BY name, asset, asset_source) as row_number,
             asset,
             asset_source,
             name,
@@ -1394,7 +1502,7 @@ def prices_summary(request):
         FROM LatestRecords
         WHERE rn = 1
         GROUP BY asset, asset_source, name
-        ORDER BY asset, asset_source, name
+        ORDER BY name, asset, asset_source
         """
 
         result = clickhouse_client.execute_query(query)
@@ -1414,13 +1522,13 @@ def prices_summary(request):
                     "asset": row[1],
                     "asset_source": row[2],
                     "name": row[3],
-                    "historical_event_error": round(row[4], 6)
+                    "historical_event_error": round(row[4] * 10000, 2)
                     if row[4] is not None
                     else None,
-                    "historical_transaction_error": round(row[5], 6)
+                    "historical_transaction_error": round(row[5] * 10000, 2)
                     if row[5] is not None
                     else None,
-                    "predicted_transaction_error": round(row[6], 6)
+                    "predicted_transaction_error": round(row[6] * 10000, 2)
                     if row[6] is not None
                     else None,
                     "asset_url": get_simple_explorer_url(row[1]) if row[1] else None,
@@ -1445,7 +1553,7 @@ def prices_summary(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-def get_box_plot_data(time_window="1_month"):
+def get_box_plot_data(time_window="1_hour"):
     """Helper function to get box plot data for price verification errors"""
     # Map time window to SQL interval
     interval_map = {
@@ -1543,6 +1651,254 @@ def price_mismatch_counts_data(request):
                     "predicted_transaction_vs_rpc": row[3],
                     "total_assets_verified": row[4],
                     "total_assets_different": row[5],
+                }
+            )
+
+        return JsonResponse({"data": data})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def price_zero_error_stats_data(request):
+    """API endpoint to get zero error statistics by type"""
+    try:
+        time_window = request.GET.get("time_window", "1_hour")
+
+        # Convert time window to ClickHouse interval
+        interval_map = {
+            "1_hour": "1 HOUR",
+            "1_day": "1 DAY",
+            "1_week": "7 DAY",
+            "1_month": "30 DAY",
+        }
+
+        interval = interval_map.get(time_window, "1 HOUR")
+
+        query = f"""
+        SELECT
+            name as error_type,
+            COUNT(*) as total_records,
+            SUM(CASE WHEN type = 'historical_event' AND ABS(pct_error) < 0.000001 THEN 1 ELSE 0 END) as historical_event_valid_count,
+            SUM(CASE WHEN type = 'historical_transaction' AND ABS(pct_error) < 0.000001 THEN 1 ELSE 0 END) as historical_transaction_valid_count,
+            SUM(CASE WHEN type = 'predicted_transaction' AND ABS(pct_error) < 0.000001 THEN 1 ELSE 0 END) as predicted_transaction_valid_count,
+            SUM(CASE WHEN type = 'historical_event' THEN 1 ELSE 0 END) as historical_event_total_count,
+            SUM(CASE WHEN type = 'historical_transaction' THEN 1 ELSE 0 END) as historical_transaction_total_count,
+            SUM(CASE WHEN type = 'predicted_transaction' THEN 1 ELSE 0 END) as predicted_transaction_total_count,
+            CASE
+                WHEN SUM(CASE WHEN type = 'historical_event' THEN 1 ELSE 0 END) > 0
+                THEN ROUND((SUM(CASE WHEN type = 'historical_event' AND ABS(pct_error) < 0.000001 THEN 1 ELSE 0 END) * 100.0 / SUM(CASE WHEN type = 'historical_event' THEN 1 ELSE 0 END)), 2)
+                ELSE 0.0
+            END as historical_event_valid_percentage,
+            CASE
+                WHEN SUM(CASE WHEN type = 'historical_transaction' THEN 1 ELSE 0 END) > 0
+                THEN ROUND((SUM(CASE WHEN type = 'historical_transaction' AND ABS(pct_error) < 0.000001 THEN 1 ELSE 0 END) * 100.0 / SUM(CASE WHEN type = 'historical_transaction' THEN 1 ELSE 0 END)), 2)
+                ELSE 0.0
+            END as historical_transaction_valid_percentage,
+            CASE
+                WHEN SUM(CASE WHEN type = 'predicted_transaction' THEN 1 ELSE 0 END) > 0
+                THEN ROUND((SUM(CASE WHEN type = 'predicted_transaction' AND ABS(pct_error) < 0.000001 THEN 1 ELSE 0 END) * 100.0 / SUM(CASE WHEN type = 'predicted_transaction' THEN 1 ELSE 0 END)), 2)
+                ELSE 0.0
+            END as predicted_transaction_valid_percentage
+        FROM aave_ethereum.PriceVerificationRecords
+        WHERE blockTimestamp >= now() - INTERVAL {interval}
+        AND pct_error IS NOT NULL
+        GROUP BY name
+        ORDER BY name
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        # Convert to list of dictionaries for JSON response
+        data = []
+        for row in result.result_rows:
+            data.append(
+                {
+                    "error_type": row[0],
+                    "total_records": row[1],
+                    "historical_event_zero_count": row[2],
+                    "historical_transaction_zero_count": row[3],
+                    "predicted_transaction_zero_count": row[4],
+                    "historical_event_total_count": row[5],
+                    "historical_transaction_total_count": row[6],
+                    "predicted_transaction_total_count": row[7],
+                    "historical_event_zero_percentage": row[8],
+                    "historical_transaction_zero_percentage": row[9],
+                    "predicted_transaction_zero_percentage": row[10],
+                }
+            )
+
+        return JsonResponse({"data": data})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def transaction_coverage_metrics(request):
+    """API endpoint to get transaction coverage metrics"""
+    try:
+        time_window = request.GET.get("time_window", "1_hour")
+
+        # Convert time window to ClickHouse interval
+        interval_map = {
+            "1_hour": "1 HOUR",
+            "1_day": "1 DAY",
+            "1_week": "7 DAY",
+            "1_month": "30 DAY",
+        }
+
+        interval = interval_map.get(time_window, "1 HOUR")
+
+        # First, get the minimum blockTimestamp where type='transaction'
+        min_timestamp_query = f"""
+        SELECT MIN(blockTimestamp) as min_timestamp
+        FROM aave_ethereum.TransactionRawNumerator
+        WHERE type = 'transaction'
+        AND blockTimestamp >= now() - INTERVAL {interval}
+        """
+
+        min_result = clickhouse_client.execute_query(min_timestamp_query)
+        min_timestamp = min_result.result_rows[0][0] if min_result.result_rows else None
+
+        if not min_timestamp:
+            return JsonResponse(
+                {"event_only": 0, "transaction_only": 0, "both_types": 0}
+            )
+
+        # Query to analyze transaction coverage
+        # Only include latest asset/asset_source combinations
+        coverage_query = f"""
+        WITH latest_asset_sources AS (
+            SELECT asset, source as asset_source
+            FROM aave_ethereum.LatestAssetSourceUpdated
+            GROUP BY asset, source
+        ),
+        transaction_analysis AS (
+            SELECT
+                t.transactionHash,
+                SUM(CASE WHEN t.type = 'event' THEN 1 ELSE 0 END) as has_event,
+                SUM(CASE WHEN t.type = 'transaction' THEN 1 ELSE 0 END) as has_transaction
+            FROM aave_ethereum.TransactionRawNumerator t
+            INNER JOIN latest_asset_sources las
+                ON t.asset = las.asset AND t.asset_source = las.asset_source
+            WHERE t.blockTimestamp >= '{min_timestamp}'
+            GROUP BY t.transactionHash
+        )
+        SELECT
+            SUM(CASE WHEN has_event > 0 AND has_transaction = 0 THEN 1 ELSE 0 END) as event_only,
+            SUM(CASE WHEN has_event = 0 AND has_transaction > 0 THEN 1 ELSE 0 END) as transaction_only,
+            SUM(CASE WHEN has_event > 0 AND has_transaction > 0 THEN 1 ELSE 0 END) as both_types
+        FROM transaction_analysis
+        """
+
+        result = clickhouse_client.execute_query(coverage_query)
+
+        if result.result_rows:
+            row = result.result_rows[0]
+            data = {
+                "event_only": row[0],
+                "transaction_only": row[1],
+                "both_types": row[2],
+            }
+        else:
+            data = {"event_only": 0, "transaction_only": 0, "both_types": 0}
+
+        return JsonResponse(data)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def transaction_timestamp_differences(request):
+    """API endpoint to get timestamp differences for transactions with both types"""
+    try:
+        time_window = request.GET.get("time_window", "1_hour")
+
+        # Convert time window to ClickHouse interval
+        interval_map = {
+            "1_hour": "1 HOUR",
+            "1_day": "1 DAY",
+            "1_week": "7 DAY",
+            "1_month": "30 DAY",
+        }
+
+        interval = interval_map.get(time_window, "1 HOUR")
+
+        # First, get the minimum blockTimestamp where type='transaction'
+        min_timestamp_query = f"""
+        SELECT MIN(blockTimestamp) as min_timestamp
+        FROM aave_ethereum.TransactionRawNumerator
+        WHERE type = 'transaction'
+        AND blockTimestamp >= now() - INTERVAL {interval}
+        """
+
+        min_result = clickhouse_client.execute_query(min_timestamp_query)
+        min_timestamp = min_result.result_rows[0][0] if min_result.result_rows else None
+
+        if not min_timestamp:
+            return JsonResponse({"data": []})
+
+        # Query to get aggregated timestamp differences for transactions with both types
+        # Only include latest asset/asset_source combinations
+        diff_query = f"""
+        WITH latest_asset_sources AS (
+            SELECT asset, source as asset_source
+            FROM aave_ethereum.LatestAssetSourceUpdated
+            GROUP BY asset, source
+        ),
+        transaction_pairs AS (
+            SELECT
+                t.asset,
+                t.asset_source,
+                t.name,
+                t.transactionHash,
+                MAX(CASE WHEN t.type = 'event' THEN t.blockTimestamp ELSE NULL END) as event_timestamp,
+                MAX(CASE WHEN t.type = 'transaction' THEN t.blockTimestamp ELSE NULL END) as transaction_timestamp
+            FROM aave_ethereum.TransactionRawNumerator t
+            INNER JOIN latest_asset_sources las
+                ON t.asset = las.asset AND t.asset_source = las.asset_source
+            WHERE t.blockTimestamp >= '{min_timestamp}'
+            GROUP BY t.asset, t.asset_source, t.name, t.transactionHash
+            HAVING event_timestamp IS NOT NULL AND transaction_timestamp IS NOT NULL
+        ),
+        timestamp_diffs AS (
+            SELECT
+                asset,
+                asset_source,
+                name,
+                (toInt64(transaction_timestamp) - toInt64(event_timestamp)) / 1000000.0 as timestamp_diff_seconds
+            FROM transaction_pairs
+        )
+        SELECT
+            asset,
+            asset_source,
+            name,
+            MIN(timestamp_diff_seconds) as min_diff,
+            MAX(timestamp_diff_seconds) as max_diff,
+            AVG(timestamp_diff_seconds) as avg_diff,
+            COUNT(*) as count_transactions
+        FROM timestamp_diffs
+        GROUP BY asset, asset_source, name
+        ORDER BY asset, asset_source, name
+        """
+
+        result = clickhouse_client.execute_query(diff_query)
+
+        # Convert to list of dictionaries for JSON response
+        data = []
+        for row in result.result_rows:
+            data.append(
+                {
+                    "asset": row[0],
+                    "asset_source": row[1],
+                    "name": row[2],
+                    "min_diff": float(row[3]) if row[3] is not None else 0.0,
+                    "max_diff": float(row[4]) if row[4] is not None else 0.0,
+                    "avg_diff": float(row[5]) if row[5] is not None else 0.0,
+                    "count_transactions": int(row[6]) if row[6] is not None else 0,
                 }
             )
 

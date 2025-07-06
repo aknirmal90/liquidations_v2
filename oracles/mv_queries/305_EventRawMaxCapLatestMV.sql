@@ -7,5 +7,6 @@ SELECT
     name,
     blockTimestamp,
     blockNumber,
-    max_cap
+    max_cap,
+    max_cap_type
 FROM aave_ethereum.EventRawMaxCap;

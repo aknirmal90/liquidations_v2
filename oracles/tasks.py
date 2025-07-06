@@ -15,7 +15,11 @@ from oracles.contracts.max_cap import get_max_cap
 from oracles.contracts.multiplier import get_multiplier
 from oracles.contracts.numerator import get_numerator
 from oracles.contracts.underlying_sources import get_underlying_sources
-from oracles.contracts.utils import RpcCacheStorage, UnsupportedAssetSourceError
+from oracles.contracts.utils import (
+    RpcCacheStorage,
+    UnsupportedAssetSourceError,
+    get_latest_asset_sources,
+)
 from oracles.models import PriceEvent
 from utils.clickhouse.client import clickhouse_client
 from utils.constants import NETWORK_NAME, PRICES_ABI_PATH, PROTOCOL_NAME
@@ -227,6 +231,10 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
                         )
                     )
                     network_event.logs_count += len(event_logs_for_address)
+                    max_block_number = max(
+                        event_log.blockNumber for event_log in event_logs_for_address
+                    )
+                    network_event.last_inserted_block = max_block_number
                     updated_network_events.append(network_event)
 
         self.bulk_insert_raw_price_events(
@@ -242,7 +250,9 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
             table_name="TransactionRawMultiplier", logs=parsed_multiplier_logs
         )
 
-        PriceEvent.objects.bulk_update(updated_network_events, ["logs_count"])
+        PriceEvent.objects.bulk_update(
+            updated_network_events, ["logs_count", "last_inserted_block"]
+        )
 
     def get_parsed_logs(
         self, network_event: PriceEvent, event_logs_for_address: List[Any], parser_func
@@ -338,7 +348,9 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
         self.cache_asset_sources_for_websockets()
 
     def cache_transmitters_for_websockets(self):
-        transmitters_qs = PriceEvent.objects.values_list("transmitters", flat=True)
+        # Get only active asset sources from utils
+        active_price_events = get_latest_asset_sources()
+        transmitters_qs = active_price_events.values_list("transmitters", flat=True)
         transmitters = []
         for transmitters_array in transmitters_qs:
             if transmitters_array:
@@ -347,11 +359,12 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
         cache.set("transmitters_for_websockets", transmitters)
 
     def cache_asset_sources_for_websockets(self):
-        events = PriceEvent.objects.all()
+        # Get only active asset sources from utils
+        active_price_events = get_latest_asset_sources()
         # Create a dictionary to group by contract_address
         contract_address_to_asset_sources = {}
 
-        for event in events:
+        for event in active_price_events:
             contract_addresses = event.contract_addresses
             if contract_addresses:
                 for contract_address in contract_addresses:
@@ -415,12 +428,14 @@ class BasePriceMixin:
 
 class PriceEventStaticSynchronizeTask(BasePriceMixin, Task):
     def run(self):
-        network_events = PriceEvent.objects.all()
-        event = AttributeDict({"blockNumber": rpc_adapter.cached_block_height})
+        # Get only active asset sources from utils
+        network_events = get_latest_asset_sources()
+
         parsed_denominator_logs = []
         parsed_max_cap_logs = []
 
         for network_event in network_events.iterator():
+            event = AttributeDict({"blockNumber": rpc_adapter.cached_block_height})
             parsed_denominator_logs.extend(
                 self.get_parsed_logs(network_event, [event], get_denominator)
             )
@@ -441,11 +456,13 @@ PriceEventStaticSynchronizeTask = app.register_task(PriceEventStaticSynchronizeT
 
 class PriceTransactionDynamicSynchronizeTask(BasePriceMixin, Task):
     def run(self):
-        network_events = PriceEvent.objects.all()
-        event = AttributeDict({"blockNumber": rpc_adapter.block_height})
+        # Get only active asset sources from utils
+        network_events = get_latest_asset_sources()
+
         parsed_multiplier_logs = []
 
         for network_event in network_events.iterator():
+            event = AttributeDict({"blockNumber": rpc_adapter.cached_block_height})
             parsed_multiplier_logs.extend(
                 self.get_parsed_logs(network_event, [event], get_multiplier)
             )
@@ -454,6 +471,9 @@ class PriceTransactionDynamicSynchronizeTask(BasePriceMixin, Task):
             table_name="TransactionRawMultiplier", logs=parsed_multiplier_logs
         )
 
+        self.bulk_insert_raw_price_events(
+            table_name="EventRawMultiplier", logs=parsed_multiplier_logs
+        )
         # Refresh MultiplierStatistics view and dictionary after updating multiplier data
         self.refresh_multiplier_statistics()
 
@@ -503,7 +523,7 @@ class VerifyHistoricalPriceTask(Task):
         if price is None:
             return True
 
-        percent_diff = (price - rpc_price) / rpc_price * 100
+        percent_diff = (price - rpc_price) / rpc_price
 
         # Store verification record
         verification_records.append(
@@ -513,7 +533,7 @@ class VerifyHistoricalPriceTask(Task):
                 name,
                 price_type,
                 int(datetime.now().timestamp() * 1_000_000),  # Convert to microseconds
-                abs(percent_diff),
+                (percent_diff),
             ]
         )
 

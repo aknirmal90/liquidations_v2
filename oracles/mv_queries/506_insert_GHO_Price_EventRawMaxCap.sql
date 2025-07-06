@@ -6,7 +6,8 @@ INSERT INTO aave_ethereum.EventRawMaxCap
     name,
     blockTimestamp,
     blockNumber,
-    max_cap
+    max_cap,
+    max_cap_type
 )
 VALUES
 (
@@ -15,5 +16,6 @@ VALUES
     'GhoOracle',
     now(),
     1,
-    0
+    0,
+    0  -- NO_CAP for GHO
 );
