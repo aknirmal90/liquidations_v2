@@ -1,5 +1,7 @@
 from web3 import Web3
 
+from oracles.contracts.denominator import get_denominator
+from oracles.contracts.multiplier import get_multiplier
 from oracles.contracts.utils import (
     CACHE_TTL_4_HOURS,
     AssetSourceType,
@@ -52,6 +54,23 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
                 f"No event found for {asset_source} of type {asset_source_type}"
             )
 
+    elif asset_source_type == AssetSourceType.PendlePriceCapAdapter:
+        max_cap_type = MaxCapType.MAX_PRICE_CAP
+        asset_to_usd_aggregator = decode_any(
+            RpcCacheStorage.get_cached_asset_source_function(
+                asset_source, "ASSET_TO_USD_AGGREGATOR"
+            )
+        )
+        max_cap_underlying = get_max_cap(
+            asset, asset_to_usd_aggregator, event, transaction
+        )[-2]
+        multiplier = get_multiplier(asset, asset_source, event, transaction)[-1]
+        denominator = get_denominator(asset, asset_source, event, transaction)[-1]
+        max_cap = int(max_cap_underlying * multiplier / denominator)
+        RpcCacheStorage.set_cache_with_ttl(
+            asset_source, "MAX_CAP", max_cap, CACHE_TTL_4_HOURS
+        )
+
     elif asset_source_type == AssetSourceType.EURPriceCapAdapterStable:
         max_cap_type = MaxCapType.MAX_PRICE_CAP
         events = rpc_adapter.extract_raw_event_data(
@@ -100,7 +119,9 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
     ):
         max_cap_type = MaxCapType.MAX_MULTIPLIER_CAP
         block_number = event.blockNumber
-        block_timestamp = get_evm_block_timestamps([block_number])[block_number]
+        block_timestamp = (
+            get_evm_block_timestamps([block_number])[block_number] / 1_000_000
+        )
 
         snapshot_ratio = RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "getSnapshotRatio", ttl=CACHE_TTL_4_HOURS
