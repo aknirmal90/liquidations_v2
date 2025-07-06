@@ -82,6 +82,20 @@
                 <i class="fas fa-chart-line me-2"></i>
                 Aave Asset Dashboard
             </a>
+            <div class="navbar-nav ms-auto me-4">
+                <a class="nav-link" href="{% url 'dashboard:asset_list' %}">
+                    <i class="fas fa-coins me-2"></i>
+                    Assets
+                </a>
+                <a class="nav-link" href="{% url 'dashboard:prices_summary' %}">
+                    <i class="fas fa-dollar-sign me-2"></i>
+                    Prices
+                </a>
+                <a class="nav-link" href="{% url 'dashboard:liquidations' %}">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Liquidations
+                </a>
+            </div>
             {% block navbar_extra %}{% endblock %}
         </div>
     </nav>

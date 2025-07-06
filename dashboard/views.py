@@ -1751,22 +1751,6 @@ def transaction_coverage_metrics(request):
 
         interval = interval_map.get(time_window, "1 HOUR")
 
-        # First, get the minimum blockTimestamp where type='transaction'
-        min_timestamp_query = f"""
-        SELECT MIN(blockTimestamp) as min_timestamp
-        FROM aave_ethereum.TransactionRawNumerator
-        WHERE type = 'transaction'
-        AND blockTimestamp >= now() - INTERVAL {interval}
-        """
-
-        min_result = clickhouse_client.execute_query(min_timestamp_query)
-        min_timestamp = min_result.result_rows[0][0] if min_result.result_rows else None
-
-        if not min_timestamp:
-            return JsonResponse(
-                {"event_only": 0, "transaction_only": 0, "both_types": 0}
-            )
-
         # Query to analyze transaction coverage
         # Only include latest asset/asset_source combinations
         coverage_query = f"""
@@ -1783,7 +1767,7 @@ def transaction_coverage_metrics(request):
             FROM aave_ethereum.TransactionRawNumerator t
             INNER JOIN latest_asset_sources las
                 ON t.asset = las.asset AND t.asset_source = las.asset_source
-            WHERE t.blockTimestamp >= '{min_timestamp}'
+            WHERE t.blockTimestamp >= now() - INTERVAL {interval}
             GROUP BY t.transactionHash
         )
         SELECT
@@ -1827,20 +1811,6 @@ def transaction_timestamp_differences(request):
 
         interval = interval_map.get(time_window, "1 HOUR")
 
-        # First, get the minimum blockTimestamp where type='transaction'
-        min_timestamp_query = f"""
-        SELECT MIN(blockTimestamp) as min_timestamp
-        FROM aave_ethereum.TransactionRawNumerator
-        WHERE type = 'transaction'
-        AND blockTimestamp >= now() - INTERVAL {interval}
-        """
-
-        min_result = clickhouse_client.execute_query(min_timestamp_query)
-        min_timestamp = min_result.result_rows[0][0] if min_result.result_rows else None
-
-        if not min_timestamp:
-            return JsonResponse({"data": []})
-
         # Query to get aggregated timestamp differences for transactions with both types
         # Only include latest asset/asset_source combinations
         diff_query = f"""
@@ -1860,7 +1830,7 @@ def transaction_timestamp_differences(request):
             FROM aave_ethereum.TransactionRawNumerator t
             INNER JOIN latest_asset_sources las
                 ON t.asset = las.asset AND t.asset_source = las.asset_source
-            WHERE t.blockTimestamp >= '{min_timestamp}'
+            WHERE t.blockTimestamp >= now() - INTERVAL {interval}
             GROUP BY t.asset, t.asset_source, t.name, t.transactionHash
             HAVING event_timestamp IS NOT NULL AND transaction_timestamp IS NOT NULL
         ),
@@ -2095,3 +2065,247 @@ def create_box_plots(box_plot_data):
             plots[expected_type] = p
 
     return plots
+
+
+@login_required
+def liquidations(request):
+    """View to show liquidations dashboard"""
+    try:
+        # Get time window from request, default to 1 day
+        time_window = request.GET.get("time_window", "1_day")
+
+        context = {
+            "current_time_window": time_window,
+        }
+
+        return render(request, "dashboard/liquidations.html", context)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def liquidations_metrics(request):
+    """API endpoint to get liquidations metrics"""
+    try:
+        time_window = request.GET.get("time_window", "1_day")
+
+        # Convert time window to ClickHouse interval
+        interval_map = {
+            "1_hour": "1 HOUR",
+            "1_day": "1 DAY",
+            "1_week": "7 DAY",
+            "1_month": "30 DAY",
+            "1_year": "365 DAY",
+        }
+
+        interval = interval_map.get(time_window, "1 DAY")
+
+        # Query for liquidations metrics
+        metrics_query = f"""
+        WITH liquidation_data AS (
+            SELECT
+                l.collateralAsset,
+                toFloat64(l.liquidatedCollateralAmount) as liquidatedCollateralAmount,
+                l.liquidator,
+                l.blockTimestamp,
+                l.transactionHash,
+                COALESCE(toFloat64(tm.decimals), 18.0) as decimals,
+                COALESCE(lpe.historical_price_usd, 0.0) as historical_price_usd
+            FROM aave_ethereum.LiquidationCall l
+            LEFT JOIN aave_ethereum.view_LatestAssetConfiguration tm
+                ON l.collateralAsset = tm.asset
+            LEFT JOIN aave_ethereum.LatestPriceEvent lpe
+                ON l.collateralAsset = lpe.asset
+            WHERE l.blockTimestamp >= now() - INTERVAL {interval}
+        )
+        SELECT
+            COUNT(*) as total_liquidations,
+            COUNT(DISTINCT liquidator) as unique_liquidators,
+            SUM(
+                CASE
+                    WHEN historical_price_usd > 0 AND decimals > 0
+                    THEN (liquidatedCollateralAmount * historical_price_usd) / POW(10, decimals)
+                    ELSE 0
+                END
+            ) as total_usd_volume
+        FROM liquidation_data
+        """
+
+        result = clickhouse_client.execute_query(metrics_query)
+
+        if result.result_rows:
+            row = result.result_rows[0]
+            data = {
+                "total_liquidations": int(row[0]) if row[0] else 0,
+                "unique_liquidators": int(row[1]) if row[1] else 0,
+                "total_usd_volume": float(row[2]) if row[2] else 0.0,
+            }
+        else:
+            data = {
+                "total_liquidations": 0,
+                "unique_liquidators": 0,
+                "total_usd_volume": 0.0,
+            }
+
+        return JsonResponse(data)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def liquidations_top_liquidators(request):
+    """API endpoint to get top liquidators data"""
+    try:
+        time_window = request.GET.get("time_window", "1_day")
+
+        # Convert time window to ClickHouse interval
+        interval_map = {
+            "1_hour": "1 HOUR",
+            "1_day": "1 DAY",
+            "1_week": "7 DAY",
+            "1_month": "30 DAY",
+            "1_year": "365 DAY",
+        }
+
+        interval = interval_map.get(time_window, "1 DAY")
+
+        # Query for top liquidators
+        top_liquidators_query = f"""
+        WITH liquidation_data AS (
+            SELECT
+                l.liquidator,
+                toFloat64(l.liquidatedCollateralAmount) as liquidatedCollateralAmount,
+                l.transactionHash,
+                COALESCE(toFloat64(tm.decimals), 18.0) as decimals,
+                COALESCE(lpe.historical_price_usd, 0.0) as historical_price_usd
+            FROM aave_ethereum.LiquidationCall l
+            LEFT JOIN aave_ethereum.view_LatestAssetConfiguration tm
+                ON l.collateralAsset = tm.asset
+            LEFT JOIN aave_ethereum.LatestPriceEvent lpe
+                ON l.collateralAsset = lpe.asset
+            WHERE l.blockTimestamp >= now() - INTERVAL {interval}
+        )
+        SELECT
+            liquidator,
+            COUNT(DISTINCT transactionHash) as txn_count,
+            SUM(
+                CASE
+                    WHEN historical_price_usd > 0 AND decimals > 0
+                    THEN (liquidatedCollateralAmount * historical_price_usd) / POW(10, decimals)
+                    ELSE 0
+                END
+            ) as usd_volume
+        FROM liquidation_data
+        GROUP BY liquidator
+        ORDER BY usd_volume DESC
+        LIMIT 20
+        """
+
+        result = clickhouse_client.execute_query(top_liquidators_query)
+
+        data = []
+        for row in result.result_rows:
+            data.append(
+                {
+                    "liquidator": row[0],
+                    "txn_count": int(row[1]) if row[1] else 0,
+                    "usd_volume": float(row[2]) if row[2] else 0.0,
+                    "liquidator_url": get_simple_explorer_url(row[0])
+                    if row[0]
+                    else None,
+                }
+            )
+
+        return JsonResponse({"data": data})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def liquidations_timeseries(request):
+    """API endpoint to get liquidations timeseries data"""
+    try:
+        time_window = request.GET.get("time_window", "1_day")
+
+        # Convert time window to ClickHouse interval
+        interval_map = {
+            "1_hour": "1 HOUR",
+            "1_day": "1 DAY",
+            "1_week": "7 DAY",
+            "1_month": "30 DAY",
+            "1_year": "365 DAY",
+        }
+
+        interval = interval_map.get(time_window, "1 DAY")
+
+        # Determine time grouping based on interval
+        if time_window == "1_hour":
+            time_format = (
+                "toDateTime(toStartOfInterval(blockTimestamp, INTERVAL 5 MINUTE))"
+            )
+        elif time_window == "1_day":
+            time_format = (
+                "toDateTime(toStartOfInterval(blockTimestamp, INTERVAL 1 HOUR))"
+            )
+        elif time_window == "1_week":
+            time_format = (
+                "toDateTime(toStartOfInterval(blockTimestamp, INTERVAL 6 HOUR))"
+            )
+        elif time_window == "1_month":
+            time_format = (
+                "toDateTime(toStartOfInterval(blockTimestamp, INTERVAL 1 DAY))"
+            )
+        else:  # 1_year
+            time_format = (
+                "toDateTime(toStartOfInterval(blockTimestamp, INTERVAL 1 WEEK))"
+            )
+
+        # Query for timeseries data
+        timeseries_query = f"""
+        WITH liquidation_data AS (
+            SELECT
+                l.blockTimestamp,
+                toFloat64(l.liquidatedCollateralAmount) as liquidatedCollateralAmount,
+                COALESCE(toFloat64(tm.decimals), 18.0) as decimals,
+                COALESCE(lpe.historical_price_usd, 0.0) as historical_price_usd
+            FROM aave_ethereum.LiquidationCall l
+            LEFT JOIN aave_ethereum.view_LatestAssetConfiguration tm
+                ON l.collateralAsset = tm.asset
+            LEFT JOIN aave_ethereum.LatestPriceEvent lpe
+                ON l.collateralAsset = lpe.asset
+            WHERE l.blockTimestamp >= now() - INTERVAL {interval}
+        )
+        SELECT
+            {time_format} as time_bucket,
+            COUNT(*) as liquidation_count,
+            SUM(
+                CASE
+                    WHEN historical_price_usd > 0 AND decimals > 0
+                    THEN (liquidatedCollateralAmount * historical_price_usd) / POW(10, decimals)
+                    ELSE 0
+                END
+            ) as usd_volume
+        FROM liquidation_data
+        GROUP BY time_bucket
+        ORDER BY time_bucket ASC
+        """
+
+        result = clickhouse_client.execute_query(timeseries_query)
+
+        data = []
+        for row in result.result_rows:
+            data.append(
+                {
+                    "timestamp": row[0].isoformat() if row[0] else None,
+                    "liquidation_count": int(row[1]) if row[1] else 0,
+                    "usd_volume": float(row[2]) if row[2] else 0.0,
+                }
+            )
+
+        return JsonResponse({"data": data})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

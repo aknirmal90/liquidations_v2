@@ -232,21 +232,15 @@
                 <i class="fas fa-chart-line me-2"></i>
                 Aave Asset Dashboard
             </a>
-            <div class="navbar-nav ms-auto me-4">
-                <a class="nav-link" href="{% url 'dashboard:asset_list' %}">
-                    <i class="fas fa-coins me-2"></i>
-                    Assets
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3">
+                    <i class="fas fa-user me-1"></i>
+                    Welcome, {{ user.username }}
+                </span>
+                <a class="nav-link me-3" href="/admin/logout/">
+                    <i class="fas fa-sign-out-alt me-1"></i>
+                    Logout
                 </a>
-                <a class="nav-link" href="{% url 'dashboard:prices_summary' %}">
-                    <i class="fas fa-dollar-sign me-2"></i>
-                    Prices
-                </a>
-                <a class="nav-link" href="{% url 'dashboard:liquidations' %}">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    Liquidations
-                </a>
-            </div>
-            <div class="navbar-nav">
                 <a href="{% url 'dashboard:asset_list' %}" class="back-button">
                     <i class="fas fa-arrow-left me-2"></i>
                     Back to Assets

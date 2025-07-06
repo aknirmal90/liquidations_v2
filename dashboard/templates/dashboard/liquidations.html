@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liquidations Dashboard | Aave Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --secondary-color: #8b5cf6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --dark-color: #1f2937;
+            --light-color: #f9fafb;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .navbar {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .navbar-nav .nav-link {
+            color: rgba(255, 255, 255, 0.8) !important;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem !important;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            margin-right: 0.5rem;
+        }
+
+        .navbar-nav .nav-link:hover {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar-nav .nav-link.active {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .main-container {
+            padding: 2rem 0;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .page-header {
+            background: linear-gradient(135deg, var(--danger-color), #dc2626);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            text-align: center;
+            padding: 3rem 2rem;
+        }
+
+        .page-title {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .page-subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .stats-card {
+            text-align: center;
+            padding: 1.5rem;
+        }
+
+        .stats-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .stats-label {
+            font-size: 0.9rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 0.5rem;
+        }
+
+        .liquidations-metric {
+            background: linear-gradient(135deg, var(--danger-color), #dc2626);
+            color: white;
+        }
+
+        .liquidators-metric {
+            background: linear-gradient(135deg, var(--warning-color), #d97706);
+            color: white;
+        }
+
+        .volume-metric {
+            background: linear-gradient(135deg, var(--success-color), #059669);
+            color: white;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            height: 450px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 350px;
+        }
+
+        .top-liquidators-table {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .top-liquidators-table th {
+            background: var(--danger-color);
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: none;
+            padding: 1rem;
+        }
+
+        .top-liquidators-table td {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            vertical-align: middle;
+        }
+
+        .top-liquidators-table tbody tr:hover {
+            background: rgba(239, 68, 68, 0.05);
+        }
+
+        .liquidator-link {
+            color: var(--danger-color);
+            text-decoration: none;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            padding: 0.25rem 0.5rem;
+            background: rgba(239, 68, 68, 0.1);
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .liquidator-link:hover {
+            color: var(--danger-color);
+            background: rgba(239, 68, 68, 0.2);
+            text-decoration: none;
+        }
+
+        .time-selector {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+        }
+
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+        }
+
+        .error-message {
+            text-align: center;
+            color: var(--danger-color);
+            padding: 2rem;
+        }
+
+        .currency-format {
+            color: var(--success-color);
+            font-weight: 600;
+        }
+
+        .metric-icon {
+            font-size: 1.2rem;
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{% url 'dashboard:asset_list' %}">
+                <i class="fas fa-chart-line me-2"></i>
+                Aave Dashboard
+            </a>
+            <div class="navbar-nav ms-auto me-4">
+                <a class="nav-link" href="{% url 'dashboard:asset_list' %}">
+                    <i class="fas fa-coins me-2"></i>
+                    Assets
+                </a>
+                <a class="nav-link" href="{% url 'dashboard:prices_summary' %}">
+                    <i class="fas fa-dollar-sign me-2"></i>
+                    Prices
+                </a>
+                <a class="nav-link active" href="{% url 'dashboard:liquidations' %}">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Liquidations
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card page-header">
+                        <div class="page-title">
+                            <i class="fas fa-exclamation-triangle me-3"></i>
+                            Liquidations Dashboard
+                        </div>
+                        <div class="page-subtitle">
+                            Monitor liquidation activity across the Aave protocol
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Time Period Selector -->
+            <div class="row mb-4">
+                <div class="col-md-6 mx-auto text-center">
+                    <label for="timeWindow" class="form-label text-white fw-bold">Time Period:</label>
+                    <select class="form-select time-selector" id="timeWindow" onchange="updateDashboard()">
+                        <option value="1_hour">Last 1 Hour</option>
+                        <option value="1_day" selected>Last 1 Day</option>
+                        <option value="1_week">Last 1 Week</option>
+                        <option value="1_month">Last 1 Month</option>
+                        <option value="1_year">Last 1 Year</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Metrics Cards -->
+            <div class="row mb-4" id="metricsContainer">
+                <div class="col-md-4 mb-4">
+                    <div class="card liquidations-metric">
+                        <div class="card-body stats-card">
+                            <div class="metric-icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <div class="stats-value" id="totalLiquidations">-</div>
+                            <div class="stats-label">Total Liquidations</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="card liquidators-metric">
+                        <div class="card-body stats-card">
+                            <div class="metric-icon">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stats-value" id="uniqueLiquidators">-</div>
+                            <div class="stats-label">Unique Liquidators</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="card volume-metric">
+                        <div class="card-body stats-card">
+                            <div class="metric-icon">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                            <div class="stats-value" id="totalVolume">-</div>
+                            <div class="stats-label">USD Volume</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="row mb-4">
+                <!-- Liquidation Count Chart -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-line me-2"></i>
+                                Liquidation Count Over Time
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-wrapper">
+                                <canvas id="liquidationCountChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Volume Chart -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                Volume Liquidated Over Time
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-wrapper">
+                                <canvas id="volumeChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Liquidators Table -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-trophy me-2"></i>
+                                Top Liquidators
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="topLiquidatorsLoading" class="loading-spinner">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                            <div id="topLiquidatorsTable" class="table-responsive" style="display: none;">
+                                <table class="table table-hover top-liquidators-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Liquidator Address</th>
+                                            <th>Transaction Count</th>
+                                            <th>USD Volume Liquidated</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="topLiquidatorsTableBody">
+                                        <!-- Data will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="topLiquidatorsError" class="error-message" style="display: none;">
+                                <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                <h5>Error Loading Data</h5>
+                                <p id="topLiquidatorsErrorMessage">Failed to load top liquidators data.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables for charts
+        let liquidationCountChart;
+        let volumeChart;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize charts
+            initializeCharts();
+
+            // Load initial data
+            updateDashboard();
+
+            // Add loading animation for cards
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+
+                setTimeout(() => {
+                    card.style.transition = 'all 0.5s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 100);
+            });
+        });
+
+        // Initialize Chart.js charts
+        function initializeCharts() {
+            // Liquidation Count Chart
+            const countCtx = document.getElementById('liquidationCountChart').getContext('2d');
+            liquidationCountChart = new Chart(countCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Liquidation Count',
+                        data: [],
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Liquidations'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                        }
+                    }
+                }
+            });
+
+            // Volume Chart
+            const volumeCtx = document.getElementById('volumeChart').getContext('2d');
+            volumeChart = new Chart(volumeCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'USD Volume',
+                        data: [],
+                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                        borderColor: '#10b981',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'USD Volume'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + formatNumber(value);
+                                }
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Volume: $' + formatNumber(context.parsed.y);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update entire dashboard
+        function updateDashboard() {
+            const timeWindow = document.getElementById('timeWindow').value;
+
+            // Update metrics
+            updateMetrics(timeWindow);
+
+            // Update charts
+            updateTimeseries(timeWindow);
+
+            // Update top liquidators
+            updateTopLiquidators(timeWindow);
+        }
+
+        // Update metrics cards
+        function updateMetrics(timeWindow) {
+            fetch(`/api/liquidations-metrics/?time_window=${timeWindow}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error fetching metrics:', data.error);
+                        return;
+                    }
+
+                    document.getElementById('totalLiquidations').textContent =
+                        data.total_liquidations.toLocaleString();
+                    document.getElementById('uniqueLiquidators').textContent =
+                        data.unique_liquidators.toLocaleString();
+                    document.getElementById('totalVolume').textContent =
+                        '$' + formatNumber(data.total_usd_volume);
+                })
+                .catch(error => {
+                    console.error('Error fetching metrics:', error);
+                    document.getElementById('totalLiquidations').textContent = 'Error';
+                    document.getElementById('uniqueLiquidators').textContent = 'Error';
+                    document.getElementById('totalVolume').textContent = 'Error';
+                });
+        }
+
+        // Update timeseries charts
+        function updateTimeseries(timeWindow) {
+            fetch(`/api/liquidations-timeseries/?time_window=${timeWindow}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error fetching timeseries:', data.error);
+                        return;
+                    }
+
+                    const timeseriesData = data.data;
+                    const labels = timeseriesData.map(item =>
+                        new Date(item.timestamp).toLocaleString()
+                    );
+                    const counts = timeseriesData.map(item => item.liquidation_count);
+                    const volumes = timeseriesData.map(item => item.usd_volume);
+
+                    // Update liquidation count chart
+                    liquidationCountChart.data.labels = labels;
+                    liquidationCountChart.data.datasets[0].data = counts;
+                    liquidationCountChart.update();
+
+                    // Update volume chart
+                    volumeChart.data.labels = labels;
+                    volumeChart.data.datasets[0].data = volumes;
+                    volumeChart.update();
+                })
+                .catch(error => {
+                    console.error('Error fetching timeseries:', error);
+                });
+        }
+
+        // Update top liquidators table
+        function updateTopLiquidators(timeWindow) {
+            // Show loading
+            document.getElementById('topLiquidatorsLoading').style.display = 'flex';
+            document.getElementById('topLiquidatorsTable').style.display = 'none';
+            document.getElementById('topLiquidatorsError').style.display = 'none';
+
+            fetch(`/api/liquidations-top-liquidators/?time_window=${timeWindow}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showTopLiquidatorsError(data.error);
+                        return;
+                    }
+
+                    populateTopLiquidatorsTable(data.data);
+
+                    // Hide loading and show table
+                    document.getElementById('topLiquidatorsLoading').style.display = 'none';
+                    document.getElementById('topLiquidatorsTable').style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error fetching top liquidators:', error);
+                    showTopLiquidatorsError('Failed to fetch data from server');
+                });
+        }
+
+        // Populate top liquidators table
+        function populateTopLiquidatorsTable(data) {
+            const tbody = document.getElementById('topLiquidatorsTableBody');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="4" class="text-center py-5 text-muted">No liquidation data available for the selected time period.</td>';
+                tbody.appendChild(tr);
+                return;
+            }
+
+            data.forEach((liquidator, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>
+                        ${liquidator.liquidator_url ?
+                            `<a href="${liquidator.liquidator_url}" target="_blank" class="liquidator-link">
+                                ${truncateAddress(liquidator.liquidator)}
+                            </a>` :
+                            `<span class="liquidator-link">${truncateAddress(liquidator.liquidator)}</span>`
+                        }
+                    </td>
+                    <td>
+                        <span class="badge bg-primary">${liquidator.txn_count.toLocaleString()}</span>
+                    </td>
+                    <td>
+                        <span class="currency-format">$${formatNumber(liquidator.usd_volume)}</span>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Show error for top liquidators
+        function showTopLiquidatorsError(errorMessage) {
+            document.getElementById('topLiquidatorsLoading').style.display = 'none';
+            document.getElementById('topLiquidatorsTable').style.display = 'none';
+            document.getElementById('topLiquidatorsError').style.display = 'block';
+            document.getElementById('topLiquidatorsErrorMessage').textContent = errorMessage;
+        }
+
+        // Utility functions
+        function formatNumber(num) {
+            if (num >= 1e9) {
+                return (num / 1e9).toFixed(2) + 'B';
+            }
+            if (num >= 1e6) {
+                return (num / 1e6).toFixed(2) + 'M';
+            }
+            if (num >= 1e3) {
+                return (num / 1e3).toFixed(2) + 'K';
+            }
+            return num.toFixed(2);
+        }
+
+        function truncateAddress(address) {
+            if (!address) return 'N/A';
+            return address.substring(0, 8) + '...' + address.substring(address.length - 6);
+        }
+    </script>
+</body>
+
+</html>

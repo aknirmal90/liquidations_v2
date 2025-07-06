@@ -7,6 +7,7 @@ app_name = "dashboard"
 urlpatterns = [
     path("", views.prices_summary, name="prices_summary"),
     path("assets/", views.asset_list, name="asset_list"),
+    path("liquidations/", views.liquidations, name="liquidations"),
     path("asset/<str:asset_address>/", views.asset_detail, name="asset_detail"),
     path("api/asset/<str:asset_address>/", views.asset_data_api, name="asset_data_api"),
     path(
@@ -33,5 +34,20 @@ urlpatterns = [
         "api/transaction-timestamp-differences/",
         views.transaction_timestamp_differences,
         name="transaction_timestamp_differences",
+    ),
+    path(
+        "api/liquidations-metrics/",
+        views.liquidations_metrics,
+        name="liquidations_metrics",
+    ),
+    path(
+        "api/liquidations-top-liquidators/",
+        views.liquidations_top_liquidators,
+        name="liquidations_top_liquidators",
+    ),
+    path(
+        "api/liquidations-timeseries/",
+        views.liquidations_timeseries,
+        name="liquidations_timeseries",
     ),
 ]
