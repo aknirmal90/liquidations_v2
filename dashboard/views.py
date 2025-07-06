@@ -1680,27 +1680,27 @@ def price_zero_error_stats_data(request):
         SELECT
             name as error_type,
             COUNT(*) as total_records,
-            SUM(CASE WHEN type = 'historical_event' AND pct_error = 0.0 THEN 1 ELSE 0 END) as historical_event_zero_count,
-            SUM(CASE WHEN type = 'historical_transaction' AND pct_error = 0.0 THEN 1 ELSE 0 END) as historical_transaction_zero_count,
-            SUM(CASE WHEN type = 'predicted_transaction' AND pct_error = 0.0 THEN 1 ELSE 0 END) as predicted_transaction_zero_count,
+            SUM(CASE WHEN type = 'historical_event' AND ABS(pct_error) < 0.000001 THEN 1 ELSE 0 END) as historical_event_valid_count,
+            SUM(CASE WHEN type = 'historical_transaction' AND ABS(pct_error) < 0.000001 THEN 1 ELSE 0 END) as historical_transaction_valid_count,
+            SUM(CASE WHEN type = 'predicted_transaction' AND ABS(pct_error) < 0.000001 THEN 1 ELSE 0 END) as predicted_transaction_valid_count,
             SUM(CASE WHEN type = 'historical_event' THEN 1 ELSE 0 END) as historical_event_total_count,
             SUM(CASE WHEN type = 'historical_transaction' THEN 1 ELSE 0 END) as historical_transaction_total_count,
             SUM(CASE WHEN type = 'predicted_transaction' THEN 1 ELSE 0 END) as predicted_transaction_total_count,
             CASE
                 WHEN SUM(CASE WHEN type = 'historical_event' THEN 1 ELSE 0 END) > 0
-                THEN ROUND((SUM(CASE WHEN type = 'historical_event' AND pct_error = 0.0 THEN 1 ELSE 0 END) * 100.0 / SUM(CASE WHEN type = 'historical_event' THEN 1 ELSE 0 END)), 2)
+                THEN ROUND((SUM(CASE WHEN type = 'historical_event' AND ABS(pct_error) < 0.000001 THEN 1 ELSE 0 END) * 100.0 / SUM(CASE WHEN type = 'historical_event' THEN 1 ELSE 0 END)), 2)
                 ELSE 0.0
-            END as historical_event_zero_percentage,
+            END as historical_event_valid_percentage,
             CASE
                 WHEN SUM(CASE WHEN type = 'historical_transaction' THEN 1 ELSE 0 END) > 0
-                THEN ROUND((SUM(CASE WHEN type = 'historical_transaction' AND pct_error = 0.0 THEN 1 ELSE 0 END) * 100.0 / SUM(CASE WHEN type = 'historical_transaction' THEN 1 ELSE 0 END)), 2)
+                THEN ROUND((SUM(CASE WHEN type = 'historical_transaction' AND ABS(pct_error) < 0.000001 THEN 1 ELSE 0 END) * 100.0 / SUM(CASE WHEN type = 'historical_transaction' THEN 1 ELSE 0 END)), 2)
                 ELSE 0.0
-            END as historical_transaction_zero_percentage,
+            END as historical_transaction_valid_percentage,
             CASE
                 WHEN SUM(CASE WHEN type = 'predicted_transaction' THEN 1 ELSE 0 END) > 0
-                THEN ROUND((SUM(CASE WHEN type = 'predicted_transaction' AND pct_error = 0.0 THEN 1 ELSE 0 END) * 100.0 / SUM(CASE WHEN type = 'predicted_transaction' THEN 1 ELSE 0 END)), 2)
+                THEN ROUND((SUM(CASE WHEN type = 'predicted_transaction' AND ABS(pct_error) < 0.000001 THEN 1 ELSE 0 END) * 100.0 / SUM(CASE WHEN type = 'predicted_transaction' THEN 1 ELSE 0 END)), 2)
                 ELSE 0.0
-            END as predicted_transaction_zero_percentage
+            END as predicted_transaction_valid_percentage
         FROM aave_ethereum.PriceVerificationRecords
         WHERE blockTimestamp >= now() - INTERVAL {interval}
         AND pct_error IS NOT NULL
