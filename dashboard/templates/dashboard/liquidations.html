@@ -1,0 +1,1698 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liquidations Dashboard | Aave Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --secondary-color: #8b5cf6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --dark-color: #1f2937;
+            --light-color: #f9fafb;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .navbar {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .navbar-nav .nav-link {
+            color: rgba(255, 255, 255, 0.8) !important;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem !important;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            margin-right: 0.5rem;
+        }
+
+        .navbar-nav .nav-link:hover {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar-nav .nav-link.active {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .main-container {
+            padding: 2rem 0;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .page-header {
+            background: linear-gradient(135deg, var(--danger-color), #dc2626);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            text-align: center;
+            padding: 3rem 2rem;
+        }
+
+        .page-title {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .page-subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .stats-card {
+            text-align: center;
+            padding: 1.5rem;
+        }
+
+        .stats-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .stats-label {
+            font-size: 0.9rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 0.5rem;
+        }
+
+        .liquidations-metric {
+            background: linear-gradient(135deg, var(--danger-color), #dc2626);
+            color: white;
+        }
+
+        .liquidators-metric {
+            background: linear-gradient(135deg, var(--warning-color), #d97706);
+            color: white;
+        }
+
+        .volume-metric {
+            background: linear-gradient(135deg, var(--success-color), #059669);
+            color: white;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            height: 450px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 350px;
+        }
+
+        .top-liquidators-table {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .top-liquidators-table th {
+            background: var(--danger-color);
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: none;
+            padding: 1rem;
+        }
+
+        .top-liquidators-table td {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            vertical-align: middle;
+        }
+
+        .top-liquidators-table tbody tr:hover {
+            background: rgba(239, 68, 68, 0.05);
+            cursor: pointer;
+        }
+
+        .top-liquidators-table tbody tr.clickable-row:hover {
+            background: rgba(239, 68, 68, 0.1);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .liquidator-link {
+            color: var(--danger-color);
+            text-decoration: none;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            padding: 0.25rem 0.5rem;
+            background: rgba(239, 68, 68, 0.1);
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .liquidator-link:hover {
+            color: var(--danger-color);
+            background: rgba(239, 68, 68, 0.2);
+            text-decoration: none;
+        }
+
+        .time-selector {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+        }
+
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+        }
+
+        .error-message {
+            text-align: center;
+            color: var(--danger-color);
+            padding: 2rem;
+        }
+
+        .currency-format {
+            color: var(--success-color);
+            font-weight: 600;
+        }
+
+        .metric-icon {
+            font-size: 1.2rem;
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{% url 'dashboard:asset_list' %}">
+                <i class="fas fa-chart-line me-2"></i>
+                Aave Dashboard
+            </a>
+            <div class="navbar-nav ms-auto me-4">
+                <a class="nav-link" href="{% url 'dashboard:asset_list' %}">
+                    <i class="fas fa-coins me-2"></i>
+                    Assets
+                </a>
+                <a class="nav-link" href="{% url 'dashboard:prices_summary' %}">
+                    <i class="fas fa-dollar-sign me-2"></i>
+                    Prices
+                </a>
+                <a class="nav-link active" href="{% url 'dashboard:liquidations' %}">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Liquidations
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card page-header">
+                        <div class="page-title">
+                            <i class="fas fa-exclamation-triangle me-3"></i>
+                            Liquidations Dashboard
+                        </div>
+                        <div class="page-subtitle">
+                            Monitor liquidation activity across the Aave protocol
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <ul class="nav nav-pills nav-fill" id="liquidationTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active text-white fw-bold" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button" role="tab" aria-controls="overview" aria-selected="true">
+                                <i class="fas fa-chart-pie me-2"></i>Overview & Analytics
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link text-white fw-bold" id="recent-tab" data-bs-toggle="pill" data-bs-target="#recent" type="button" role="tab" aria-controls="recent" aria-selected="false">
+                                <i class="fas fa-list me-2"></i>Recent Liquidations
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link text-white fw-bold" id="health-factor-tab" data-bs-toggle="pill" data-bs-target="#health-factor" type="button" role="tab" aria-controls="health-factor" aria-selected="false">
+                                <i class="fas fa-heartbeat me-2"></i>Health Factor Analytics
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="tab-content" id="liquidationTabContent">
+                <!-- Overview Tab -->
+                <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
+                    <!-- Time Period Selector and Filters -->
+                    <div class="row mb-4">
+                        <div class="col-md-4 mx-auto text-center">
+                            <label for="timeWindow" class="form-label text-white fw-bold">Time Period:</label>
+                            <select class="form-select time-selector" id="timeWindow" onchange="updateDashboard()">
+                                <option value="1_hour">Last 1 Hour</option>
+                                <option value="1_day">Last 1 Day</option>
+                                <option value="1_week">Last 1 Week</option>
+                                <option value="1_month" selected>Last 1 Month</option>
+                                <option value="1_year">Last 1 Year</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mx-auto text-center">
+                            <label class="form-label text-white fw-bold">Value Filter:</label>
+                            <div class="form-check form-switch d-flex justify-content-center">
+                                <input class="form-check-input" type="checkbox" id="overviewMinValueToggle" checked onchange="updateDashboard()">
+                                <label class="form-check-label text-white ms-2" for="overviewMinValueToggle">
+                                    Show only $1000+ liquidations
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Cards -->
+                    <div class="row mb-4" id="metricsContainer">
+                <div class="col-md-4 mb-4">
+                    <div class="card liquidations-metric">
+                        <div class="card-body stats-card">
+                            <div class="metric-icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <div class="stats-value" id="totalLiquidations">-</div>
+                            <div class="stats-label">Total Liquidations</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="card liquidators-metric">
+                        <div class="card-body stats-card">
+                            <div class="metric-icon">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stats-value" id="uniqueLiquidators">-</div>
+                            <div class="stats-label">Unique Liquidators</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="card volume-metric">
+                        <div class="card-body stats-card">
+                            <div class="metric-icon">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                            <div class="stats-value" id="totalVolume">-</div>
+                            <div class="stats-label">USD Volume</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="row mb-4">
+                <!-- Liquidation Count Chart -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-line me-2"></i>
+                                Liquidation Count Over Time
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-wrapper">
+                                <canvas id="liquidationCountChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Volume Chart -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                Volume Liquidated Over Time
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-wrapper">
+                                <canvas id="volumeChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Liquidators Table -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-trophy me-2"></i>
+                                Top Liquidators
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="topLiquidatorsLoading" class="loading-spinner">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                            <div id="topLiquidatorsTable" class="table-responsive" style="display: none;">
+                                <table class="table table-hover top-liquidators-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Liquidator Address</th>
+                                            <th>Transaction Count</th>
+                                            <th>USD Volume Liquidated</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="topLiquidatorsTableBody">
+                                        <!-- Data will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="topLiquidatorsError" class="error-message" style="display: none;">
+                                <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                <h5>Error Loading Data</h5>
+                                <p id="topLiquidatorsErrorMessage">Failed to load top liquidators data.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+                </div>
+
+                <!-- Recent Liquidations Tab -->
+                <div class="tab-pane fade" id="recent" role="tabpanel" aria-labelledby="recent-tab">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-list me-2"></i>
+                                            Recent Liquidations
+                                        </h5>
+                                    </div>
+                                    <div class="row align-items-center">
+                                        <div class="col-md-6">
+                                            <label for="recentTimeWindow" class="form-label text-muted me-2">Time Period:</label>
+                                            <select class="form-select form-select-sm d-inline-block w-auto" id="recentTimeWindow" onchange="loadRecentLiquidations()">
+                                                <option value="1_hour">Last 1 Hour</option>
+                                                <option value="1_day">Last 1 Day</option>
+                                                <option value="1_week">Last 1 Week</option>
+                                                <option value="1_month" selected>Last 1 Month</option>
+                                                <option value="1_year">Last 1 Year</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="recentMinValueToggle" checked onchange="loadRecentLiquidations()">
+                                                <label class="form-check-label text-muted" for="recentMinValueToggle">
+                                                    Show only $1000+ liquidations
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div id="recentLiquidationsLoading" class="loading-spinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <div id="recentLiquidationsTable" class="table-responsive" style="display: none;">
+                                        <table class="table table-hover">
+                                            <thead class="table-dark">
+                                                <tr>
+                                                    <th>Time</th>
+                                                    <th>Liquidator</th>
+                                                    <th>User</th>
+                                                    <th>Collateral Asset</th>
+                                                    <th>Debt Asset</th>
+                                                    <th>USD Volume</th>
+                                                    <th>HF at Transaction</th>
+                                                    <th>HF at Previous Tx</th>
+                                                    <th>HF at Block Start</th>
+                                                    <th>HF at Previous Block</th>
+                                                    <th>HF at 2 Blocks Prior</th>
+                                                    <th>Transaction</th>
+                                                    <th>Details</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="recentLiquidationsTableBody">
+                                                <!-- Data will be populated by JavaScript -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div id="recentLiquidationsError" class="error-message" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                        <h5>Error Loading Data</h5>
+                                        <p id="recentLiquidationsErrorMessage">Failed to load recent liquidations data.</p>
+                                    </div>
+                                    <!-- Pagination -->
+                                    <div id="recentLiquidationsPagination" class="d-flex justify-content-between align-items-center p-3" style="display: none;">
+                                        <div>
+                                            <span id="paginationInfo" class="text-muted"></span>
+                                        </div>
+                                        <div>
+                                            <button class="btn btn-outline-primary btn-sm me-2" id="prevPageBtn" onclick="changePage(-1)">
+                                                <i class="fas fa-chevron-left"></i> Previous
+                                            </button>
+                                            <button class="btn btn-outline-primary btn-sm" id="nextPageBtn" onclick="changePage(1)">
+                                                Next <i class="fas fa-chevron-right"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Health Factor Analytics Tab -->
+                <div class="tab-pane fade" id="health-factor" role="tabpanel" aria-labelledby="health-factor-tab">
+                    <!-- Time Period Selector -->
+                    <div class="row mb-4">
+                        <div class="col-md-4 mx-auto text-center">
+                            <label for="healthFactorTimeWindow" class="form-label text-white fw-bold">Time Period:</label>
+                            <select class="form-select time-selector" id="healthFactorTimeWindow" onchange="updateHealthFactorAnalytics()">
+                                <option value="1_hour">Last 1 Hour</option>
+                                <option value="1_day">Last 1 Day</option>
+                                <option value="1_week">Last 1 Week</option>
+                                <option value="1_month" selected>Last 1 Month</option>
+                                <option value="1_year">Last 1 Year</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Analytics Cards -->
+                    <div class="row mb-4">
+                        <div class="col-lg-3 col-md-6 mb-4">
+                            <div class="card analytics-card h-100">
+                                <div class="card-body text-center">
+                                    <div class="metric-icon text-danger">
+                                        <i class="fas fa-bolt"></i>
+                                    </div>
+                                    <h5 class="card-title">Ultra Fast Liquidations</h5>
+                                    <h2 class="metric-value text-danger" id="ultraFastCount">-</h2>
+                                    <p class="card-text text-muted">
+                                        <span id="ultraFastPercent">-%</span> of total
+                                    </p>
+                                    <small class="text-muted">HF at transaction < 1, others ≥ 1</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-4">
+                            <div class="card analytics-card h-100">
+                                <div class="card-body text-center">
+                                    <div class="metric-icon text-warning">
+                                        <i class="fas fa-forward"></i>
+                                    </div>
+                                    <h5 class="card-title">Fast Liquidations</h5>
+                                    <h2 class="metric-value text-warning" id="fastCount">-</h2>
+                                    <p class="card-text text-muted">
+                                        <span id="fastPercent">-%</span> of total
+                                    </p>
+                                    <small class="text-muted">HF at txn, prev txn & block start < 1</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-4">
+                            <div class="card analytics-card h-100">
+                                <div class="card-body text-center">
+                                    <div class="metric-icon text-info">
+                                        <i class="fas fa-play"></i>
+                                    </div>
+                                    <h5 class="card-title">Slow Liquidations</h5>
+                                    <h2 class="metric-value text-info" id="slowCount">-</h2>
+                                    <p class="card-text text-muted">
+                                        <span id="slowPercent">-%</span> of total
+                                    </p>
+                                    <small class="text-muted">HF at previous block < 1</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-4">
+                            <div class="card analytics-card h-100">
+                                <div class="card-body text-center">
+                                    <div class="metric-icon text-success">
+                                        <i class="fas fa-chart-line"></i>
+                                    </div>
+                                    <h5 class="card-title">Total with HF Data</h5>
+                                    <h2 class="metric-value text-success" id="totalWithHfCount">-</h2>
+                                    <p class="card-text text-muted">
+                                        <span id="hfDataPercent">-%</span> of all liquidations
+                                    </p>
+                                    <small class="text-muted">Liquidations with health factor metrics</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Row -->
+                    <!-- Liquidation Speed Distribution Row -->
+                    <div class="row">
+                        <!-- Liquidation Speed Distribution Chart (Count) -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="fas fa-chart-pie me-2"></i>
+                                        Liquidation Speed Distribution (Count)
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="liquidationCategoryLoading" class="loading-spinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <canvas id="liquidationCategoryChart" style="display: none;"></canvas>
+                                    <div id="liquidationCategoryError" class="error-message" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                        <h5>Error Loading Chart</h5>
+                                        <p id="liquidationCategoryErrorMessage">Failed to load category distribution data.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Liquidation Speed Distribution Chart (Volume) -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="fas fa-chart-pie me-2"></i>
+                                        Liquidation Speed Distribution (Volume)
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="volumeCategoryLoading" class="loading-spinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <canvas id="volumeCategoryChart" style="display: none;"></canvas>
+                                    <div id="volumeCategoryError" class="error-message" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                        <h5>Error Loading Chart</h5>
+                                        <p id="volumeCategoryErrorMessage">Failed to load volume distribution data.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Collateral Size by Speed Row -->
+                    <div class="row">
+                        <!-- Collateral Size by Speed Chart (Count) -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="fas fa-chart-bar me-2"></i>
+                                        Collateral Size by Speed (Count)
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="collateralSizeLoading" class="loading-spinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <canvas id="collateralSizeChart" style="display: none;"></canvas>
+                                    <div id="collateralSizeError" class="error-message" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                        <h5>Error Loading Chart</h5>
+                                        <p id="collateralSizeErrorMessage">Failed to load collateral size data.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Collateral Size by Speed Chart (Volume) -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="fas fa-chart-bar me-2"></i>
+                                        Collateral Size by Speed (Volume)
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="volumeSizeLoading" class="loading-spinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <canvas id="volumeSizeChart" style="display: none;"></canvas>
+                                    <div id="volumeSizeError" class="error-message" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                        <h5>Error Loading Chart</h5>
+                                        <p id="volumeSizeErrorMessage">Failed to load volume size data.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables for charts
+        let liquidationCountChart;
+        let volumeChart;
+
+        // Initialize dashboard - removed duplicate, functionality moved to bottom
+
+        // Initialize Chart.js charts
+        function initializeCharts() {
+            // Liquidation Count Chart
+            const countCtx = document.getElementById('liquidationCountChart').getContext('2d');
+            liquidationCountChart = new Chart(countCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Liquidation Count',
+                        data: [],
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Liquidations'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                        }
+                    }
+                }
+            });
+
+            // Volume Chart
+            const volumeCtx = document.getElementById('volumeChart').getContext('2d');
+            volumeChart = new Chart(volumeCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'USD Volume',
+                        data: [],
+                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                        borderColor: '#10b981',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'USD Volume'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + formatNumber(value);
+                                }
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Volume: $' + formatNumber(context.parsed.y);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update entire dashboard
+        function updateDashboard() {
+            const timeWindow = document.getElementById('timeWindow').value;
+            const minValueFilter = document.getElementById('overviewMinValueToggle').checked;
+
+            // Update metrics
+            updateMetrics(timeWindow, minValueFilter);
+
+            // Update charts
+            updateTimeseries(timeWindow, minValueFilter);
+
+            // Update top liquidators
+            updateTopLiquidators(timeWindow, minValueFilter);
+        }
+
+        // Update metrics cards
+        function updateMetrics(timeWindow, minValueFilter) {
+            const minValueParam = minValueFilter ? '&min_value=1000' : '';
+            fetch(`/api/liquidations-metrics/?time_window=${timeWindow}${minValueParam}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error fetching metrics:', data.error);
+                        return;
+                    }
+
+                    document.getElementById('totalLiquidations').textContent =
+                        data.total_liquidations.toLocaleString();
+                    document.getElementById('uniqueLiquidators').textContent =
+                        data.unique_liquidators.toLocaleString();
+                    document.getElementById('totalVolume').textContent =
+                        '$' + formatNumber(data.total_usd_volume);
+                })
+                .catch(error => {
+                    console.error('Error fetching metrics:', error);
+                    document.getElementById('totalLiquidations').textContent = 'Error';
+                    document.getElementById('uniqueLiquidators').textContent = 'Error';
+                    document.getElementById('totalVolume').textContent = 'Error';
+                });
+        }
+
+        // Update timeseries charts
+        function updateTimeseries(timeWindow, minValueFilter) {
+            const minValueParam = minValueFilter ? '&min_value=1000' : '';
+            fetch(`/api/liquidations-timeseries/?time_window=${timeWindow}${minValueParam}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error fetching timeseries:', data.error);
+                        return;
+                    }
+
+                    const timeseriesData = data.data;
+                    const labels = timeseriesData.map(item =>
+                        new Date(item.timestamp).toLocaleString()
+                    );
+                    const counts = timeseriesData.map(item => item.liquidation_count);
+                    const volumes = timeseriesData.map(item => item.usd_volume);
+
+                    // Update liquidation count chart
+                    liquidationCountChart.data.labels = labels;
+                    liquidationCountChart.data.datasets[0].data = counts;
+                    liquidationCountChart.update();
+
+                    // Update volume chart
+                    volumeChart.data.labels = labels;
+                    volumeChart.data.datasets[0].data = volumes;
+                    volumeChart.update();
+                })
+                .catch(error => {
+                    console.error('Error fetching timeseries:', error);
+                });
+        }
+
+        // Update top liquidators table
+        function updateTopLiquidators(timeWindow, minValueFilter) {
+            // Show loading
+            document.getElementById('topLiquidatorsLoading').style.display = 'flex';
+            document.getElementById('topLiquidatorsTable').style.display = 'none';
+            document.getElementById('topLiquidatorsError').style.display = 'none';
+
+            const minValueParam = minValueFilter ? '&min_value=1000' : '';
+            fetch(`/api/liquidations-top-liquidators/?time_window=${timeWindow}${minValueParam}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showTopLiquidatorsError(data.error);
+                        return;
+                    }
+
+                    populateTopLiquidatorsTable(data.data);
+
+                    // Hide loading and show table
+                    document.getElementById('topLiquidatorsLoading').style.display = 'none';
+                    document.getElementById('topLiquidatorsTable').style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error fetching top liquidators:', error);
+                    showTopLiquidatorsError('Failed to fetch data from server');
+                });
+        }
+
+        // Populate top liquidators table
+        function populateTopLiquidatorsTable(data) {
+            const tbody = document.getElementById('topLiquidatorsTableBody');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="4" class="text-center py-5 text-muted">No liquidation data available for the selected time period.</td>';
+                tbody.appendChild(tr);
+                return;
+            }
+
+            data.forEach((liquidator, index) => {
+                const tr = document.createElement('tr');
+                tr.className = 'clickable-row';
+                tr.style.cursor = 'pointer';
+                tr.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>
+                        ${liquidator.liquidator_url ?
+                            `<a href="${liquidator.liquidator_url}" target="_blank" class="liquidator-link">
+                                ${truncateAddress(liquidator.liquidator)}
+                            </a>` :
+                            `<span class="liquidator-link">${truncateAddress(liquidator.liquidator)}</span>`
+                        }
+                    </td>
+                    <td>
+                        <span class="badge bg-primary">${liquidator.txn_count.toLocaleString()}</span>
+                    </td>
+                    <td>
+                        <span class="currency-format">$${formatNumber(liquidator.usd_volume)}</span>
+                    </td>
+                `;
+
+                // Add click event to show liquidator details
+                tr.addEventListener('click', function(e) {
+                    // Prevent navigation if clicking on external link
+                    if (e.target.closest('a[target="_blank"]')) {
+                        return;
+                    }
+                    showLiquidatorDetails(liquidator.liquidator);
+                });
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Show error for top liquidators
+        function showTopLiquidatorsError(errorMessage) {
+            document.getElementById('topLiquidatorsLoading').style.display = 'none';
+            document.getElementById('topLiquidatorsTable').style.display = 'none';
+            document.getElementById('topLiquidatorsError').style.display = 'block';
+            document.getElementById('topLiquidatorsErrorMessage').textContent = errorMessage;
+        }
+
+        // Show liquidator details
+        function showLiquidatorDetails(liquidatorAddress) {
+            window.location.href = `/liquidations/liquidator/${liquidatorAddress}/`;
+        }
+
+        // Utility functions
+        function formatNumber(num) {
+            if (num >= 1e9) {
+                return (num / 1e9).toFixed(2) + 'B';
+            }
+            if (num >= 1e6) {
+                return (num / 1e6).toFixed(2) + 'M';
+            }
+            if (num >= 1e3) {
+                return (num / 1e3).toFixed(2) + 'K';
+            }
+            return num.toFixed(2);
+        }
+
+        function truncateAddress(address) {
+            if (!address) return 'N/A';
+            return address.substring(0, 8) + '...' + address.substring(address.length - 6);
+        }
+
+        // Recent Liquidations Tab Functions
+        let currentPage = 1;
+        const pageSize = 20;
+
+        // Load recent liquidations when tab is activated
+        document.getElementById('recent-tab').addEventListener('shown.bs.tab', function() {
+            loadRecentLiquidations();
+        });
+
+        function loadRecentLiquidations() {
+            const timeWindow = document.getElementById('recentTimeWindow').value;
+            const minValueFilter = document.getElementById('recentMinValueToggle').checked;
+            currentPage = 1; // Reset to first page
+            fetchRecentLiquidations(timeWindow, currentPage, minValueFilter);
+        }
+
+        function changePage(direction) {
+            const newPage = currentPage + direction;
+            if (newPage < 1) return;
+
+            const timeWindow = document.getElementById('recentTimeWindow').value;
+            const minValueFilter = document.getElementById('recentMinValueToggle').checked;
+            fetchRecentLiquidations(timeWindow, newPage, minValueFilter);
+        }
+
+        function fetchRecentLiquidations(timeWindow, page, minValueFilter) {
+            // Show loading
+            document.getElementById('recentLiquidationsLoading').style.display = 'flex';
+            document.getElementById('recentLiquidationsTable').style.display = 'none';
+            document.getElementById('recentLiquidationsError').style.display = 'none';
+            document.getElementById('recentLiquidationsPagination').style.display = 'none';
+
+            const minValueParam = minValueFilter ? '&min_value=1000' : '';
+            fetch(`/api/liquidations-recent/?time_window=${timeWindow}&page=${page}&page_size=${pageSize}${minValueParam}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showRecentLiquidationsError(data.error);
+                        return;
+                    }
+
+                    populateRecentLiquidationsTable(data.data);
+                    updatePagination(data.pagination);
+
+                    // Hide loading and show table
+                    document.getElementById('recentLiquidationsLoading').style.display = 'none';
+                    document.getElementById('recentLiquidationsTable').style.display = 'block';
+                    document.getElementById('recentLiquidationsPagination').style.display = 'flex';
+                })
+                .catch(error => {
+                    console.error('Error fetching recent liquidations:', error);
+                    showRecentLiquidationsError('Failed to fetch data from server');
+                });
+        }
+
+        function populateRecentLiquidationsTable(data) {
+            const tbody = document.getElementById('recentLiquidationsTableBody');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="13" class="text-center py-5 text-muted">No liquidation data available for the selected time period.</td>';
+                tbody.appendChild(tr);
+                return;
+            }
+
+            data.forEach((liquidation) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <small class="text-muted">
+                            ${new Date(liquidation.blockTimestamp).toLocaleString()}
+                        </small>
+                    </td>
+                    <td>
+                        ${liquidation.liquidator_url ?
+                            `<a href="${liquidation.liquidator_url}" target="_blank" class="liquidator-link">
+                                ${truncateAddress(liquidation.liquidator)}
+                            </a>` :
+                            `<span class="liquidator-link">${truncateAddress(liquidation.liquidator)}</span>`
+                        }
+                    </td>
+                    <td>
+                        ${liquidation.user_url ?
+                            `<a href="${liquidation.user_url}" target="_blank" class="liquidator-link">
+                                ${truncateAddress(liquidation.user)}
+                            </a>` :
+                            `<span class="liquidator-link">${truncateAddress(liquidation.user)}</span>`
+                        }
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary">${liquidation.collateral_symbol || 'Unknown'}</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-warning">${liquidation.debt_symbol || 'Unknown'}</span>
+                    </td>
+                    <td>
+                        <span class="currency-format">$${formatNumber(liquidation.usd_volume || 0)}</span>
+                    </td>
+                    <td>
+                        ${liquidation.health_factor_at_transaction !== null ?
+                            `<span class="badge ${liquidation.health_factor_at_transaction < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_transaction.toFixed(4)}</span>` :
+                            '<span class="text-muted">N/A</span>'
+                        }
+                    </td>
+                    <td>
+                        ${liquidation.health_factor_at_previous_tx !== null ?
+                            `<span class="badge ${liquidation.health_factor_at_previous_tx < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_previous_tx.toFixed(4)}</span>` :
+                            '<span class="text-muted">N/A</span>'
+                        }
+                    </td>
+                    <td>
+                        ${liquidation.health_factor_at_block_start !== null ?
+                            `<span class="badge ${liquidation.health_factor_at_block_start < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_block_start.toFixed(4)}</span>` :
+                            '<span class="text-muted">N/A</span>'
+                        }
+                    </td>
+                    <td>
+                        ${liquidation.health_factor_at_previous_block !== null ?
+                            `<span class="badge ${liquidation.health_factor_at_previous_block < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_previous_block.toFixed(4)}</span>` :
+                            '<span class="text-muted">N/A</span>'
+                        }
+                    </td>
+                    <td>
+                        ${liquidation.health_factor_at_two_blocks_prior !== null ?
+                            `<span class="badge ${liquidation.health_factor_at_two_blocks_prior < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_two_blocks_prior.toFixed(4)}</span>` :
+                            '<span class="text-muted">N/A</span>'
+                        }
+                    </td>
+                    <td>
+                        ${liquidation.transaction_url ?
+                            `<a href="${liquidation.transaction_url}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>` :
+                            '<span class="text-muted">N/A</span>'
+                        }
+                    </td>
+                    <td>
+                        <a href="/liquidations/detail/${liquidation.transactionHash}/" class="btn btn-primary btn-sm">
+                            <i class="fas fa-search"></i> Details
+                        </a>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updatePagination(pagination) {
+            currentPage = pagination.current_page;
+
+            document.getElementById('paginationInfo').textContent =
+                `Showing ${pagination.start_item}-${pagination.end_item} of ${pagination.total_items} liquidations`;
+
+            document.getElementById('prevPageBtn').disabled = !pagination.has_previous;
+            document.getElementById('nextPageBtn').disabled = !pagination.has_next;
+        }
+
+        function showRecentLiquidationsError(errorMessage) {
+            document.getElementById('recentLiquidationsLoading').style.display = 'none';
+            document.getElementById('recentLiquidationsTable').style.display = 'none';
+            document.getElementById('recentLiquidationsError').style.display = 'block';
+            document.getElementById('recentLiquidationsErrorMessage').textContent = errorMessage;
+        }
+
+        // Global variables for health factor charts
+        let liquidationCategoryChart;
+        let collateralSizeChart;
+        let volumeCategoryChart;
+        let volumeSizeChart;
+
+        // Update health factor analytics
+        function updateHealthFactorAnalytics() {
+            const timeWindow = document.getElementById('healthFactorTimeWindow').value;
+            fetchHealthFactorAnalytics(timeWindow);
+        }
+
+        // Fetch health factor analytics data
+        function fetchHealthFactorAnalytics(timeWindow) {
+            console.log('fetchHealthFactorAnalytics called with timeWindow:', timeWindow);
+            showHealthFactorLoading();
+
+            const url = `/api/health-factor-analytics/?time_window=${timeWindow}`;
+            console.log('Fetching from URL:', url);
+
+            fetch(url)
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received data:', data);
+                    if (data.error) {
+                        console.error('API returned error:', data.error);
+                        showHealthFactorError('Error: ' + data.error);
+                        return;
+                    }
+                    updateHealthFactorCards(data);
+                    updateHealthFactorCharts(data);
+                    hideHealthFactorLoading();
+                })
+                .catch(error => {
+                    console.error('Error fetching health factor analytics:', error);
+                    showHealthFactorError('Failed to fetch health factor data from server');
+                });
+        }
+
+        // Update health factor metric cards
+        function updateHealthFactorCards(data) {
+            document.getElementById('ultraFastCount').textContent = data.category_distribution.ultra_fast.count.toLocaleString();
+            document.getElementById('ultraFastPercent').textContent = data.category_distribution.ultra_fast.percentage + '%';
+
+            document.getElementById('fastCount').textContent = data.category_distribution.fast.count.toLocaleString();
+            document.getElementById('fastPercent').textContent = data.category_distribution.fast.percentage + '%';
+
+            document.getElementById('slowCount').textContent = data.category_distribution.slow.count.toLocaleString();
+            document.getElementById('slowPercent').textContent = data.category_distribution.slow.percentage + '%';
+
+            document.getElementById('totalWithHfCount').textContent = data.total_with_hf.toLocaleString();
+            document.getElementById('hfDataPercent').textContent = data.hf_data_percentage + '%';
+        }
+
+        // Update health factor charts
+        function updateHealthFactorCharts(data) {
+            updateLiquidationCategoryChart(data);
+            updateCollateralSizeChart(data);
+            updateVolumeCategoryChart(data);
+            updateVolumeSizeChart(data);
+        }
+
+        // Update liquidation category distribution chart (pie chart)
+        function updateLiquidationCategoryChart(data) {
+            console.log('updateLiquidationCategoryChart called with data:', data);
+
+            const chartElement = document.getElementById('liquidationCategoryChart');
+            if (!chartElement) {
+                console.error('liquidationCategoryChart element not found!');
+                return;
+            }
+
+            const ctx = chartElement.getContext('2d');
+
+            if (liquidationCategoryChart) {
+                console.log('Destroying existing liquidationCategoryChart');
+                liquidationCategoryChart.destroy();
+            }
+
+            const categoryData = data.category_distribution;
+            const labels = [];
+            const values = [];
+            const colors = [];
+
+            if (categoryData.ultra_fast.count > 0) {
+                labels.push(`Ultra Fast (${categoryData.ultra_fast.percentage}%)`);
+                values.push(categoryData.ultra_fast.count);
+                colors.push('#dc3545'); // Red
+            }
+
+            if (categoryData.fast.count > 0) {
+                labels.push(`Fast (${categoryData.fast.percentage}%)`);
+                values.push(categoryData.fast.count);
+                colors.push('#ffc107'); // Yellow
+            }
+
+            if (categoryData.slow.count > 0) {
+                labels.push(`Slow (${categoryData.slow.percentage}%)`);
+                values.push(categoryData.slow.count);
+                colors.push('#17a2b8'); // Info blue
+            }
+
+
+            console.log('Creating doughnut chart with labels:', labels, 'values:', values, 'colors:', colors);
+
+            try {
+                liquidationCategoryChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: colors,
+                            borderWidth: 2,
+                            borderColor: '#1a1a1a'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: '#e0e0e0',
+                                    padding: 15,
+                                    font: {
+                                        size: 12
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                console.log('Doughnut chart created successfully');
+                document.getElementById('liquidationCategoryChart').style.display = 'block';
+            } catch (error) {
+                console.error('Error creating doughnut chart:', error);
+            }
+        }
+
+        // Update collateral size distribution chart (stacked bar chart)
+        function updateCollateralSizeChart(data) {
+            console.log('updateCollateralSizeChart called with data:', data);
+
+            const chartElement = document.getElementById('collateralSizeChart');
+            if (!chartElement) {
+                console.error('collateralSizeChart element not found!');
+                return;
+            }
+
+            const ctx = chartElement.getContext('2d');
+
+            if (collateralSizeChart) {
+                console.log('Destroying existing collateralSizeChart');
+                collateralSizeChart.destroy();
+            }
+
+            const sizeData = data.size_distribution;
+            console.log('Size data for chart:', sizeData);
+
+            collateralSizeChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['< $100', '< $1,000', '< $10,000', '> $10,000'],
+                    datasets: [
+                        {
+                            label: 'Ultra Fast',
+                            data: [
+                                sizeData.ultra_fast.under_100,
+                                sizeData.ultra_fast.under_1000,
+                                sizeData.ultra_fast.under_10000,
+                                sizeData.ultra_fast.over_10000
+                            ],
+                            backgroundColor: '#dc3545',
+                            borderColor: '#dc3545',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Fast',
+                            data: [
+                                sizeData.fast.under_100,
+                                sizeData.fast.under_1000,
+                                sizeData.fast.under_10000,
+                                sizeData.fast.over_10000
+                            ],
+                            backgroundColor: '#ffc107',
+                            borderColor: '#ffc107',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Slow',
+                            data: [
+                                sizeData.slow.under_100,
+                                sizeData.slow.under_1000,
+                                sizeData.slow.under_10000,
+                                sizeData.slow.over_10000
+                            ],
+                            backgroundColor: '#17a2b8',
+                            borderColor: '#17a2b8',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: {
+                            stacked: true,
+                            ticks: {
+                                color: '#e0e0e0'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        y: {
+                            stacked: true,
+                            ticks: {
+                                color: '#e0e0e0'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#e0e0e0',
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('collateralSizeChart').style.display = 'block';
+        }
+
+        // Update volume category distribution chart (doughnut chart)
+        function updateVolumeCategoryChart(data) {
+            console.log('updateVolumeCategoryChart called with data:', data);
+
+            const chartElement = document.getElementById('volumeCategoryChart');
+            if (!chartElement) {
+                console.error('volumeCategoryChart element not found!');
+                return;
+            }
+
+            const ctx = chartElement.getContext('2d');
+
+            if (volumeCategoryChart) {
+                console.log('Destroying existing volumeCategoryChart');
+                volumeCategoryChart.destroy();
+            }
+
+            const volumeData = data.volume_distribution;
+            const labels = [];
+            const values = [];
+            const colors = [];
+
+            if (volumeData.ultra_fast.total > 0) {
+                labels.push(`Ultra Fast ($${formatNumber(volumeData.ultra_fast.total)}) - ${volumeData.ultra_fast.percentage}%`);
+                values.push(volumeData.ultra_fast.total);
+                colors.push('#dc3545'); // Red
+            }
+
+            if (volumeData.fast.total > 0) {
+                labels.push(`Fast ($${formatNumber(volumeData.fast.total)}) - ${volumeData.fast.percentage}%`);
+                values.push(volumeData.fast.total);
+                colors.push('#ffc107'); // Yellow
+            }
+
+            if (volumeData.slow.total > 0) {
+                labels.push(`Slow ($${formatNumber(volumeData.slow.total)}) - ${volumeData.slow.percentage}%`);
+                values.push(volumeData.slow.total);
+                colors.push('#17a2b8'); // Info blue
+            }
+
+
+            console.log('Creating volume doughnut chart with labels:', labels, 'values:', values, 'colors:', colors);
+
+            try {
+                volumeCategoryChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: colors,
+                            borderWidth: 2,
+                            borderColor: '#1a1a1a'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: '#e0e0e0',
+                                    padding: 15,
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.label + ': $' + formatNumber(context.raw);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                console.log('Volume doughnut chart created successfully');
+                document.getElementById('volumeCategoryChart').style.display = 'block';
+            } catch (error) {
+                console.error('Error creating volume doughnut chart:', error);
+            }
+        }
+
+        // Update volume size distribution chart (stacked bar chart)
+        function updateVolumeSizeChart(data) {
+            console.log('updateVolumeSizeChart called with data:', data);
+
+            const chartElement = document.getElementById('volumeSizeChart');
+            if (!chartElement) {
+                console.error('volumeSizeChart element not found!');
+                return;
+            }
+
+            const ctx = chartElement.getContext('2d');
+
+            if (volumeSizeChart) {
+                console.log('Destroying existing volumeSizeChart');
+                volumeSizeChart.destroy();
+            }
+
+            const volumeSizeData = data.volume_size_distribution;
+            console.log('Volume size data for chart:', volumeSizeData);
+
+            try {
+                volumeSizeChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['< $100', '< $1,000', '< $10,000', '> $10,000'],
+                        datasets: [
+                            {
+                                label: 'Ultra Fast',
+                                data: [
+                                    volumeSizeData.ultra_fast.under_100,
+                                    volumeSizeData.ultra_fast.under_1000,
+                                    volumeSizeData.ultra_fast.under_10000,
+                                    volumeSizeData.ultra_fast.over_10000
+                                ],
+                                backgroundColor: '#dc3545',
+                                borderColor: '#dc3545',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Fast',
+                                data: [
+                                    volumeSizeData.fast.under_100,
+                                    volumeSizeData.fast.under_1000,
+                                    volumeSizeData.fast.under_10000,
+                                    volumeSizeData.fast.over_10000
+                                ],
+                                backgroundColor: '#ffc107',
+                                borderColor: '#ffc107',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Slow',
+                                data: [
+                                    volumeSizeData.slow.under_100,
+                                    volumeSizeData.slow.under_1000,
+                                    volumeSizeData.slow.under_10000,
+                                    volumeSizeData.slow.over_10000
+                                ],
+                                backgroundColor: '#17a2b8',
+                                borderColor: '#17a2b8',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        scales: {
+                            x: {
+                                stacked: true,
+                                ticks: {
+                                    color: '#e0e0e0'
+                                },
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                }
+                            },
+                            y: {
+                                stacked: true,
+                                ticks: {
+                                    color: '#e0e0e0',
+                                    callback: function(value) {
+                                        return '$' + formatNumber(value);
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    color: '#e0e0e0',
+                                    font: {
+                                        size: 12
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.dataset.label + ': $' + formatNumber(context.raw);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                console.log('Volume size chart created successfully');
+                document.getElementById('volumeSizeChart').style.display = 'block';
+            } catch (error) {
+                console.error('Error creating volume size chart:', error);
+            }
+        }
+
+        // Loading state management for health factor analytics
+        function showHealthFactorLoading() {
+            document.getElementById('liquidationCategoryLoading').style.display = 'flex';
+            document.getElementById('collateralSizeLoading').style.display = 'flex';
+            document.getElementById('volumeCategoryLoading').style.display = 'flex';
+            document.getElementById('volumeSizeLoading').style.display = 'flex';
+            document.getElementById('liquidationCategoryChart').style.display = 'none';
+            document.getElementById('collateralSizeChart').style.display = 'none';
+            document.getElementById('volumeCategoryChart').style.display = 'none';
+            document.getElementById('volumeSizeChart').style.display = 'none';
+            document.getElementById('liquidationCategoryError').style.display = 'none';
+            document.getElementById('collateralSizeError').style.display = 'none';
+            document.getElementById('volumeCategoryError').style.display = 'none';
+            document.getElementById('volumeSizeError').style.display = 'none';
+        }
+
+        function hideHealthFactorLoading() {
+            document.getElementById('liquidationCategoryLoading').style.display = 'none';
+            document.getElementById('collateralSizeLoading').style.display = 'none';
+            document.getElementById('volumeCategoryLoading').style.display = 'none';
+            document.getElementById('volumeSizeLoading').style.display = 'none';
+        }
+
+        function showHealthFactorError(errorMessage) {
+            hideHealthFactorLoading();
+            document.getElementById('liquidationCategoryChart').style.display = 'none';
+            document.getElementById('collateralSizeChart').style.display = 'none';
+            document.getElementById('volumeCategoryChart').style.display = 'none';
+            document.getElementById('volumeSizeChart').style.display = 'none';
+            document.getElementById('liquidationCategoryError').style.display = 'block';
+            document.getElementById('collateralSizeError').style.display = 'block';
+            document.getElementById('volumeCategoryError').style.display = 'block';
+            document.getElementById('volumeSizeError').style.display = 'block';
+            document.getElementById('liquidationCategoryErrorMessage').textContent = errorMessage;
+            document.getElementById('collateralSizeErrorMessage').textContent = errorMessage;
+            document.getElementById('volumeCategoryErrorMessage').textContent = errorMessage;
+            document.getElementById('volumeSizeErrorMessage').textContent = errorMessage;
+        }
+
+        // Update DOMContentLoaded to initialize health factor analytics when the tab is first opened
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded - Health Factor Analytics initializing...');
+
+            // Original initialization code
+            initializeCharts();
+            updateDashboard();
+
+            // Initialize health factor analytics when health factor tab is clicked
+            const healthFactorTab = document.getElementById('health-factor-tab');
+            if (healthFactorTab) {
+                console.log('Health factor tab found, adding click listener...');
+                healthFactorTab.addEventListener('click', function() {
+                    console.log('Health factor tab clicked, loading analytics...');
+                    // Load health factor analytics data if not already loaded
+                    if (!liquidationCategoryChart && !collateralSizeChart && !volumeCategoryChart && !volumeSizeChart) {
+                        console.log('Charts not initialized, calling updateHealthFactorAnalytics...');
+                        updateHealthFactorAnalytics();
+                    } else {
+                        console.log('Charts already initialized, skipping...');
+                    }
+                });
+            } else {
+                console.error('Health factor tab not found!');
+            }
+
+            // Add loading animation for cards
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+
+                setTimeout(() => {
+                    card.style.transition = 'all 0.5s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 100);
+            });
+        });
+    </script>
+</body>
+
+</html>

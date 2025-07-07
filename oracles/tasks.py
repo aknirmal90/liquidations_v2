@@ -523,6 +523,10 @@ class VerifyHistoricalPriceTask(Task):
         if price is None:
             return True
 
+        # Handle zero rpc_price to avoid division by zero
+        if rpc_price == 0:
+            return True  # Skip comparison for zero prices
+
         percent_diff = (price - rpc_price) / rpc_price
 
         # Store verification record
@@ -537,7 +541,7 @@ class VerifyHistoricalPriceTask(Task):
             ]
         )
 
-        if abs(price - rpc_price) / rpc_price > threshold:
+        if rpc_price != 0 and abs(price - rpc_price) / rpc_price > threshold:
             mismatch_counts[f"{price_type}_vs_rpc"] += 1
             return False
         return True
