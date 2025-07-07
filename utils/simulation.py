@@ -3,8 +3,6 @@ from decimal import Decimal
 import requests
 from decouple import config
 
-from config.models import Configuration
-
 
 def get_tenderly_simulation_response(
     chain_id,
@@ -53,23 +51,34 @@ def get_simulated_health_factor(
     address,
     transaction_index,
 ):
-    key = f"AAVE_POOL_CONTRACT_{chain_id}"
-    configuration = Configuration.objects.get(key=key)
+    # Aave Pool contract addresses by chain_id
+    pool_contracts = {
+        1: "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",  # Ethereum mainnet
+        137: "0x794a61358D6845594F94dc1DB02A252b5b4814aD",  # Polygon
+        43114: "0x794a61358D6845594F94dc1DB02A252b5b4814aD",  # Avalanche
+        42161: "0x794a61358D6845594F94dc1DB02A252b5b4814aD",  # Arbitrum
+    }
+
+    pool_contract = pool_contracts.get(chain_id)
+    if not pool_contract:
+        raise ValueError(f"Unsupported chain_id: {chain_id}")
 
     method_id = "0xbf92857c"  # getHealthFactor(address)
     input = method_id + address.replace("0x", "").zfill(64)
 
     response = get_tenderly_simulation_response(
         chain_id=chain_id,
-        from_address=configuration.value,
-        to_address=configuration.value,
+        from_address=pool_contract,
+        to_address=pool_contract,
         input=input,
         value=0,
         block_number=block_number,
         transaction_index=transaction_index,
     )
 
-    for item in response["transaction"]["transaction_info"]["call_trace"]['decoded_output']:
-        if item['soltype']['name'] == 'healthFactor':
-            return Decimal(item['value']) / Decimal(10 ** 18)
+    for item in response["transaction"]["transaction_info"]["call_trace"][
+        "decoded_output"
+    ]:
+        if item["soltype"]["name"] == "healthFactor":
+            return Decimal(item["value"]) / Decimal(10**18)
     return None

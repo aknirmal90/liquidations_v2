@@ -78,6 +78,41 @@ class EVMRpcAdapter:
         """
         return self.client.eth.get_transaction(transaction_hash=transaction_id)
 
+    def get_transaction_receipt(self, transaction_id: str) -> Dict:
+        """
+        Get the transaction receipt from the network using the transaction ID.
+
+        Args:
+            transaction_id (str): The transaction ID.
+
+        Returns:
+            Dict: The transaction receipt data including logs and events.
+        """
+        return self.client.eth.get_transaction_receipt(transaction_hash=transaction_id)
+
+    def get_transaction_by_block_and_index(
+        self, block_number: int, transaction_index: int
+    ) -> Optional[Dict]:
+        """
+        Get a transaction by its block number and transaction index.
+
+        Args:
+            block_number (int): The block number.
+            transaction_index (int): The transaction index within the block.
+
+        Returns:
+            Optional[Dict]: The transaction data, or None if not found.
+        """
+        try:
+            return self.client.eth.get_transaction_by_block(
+                block_number, transaction_index
+            )
+        except Exception as e:
+            logger.error(
+                f"Error fetching transaction at block {block_number}, index {transaction_index}: {e}"
+            )
+            return None
+
     def extract_raw_event_data(
         self,
         topics: List[str],

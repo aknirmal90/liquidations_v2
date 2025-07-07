@@ -11,8 +11,10 @@ from django.views.decorators.http import require_http_methods
 
 from oracles.contracts.interface import PriceOracleInterface
 from utils.clickhouse.client import clickhouse_client
-from utils.constants import NETWORK_NAME
+from utils.constants import NETWORK_NAME, NETWORK_ID
 from utils.rpc import rpc_adapter
+from utils.simulation import get_simulated_health_factor
+from utils.event_parser import parse_transaction_logs
 
 
 def get_simple_explorer_url(address_id: str):
@@ -2089,6 +2091,7 @@ def liquidations_metrics(request):
     """API endpoint to get liquidations metrics"""
     try:
         time_window = request.GET.get("time_window", "1_day")
+        min_value = request.GET.get("min_value")
 
         # Convert time window to ClickHouse interval
         interval_map = {
@@ -2101,35 +2104,42 @@ def liquidations_metrics(request):
 
         interval = interval_map.get(time_window, "1 DAY")
 
+        # Add min_value filter condition if specified
+        min_value_condition = ""
+        if min_value:
+            try:
+                min_val = float(min_value)
+                min_value_condition = f"""
+                AND (
+                    CASE
+                        WHEN lpe.historical_price_usd > 0 AND COALESCE(tm.decimals, 18) > 0
+                        THEN (toFloat64(l.liquidatedCollateralAmount) * lpe.historical_price_usd) / POW(10, COALESCE(tm.decimals, 18))
+                        ELSE 0
+                    END
+                ) >= {min_val}
+                """
+            except ValueError:
+                pass
+
         # Query for liquidations metrics
         metrics_query = f"""
-        WITH liquidation_data AS (
-            SELECT
-                l.collateralAsset,
-                toFloat64(l.liquidatedCollateralAmount) as liquidatedCollateralAmount,
-                l.liquidator,
-                l.blockTimestamp,
-                l.transactionHash,
-                COALESCE(toFloat64(tm.decimals), 18.0) as decimals,
-                COALESCE(lpe.historical_price_usd, 0.0) as historical_price_usd
-            FROM aave_ethereum.LiquidationCall l
-            LEFT JOIN aave_ethereum.view_LatestAssetConfiguration tm
-                ON l.collateralAsset = tm.asset
-            LEFT JOIN aave_ethereum.LatestPriceEvent lpe
-                ON l.collateralAsset = lpe.asset
-            WHERE l.blockTimestamp >= now() - INTERVAL {interval}
-        )
         SELECT
             COUNT(*) as total_liquidations,
-            COUNT(DISTINCT liquidator) as unique_liquidators,
+            COUNT(DISTINCT l.liquidator) as unique_liquidators,
             SUM(
                 CASE
-                    WHEN historical_price_usd > 0 AND decimals > 0
-                    THEN (liquidatedCollateralAmount * historical_price_usd) / POW(10, decimals)
+                    WHEN lpe.historical_price_usd > 0 AND COALESCE(tm.decimals, 18) > 0
+                    THEN (toFloat64(l.liquidatedCollateralAmount) * lpe.historical_price_usd) / POW(10, COALESCE(tm.decimals, 18))
                     ELSE 0
                 END
             ) as total_usd_volume
-        FROM liquidation_data
+        FROM aave_ethereum.LiquidationCall l
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration tm
+            ON l.collateralAsset = tm.asset
+        LEFT JOIN aave_ethereum.LatestPriceEvent lpe
+            ON l.collateralAsset = lpe.asset
+        WHERE l.blockTimestamp >= now() - INTERVAL {interval}
+        {min_value_condition}
         """
 
         result = clickhouse_client.execute_query(metrics_query)
@@ -2159,6 +2169,7 @@ def liquidations_top_liquidators(request):
     """API endpoint to get top liquidators data"""
     try:
         time_window = request.GET.get("time_window", "1_day")
+        min_value = request.GET.get("min_value")
 
         # Convert time window to ClickHouse interval
         interval_map = {
@@ -2171,34 +2182,43 @@ def liquidations_top_liquidators(request):
 
         interval = interval_map.get(time_window, "1 DAY")
 
+        # Add min_value filter condition if specified
+        min_value_condition = ""
+        if min_value:
+            try:
+                min_val = float(min_value)
+                min_value_condition = f"""
+                AND (
+                    CASE
+                        WHEN lpe.historical_price_usd > 0 AND COALESCE(tm.decimals, 18) > 0
+                        THEN (toFloat64(l.liquidatedCollateralAmount) * lpe.historical_price_usd) / POW(10, COALESCE(tm.decimals, 18))
+                        ELSE 0
+                    END
+                ) >= {min_val}
+                """
+            except ValueError:
+                pass
+
         # Query for top liquidators
         top_liquidators_query = f"""
-        WITH liquidation_data AS (
-            SELECT
-                l.liquidator,
-                toFloat64(l.liquidatedCollateralAmount) as liquidatedCollateralAmount,
-                l.transactionHash,
-                COALESCE(toFloat64(tm.decimals), 18.0) as decimals,
-                COALESCE(lpe.historical_price_usd, 0.0) as historical_price_usd
-            FROM aave_ethereum.LiquidationCall l
-            LEFT JOIN aave_ethereum.view_LatestAssetConfiguration tm
-                ON l.collateralAsset = tm.asset
-            LEFT JOIN aave_ethereum.LatestPriceEvent lpe
-                ON l.collateralAsset = lpe.asset
-            WHERE l.blockTimestamp >= now() - INTERVAL {interval}
-        )
         SELECT
-            liquidator,
-            COUNT(DISTINCT transactionHash) as txn_count,
+            l.liquidator,
+            COUNT(DISTINCT l.transactionHash) as txn_count,
             SUM(
                 CASE
-                    WHEN historical_price_usd > 0 AND decimals > 0
-                    THEN (liquidatedCollateralAmount * historical_price_usd) / POW(10, decimals)
+                    WHEN lpe.historical_price_usd > 0 AND COALESCE(tm.decimals, 18) > 0
+                    THEN (toFloat64(l.liquidatedCollateralAmount) * lpe.historical_price_usd) / POW(10, COALESCE(tm.decimals, 18))
                     ELSE 0
                 END
             ) as usd_volume
-        FROM liquidation_data
-        GROUP BY liquidator
+        FROM aave_ethereum.LiquidationCall l
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration tm
+            ON l.collateralAsset = tm.asset
+        LEFT JOIN aave_ethereum.LatestPriceEvent lpe
+            ON l.collateralAsset = lpe.asset
+        WHERE l.blockTimestamp >= now() - INTERVAL {interval}
+        {min_value_condition}
+        GROUP BY l.liquidator
         ORDER BY usd_volume DESC
         LIMIT 20
         """
@@ -2229,6 +2249,7 @@ def liquidations_timeseries(request):
     """API endpoint to get liquidations timeseries data"""
     try:
         time_window = request.GET.get("time_window", "1_day")
+        min_value = request.GET.get("min_value")
 
         # Convert time window to ClickHouse interval
         interval_map = {
@@ -2241,54 +2262,64 @@ def liquidations_timeseries(request):
 
         interval = interval_map.get(time_window, "1 DAY")
 
+        # Add min_value filter condition if specified
+        min_value_condition = ""
+        if min_value:
+            try:
+                min_val = float(min_value)
+                min_value_condition = f"""
+                AND (
+                    CASE
+                        WHEN lpe.historical_price_usd > 0 AND COALESCE(tm.decimals, 18) > 0
+                        THEN (toFloat64(l.liquidatedCollateralAmount) * lpe.historical_price_usd) / POW(10, COALESCE(tm.decimals, 18))
+                        ELSE 0
+                    END
+                ) >= {min_val}
+                """
+            except ValueError:
+                pass
+
         # Determine time grouping based on interval
         if time_window == "1_hour":
             time_format = (
-                "toDateTime(toStartOfInterval(blockTimestamp, INTERVAL 5 MINUTE))"
+                "toDateTime(toStartOfInterval(l.blockTimestamp, INTERVAL 5 MINUTE))"
             )
         elif time_window == "1_day":
             time_format = (
-                "toDateTime(toStartOfInterval(blockTimestamp, INTERVAL 1 HOUR))"
+                "toDateTime(toStartOfInterval(l.blockTimestamp, INTERVAL 1 HOUR))"
             )
         elif time_window == "1_week":
             time_format = (
-                "toDateTime(toStartOfInterval(blockTimestamp, INTERVAL 6 HOUR))"
+                "toDateTime(toStartOfInterval(l.blockTimestamp, INTERVAL 6 HOUR))"
             )
         elif time_window == "1_month":
             time_format = (
-                "toDateTime(toStartOfInterval(blockTimestamp, INTERVAL 1 DAY))"
+                "toDateTime(toStartOfInterval(l.blockTimestamp, INTERVAL 1 DAY))"
             )
         else:  # 1_year
             time_format = (
-                "toDateTime(toStartOfInterval(blockTimestamp, INTERVAL 1 WEEK))"
+                "toDateTime(toStartOfInterval(l.blockTimestamp, INTERVAL 1 WEEK))"
             )
 
         # Query for timeseries data
         timeseries_query = f"""
-        WITH liquidation_data AS (
-            SELECT
-                l.blockTimestamp,
-                toFloat64(l.liquidatedCollateralAmount) as liquidatedCollateralAmount,
-                COALESCE(toFloat64(tm.decimals), 18.0) as decimals,
-                COALESCE(lpe.historical_price_usd, 0.0) as historical_price_usd
-            FROM aave_ethereum.LiquidationCall l
-            LEFT JOIN aave_ethereum.view_LatestAssetConfiguration tm
-                ON l.collateralAsset = tm.asset
-            LEFT JOIN aave_ethereum.LatestPriceEvent lpe
-                ON l.collateralAsset = lpe.asset
-            WHERE l.blockTimestamp >= now() - INTERVAL {interval}
-        )
         SELECT
             {time_format} as time_bucket,
             COUNT(*) as liquidation_count,
             SUM(
                 CASE
-                    WHEN historical_price_usd > 0 AND decimals > 0
-                    THEN (liquidatedCollateralAmount * historical_price_usd) / POW(10, decimals)
+                    WHEN lpe.historical_price_usd > 0 AND COALESCE(tm.decimals, 18) > 0
+                    THEN (toFloat64(l.liquidatedCollateralAmount) * lpe.historical_price_usd) / POW(10, COALESCE(tm.decimals, 18))
                     ELSE 0
                 END
             ) as usd_volume
-        FROM liquidation_data
+        FROM aave_ethereum.LiquidationCall l
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration tm
+            ON l.collateralAsset = tm.asset
+        LEFT JOIN aave_ethereum.LatestPriceEvent lpe
+            ON l.collateralAsset = lpe.asset
+        WHERE l.blockTimestamp >= now() - INTERVAL {interval}
+        {min_value_condition}
         GROUP BY time_bucket
         ORDER BY time_bucket ASC
         """
@@ -2309,3 +2340,705 @@ def liquidations_timeseries(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def liquidations_recent(request):
+    """API endpoint to get recent liquidations with pagination"""
+    try:
+        time_window = request.GET.get("time_window", "1_day")
+        page = int(request.GET.get("page", 1))
+        page_size = int(request.GET.get("page_size", 20))
+        min_value = request.GET.get("min_value")
+
+        # Convert time window to ClickHouse interval
+        interval_map = {
+            "1_hour": "1 HOUR",
+            "1_day": "1 DAY",
+            "1_week": "7 DAY",
+            "1_month": "30 DAY",
+            "1_year": "365 DAY",
+        }
+
+        interval = interval_map.get(time_window, "1 DAY")
+
+        # Add min_value filter condition if specified
+        min_value_condition = ""
+        if min_value:
+            try:
+                min_val = float(min_value)
+                min_value_condition = f"""
+                AND (
+                    CASE
+                        WHEN lpe.historical_price_usd > 0 AND COALESCE(collateral_meta.decimals, 18) > 0
+                        THEN (toFloat64(l.liquidatedCollateralAmount) * lpe.historical_price_usd) / POW(10, COALESCE(collateral_meta.decimals, 18))
+                        ELSE 0
+                    END
+                ) >= {min_val}
+                """
+            except ValueError:
+                pass
+
+        # Calculate offset for pagination
+        offset = (page - 1) * page_size
+
+        # First, get total count for pagination
+        count_query = f"""
+        SELECT COUNT(*) as total_count
+        FROM aave_ethereum.LiquidationCall l
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration collateral_meta
+            ON l.collateralAsset = collateral_meta.asset
+        LEFT JOIN aave_ethereum.LatestPriceEvent lpe
+            ON l.collateralAsset = lpe.asset
+        WHERE l.blockTimestamp >= now() - INTERVAL {interval}
+        {min_value_condition}
+        """
+
+        count_result = clickhouse_client.execute_query(count_query)
+        total_count = (
+            int(count_result.result_rows[0][0]) if count_result.result_rows else 0
+        )
+
+        # Query for recent liquidations with pagination
+        recent_query = f"""
+        SELECT
+            l.collateralAsset,
+            l.debtAsset,
+            toFloat64(l.liquidatedCollateralAmount) as liquidatedCollateralAmount,
+            l.liquidator,
+            l.user,
+            l.blockTimestamp,
+            l.transactionHash,
+            l.blockNumber,
+            COALESCE(toFloat64(collateral_meta.decimals), 18.0) as collateral_decimals,
+            COALESCE(lpe.historical_price_usd, 0.0) as historical_price_usd,
+            collateral_meta.symbol as collateral_symbol,
+            debt_meta.symbol as debt_symbol,
+            CASE
+                WHEN lpe.historical_price_usd > 0 AND COALESCE(collateral_meta.decimals, 18) > 0
+                THEN (toFloat64(l.liquidatedCollateralAmount) * lpe.historical_price_usd) / POW(10, COALESCE(collateral_meta.decimals, 18))
+                ELSE 0
+            END as usd_volume
+        FROM aave_ethereum.LiquidationCall l
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration collateral_meta
+            ON l.collateralAsset = collateral_meta.asset
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration debt_meta
+            ON l.debtAsset = debt_meta.asset
+        LEFT JOIN aave_ethereum.LatestPriceEvent lpe
+            ON l.collateralAsset = lpe.asset
+        WHERE l.blockTimestamp >= now() - INTERVAL {interval}
+        {min_value_condition}
+        ORDER BY l.blockTimestamp DESC
+        LIMIT {page_size} OFFSET {offset}
+        """
+
+        result = clickhouse_client.execute_query(recent_query)
+
+        data = []
+        for row in result.result_rows:
+            liquidation = {
+                "collateralAsset": row[0],
+                "debtAsset": row[1],
+                "liquidatedCollateralAmount": float(row[2]) if row[2] else 0,
+                "liquidator": row[3],
+                "user": row[4],
+                "blockTimestamp": row[5].isoformat() if row[5] else None,
+                "transactionHash": row[6],
+                "blockNumber": int(row[7]) if row[7] else 0,
+                "collateral_decimals": float(row[8]) if row[8] else 18.0,
+                "historical_price_usd": float(row[9]) if row[9] else 0.0,
+                "collateral_symbol": row[10],
+                "debt_symbol": row[11],
+                "usd_volume": float(row[12]) if row[12] else 0.0,
+                "liquidator_url": get_simple_explorer_url(row[3]) if row[3] else None,
+                "user_url": get_simple_explorer_url(row[4]) if row[4] else None,
+                "transaction_url": get_simple_transaction_url(row[6])
+                if row[6]
+                else None,
+            }
+            data.append(liquidation)
+
+        # Calculate pagination info
+        total_pages = (total_count + page_size - 1) // page_size
+        has_previous = page > 1
+        has_next = page < total_pages
+        start_item = offset + 1 if total_count > 0 else 0
+        end_item = min(offset + page_size, total_count)
+
+        pagination = {
+            "current_page": page,
+            "total_pages": total_pages,
+            "total_items": total_count,
+            "page_size": page_size,
+            "has_previous": has_previous,
+            "has_next": has_next,
+            "start_item": start_item,
+            "end_item": end_item,
+        }
+
+        return JsonResponse({"data": data, "pagination": pagination})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def liquidation_detail(request, transaction_hash):
+    """View to show detailed liquidation information including RPC data"""
+    try:
+        # Get liquidation data from ClickHouse
+        liquidation_query = f"""
+        SELECT
+            l.collateralAsset,
+            l.debtAsset,
+            toFloat64(l.liquidatedCollateralAmount) as liquidatedCollateralAmount,
+            toFloat64(l.debtToCover) as debtToCover,
+            l.liquidator,
+            l.user,
+            l.blockTimestamp,
+            l.transactionHash,
+            l.blockNumber,
+            l.transactionIndex,
+            l.logIndex,
+            COALESCE(toFloat64(collateral_meta.decimals), 18.0) as collateral_decimals,
+            COALESCE(toFloat64(debt_meta.decimals), 18.0) as debt_decimals,
+            COALESCE(collateral_lpe.historical_price_usd, 0.0) as collateral_price_usd,
+            COALESCE(debt_lpe.historical_price_usd, 0.0) as debt_price_usd,
+            collateral_meta.symbol as collateral_symbol,
+            debt_meta.symbol as debt_symbol,
+            collateral_meta.name as collateral_name,
+            debt_meta.name as debt_name
+        FROM aave_ethereum.LiquidationCall l
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration collateral_meta
+            ON l.collateralAsset = collateral_meta.asset
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration debt_meta
+            ON l.debtAsset = debt_meta.asset
+        LEFT JOIN aave_ethereum.LatestPriceEvent collateral_lpe
+            ON l.collateralAsset = collateral_lpe.asset
+        LEFT JOIN aave_ethereum.LatestPriceEvent debt_lpe
+            ON l.debtAsset = debt_lpe.asset
+        WHERE l.transactionHash = '{transaction_hash}'
+        LIMIT 1
+        """
+
+        liquidation_result = clickhouse_client.execute_query(liquidation_query)
+
+        if not liquidation_result.result_rows:
+            return render(
+                request,
+                "dashboard/liquidation_detail.html",
+                {"error": "Liquidation transaction not found"},
+            )
+
+        row = liquidation_result.result_rows[0]
+        liquidation_data = {
+            "collateralAsset": row[0],
+            "debtAsset": row[1],
+            "liquidatedCollateralAmount": float(row[2]) if row[2] else 0,
+            "debtToCover": float(row[3]) if row[3] else 0,
+            "liquidator": row[4],
+            "user": row[5],
+            "blockTimestamp": row[6],
+            "transactionHash": row[7],
+            "blockNumber": int(row[8]) if row[8] else 0,
+            "transactionIndex": int(row[9]) if row[9] else 0,
+            "logIndex": int(row[10]) if row[10] else 0,
+            "collateral_decimals": float(row[11]) if row[11] else 18.0,
+            "debt_decimals": float(row[12]) if row[12] else 18.0,
+            "collateral_price_usd": float(row[13]) if row[13] else 0.0,
+            "debt_price_usd": float(row[14]) if row[14] else 0.0,
+            "collateral_symbol": row[15],
+            "debt_symbol": row[16],
+            "collateral_name": row[17],
+            "debt_name": row[18],
+        }
+
+        # Calculate USD values
+        liquidation_data["collateral_usd_value"] = (
+            liquidation_data["liquidatedCollateralAmount"]
+            * liquidation_data["collateral_price_usd"]
+            / (10 ** liquidation_data["collateral_decimals"])
+        )
+
+        liquidation_data["debt_usd_value"] = (
+            liquidation_data["debtToCover"]
+            * liquidation_data["debt_price_usd"]
+            / (10 ** liquidation_data["debt_decimals"])
+        )
+
+        # Add explorer URLs
+        liquidation_data["liquidator_url"] = get_simple_explorer_url(
+            liquidation_data["liquidator"]
+        )
+        liquidation_data["user_url"] = get_simple_explorer_url(liquidation_data["user"])
+        liquidation_data["transaction_url"] = get_simple_transaction_url(
+            liquidation_data["transactionHash"]
+        )
+        liquidation_data["collateral_asset_url"] = get_simple_explorer_url(
+            liquidation_data["collateralAsset"]
+        )
+        liquidation_data["debt_asset_url"] = get_simple_explorer_url(
+            liquidation_data["debtAsset"]
+        )
+
+        # Get health factor at 5 different time points
+        health_factors = []
+        user_address = liquidation_data["user"]
+        block_number = liquidation_data["blockNumber"]
+        transaction_index = liquidation_data["transactionIndex"]
+
+        # Define the 5 time points to check
+        time_points = [
+            {
+                "name": "At Liquidation Transaction",
+                "block": block_number,
+                "txn_index": transaction_index,
+                "description": f"Block {block_number}, Transaction Index {transaction_index}",
+            },
+            {
+                "name": "Previous Transaction",
+                "block": block_number,
+                "txn_index": max(0, transaction_index - 1),
+                "description": f"Block {block_number}, Transaction Index {max(0, transaction_index - 1)}",
+            },
+            {
+                "name": "Start of Block",
+                "block": block_number,
+                "txn_index": 0,
+                "description": f"Block {block_number}, Transaction Index 0",
+            },
+            {
+                "name": "Previous Block",
+                "block": max(0, block_number - 1),
+                "txn_index": 0,
+                "description": f"Block {max(0, block_number - 1)}, Transaction Index 0",
+            },
+            {
+                "name": "Two Blocks Ago",
+                "block": max(0, block_number - 2),
+                "txn_index": 0,
+                "description": f"Block {max(0, block_number - 2)}, Transaction Index 0",
+            },
+        ]
+
+        for point in time_points:
+            try:
+                health_factor = get_simulated_health_factor(
+                    chain_id=NETWORK_ID,
+                    block_number=point["block"],
+                    address=user_address,
+                    transaction_index=point["txn_index"],
+                )
+                health_factors.append(
+                    {
+                        "name": point["name"],
+                        "description": point["description"],
+                        "health_factor": health_factor,
+                        "formatted_health_factor": f"{health_factor:.6f}"
+                        if health_factor
+                        else "N/A",
+                        "block": point["block"],
+                        "txn_index": point["txn_index"],
+                        "error": None,
+                    }
+                )
+            except Exception as hf_error:
+                health_factors.append(
+                    {
+                        "name": point["name"],
+                        "description": point["description"],
+                        "health_factor": None,
+                        "formatted_health_factor": "Error",
+                        "block": point["block"],
+                        "txn_index": point["txn_index"],
+                        "error": str(hf_error),
+                    }
+                )
+
+        # Get RPC transaction data
+        rpc_data = {}
+        try:
+            transaction_data = rpc_adapter.get_raw_transaction(transaction_hash)
+            receipt_data = rpc_adapter.get_transaction_receipt(transaction_hash)
+
+            # Format transaction data
+            rpc_data["transaction"] = {
+                "hash": transaction_data.hash.hex()
+                if hasattr(transaction_data.hash, "hex")
+                else str(transaction_data.hash),
+                "blockNumber": transaction_data.blockNumber,
+                "blockHash": transaction_data.blockHash.hex()
+                if hasattr(transaction_data.blockHash, "hex")
+                else str(transaction_data.blockHash),
+                "transactionIndex": transaction_data.transactionIndex,
+                "from": transaction_data.get("from", ""),
+                "to": transaction_data.get("to", ""),
+                "value": str(transaction_data.value),
+                "gas": transaction_data.gas,
+                "gasPrice": str(transaction_data.gasPrice),
+                "input": transaction_data.input.hex()
+                if hasattr(transaction_data.input, "hex")
+                else str(transaction_data.input),
+                "nonce": transaction_data.nonce,
+            }
+
+            # Format receipt data
+            rpc_data["receipt"] = {
+                "status": receipt_data.status,
+                "gasUsed": receipt_data.gasUsed,
+                "effectiveGasPrice": str(receipt_data.get("effectiveGasPrice", 0)),
+                "cumulativeGasUsed": receipt_data.cumulativeGasUsed,
+                "logsBloom": receipt_data.logsBloom.hex()
+                if hasattr(receipt_data.logsBloom, "hex")
+                else str(receipt_data.logsBloom),
+            }
+
+            # Parse logs/events
+            rpc_data["logs"] = []
+            raw_logs = []
+            for log in receipt_data.logs:
+                log_data = {
+                    "address": log.address,
+                    "topics": [
+                        topic.hex() if hasattr(topic, "hex") else str(topic)
+                        for topic in log.topics
+                    ],
+                    "data": log.data.hex()
+                    if hasattr(log.data, "hex")
+                    else str(log.data),
+                    "blockNumber": log.blockNumber,
+                    "transactionHash": log.transactionHash.hex()
+                    if hasattr(log.transactionHash, "hex")
+                    else str(log.transactionHash),
+                    "transactionIndex": log.transactionIndex,
+                    "blockHash": log.blockHash.hex()
+                    if hasattr(log.blockHash, "hex")
+                    else str(log.blockHash),
+                    "logIndex": log.logIndex,
+                    "removed": log.removed,
+                }
+                rpc_data["logs"].append(log_data)
+                raw_logs.append(log_data)
+
+            # Parse logs using Aave ABI
+            try:
+                rpc_data["parsed_logs"] = parse_transaction_logs(raw_logs)
+            except Exception as parse_error:
+                rpc_data["parsed_logs"] = []
+                rpc_data["parse_error"] = str(parse_error)
+
+        except Exception as rpc_error:
+            rpc_data["error"] = f"Failed to fetch RPC data: {str(rpc_error)}"
+
+        # Get previous transaction data (same block, transaction index - 1)
+        prev_transaction_data = {}
+        try:
+            block_number = liquidation_data.get("blockNumber")
+            transaction_index = liquidation_data.get("transactionIndex")
+
+            if block_number and transaction_index is not None and transaction_index > 0:
+                # Fetch previous transaction
+                prev_txn_index = transaction_index - 1
+                prev_transaction = rpc_adapter.get_transaction_by_block_and_index(
+                    block_number, prev_txn_index
+                )
+
+                if prev_transaction:
+                    # Get transaction receipt for logs
+                    prev_txn_hash = (
+                        prev_transaction.hash.hex()
+                        if hasattr(prev_transaction.hash, "hex")
+                        else str(prev_transaction.hash)
+                    )
+                    prev_receipt = rpc_adapter.get_transaction_receipt(prev_txn_hash)
+
+                    # Format previous transaction data
+                    prev_transaction_data = {
+                        "transaction": {
+                            "hash": prev_txn_hash,
+                            "blockNumber": prev_transaction.blockNumber,
+                            "blockHash": prev_transaction.blockHash.hex()
+                            if hasattr(prev_transaction.blockHash, "hex")
+                            else str(prev_transaction.blockHash),
+                            "transactionIndex": prev_transaction.transactionIndex,
+                            "from": prev_transaction.get("from", ""),
+                            "to": prev_transaction.get("to", ""),
+                            "value": str(prev_transaction.value),
+                            "gas": prev_transaction.gas,
+                            "gasPrice": str(prev_transaction.gasPrice),
+                            "input": prev_transaction.input.hex()
+                            if hasattr(prev_transaction.input, "hex")
+                            else str(prev_transaction.input),
+                            "nonce": prev_transaction.nonce,
+                        },
+                        "receipt": {
+                            "status": prev_receipt.status,
+                            "gasUsed": prev_receipt.gasUsed,
+                            "effectiveGasPrice": str(
+                                prev_receipt.get("effectiveGasPrice", 0)
+                            ),
+                            "cumulativeGasUsed": prev_receipt.cumulativeGasUsed,
+                        },
+                        "logs": [],
+                    }
+
+                    # Parse logs for previous transaction
+                    raw_logs = []
+                    for log in prev_receipt.logs:
+                        log_data = {
+                            "address": log.address,
+                            "topics": [
+                                topic.hex() if hasattr(topic, "hex") else str(topic)
+                                for topic in log.topics
+                            ],
+                            "data": log.data.hex()
+                            if hasattr(log.data, "hex")
+                            else str(log.data),
+                            "blockNumber": log.blockNumber,
+                            "transactionHash": log.transactionHash.hex()
+                            if hasattr(log.transactionHash, "hex")
+                            else str(log.transactionHash),
+                            "transactionIndex": log.transactionIndex,
+                            "blockHash": log.blockHash.hex()
+                            if hasattr(log.blockHash, "hex")
+                            else str(log.blockHash),
+                            "logIndex": log.logIndex,
+                            "removed": log.removed,
+                        }
+                        prev_transaction_data["logs"].append(log_data)
+                        raw_logs.append(log_data)
+
+                    # Parse logs using Aave ABI
+                    try:
+                        prev_transaction_data["parsed_logs"] = parse_transaction_logs(
+                            raw_logs
+                        )
+                    except Exception as parse_error:
+                        prev_transaction_data["parsed_logs"] = []
+                        prev_transaction_data["parse_error"] = str(parse_error)
+
+                else:
+                    prev_transaction_data["error"] = (
+                        f"Previous transaction not found at block {block_number}, index {prev_txn_index}"
+                    )
+            else:
+                prev_transaction_data["error"] = (
+                    "No previous transaction available (transaction index is 0 or invalid data)"
+                )
+
+        except Exception as prev_error:
+            prev_transaction_data["error"] = (
+                f"Failed to fetch previous transaction data: {str(prev_error)}"
+            )
+
+        context = {
+            "liquidation": liquidation_data,
+            "rpc": rpc_data,
+            "prev_transaction": prev_transaction_data,
+            "health_factors": health_factors,
+            "transaction_hash": transaction_hash,
+        }
+
+        return render(request, "dashboard/liquidation_detail.html", context)
+
+    except Exception as e:
+        return render(
+            request,
+            "dashboard/liquidation_detail.html",
+            {"error": f"Error loading liquidation details: {str(e)}"},
+        )
+
+
+@login_required
+def liquidator_detail(request, liquidator_address):
+    """View to show liquidations performed by a specific liquidator"""
+    try:
+        # Get page parameters
+        page = int(request.GET.get("page", 1))
+        page_size = int(request.GET.get("page_size", 20))
+        time_window = request.GET.get("time_window", "1_month")
+        min_value = request.GET.get(
+            "min_value", "1000"
+        )  # Default to 1000 for enabled by default
+
+        # Calculate offset
+        offset = (page - 1) * page_size
+
+        # Time window mapping
+        time_intervals = {
+            "1_hour": "INTERVAL 1 HOUR",
+            "1_day": "INTERVAL 1 DAY",
+            "1_week": "INTERVAL 1 WEEK",
+            "1_month": "INTERVAL 1 MONTH",
+            "1_year": "INTERVAL 1 YEAR",
+        }
+
+        time_filter = time_intervals.get(time_window, "INTERVAL 1 MONTH")
+
+        # Add min_value filter condition if specified
+        min_value_condition = ""
+        if min_value:
+            try:
+                min_val = float(min_value)
+                min_value_condition = f"""
+                AND ((toFloat64(l.liquidatedCollateralAmount) * COALESCE(cp.historical_price_usd, 0)) / POW(10, COALESCE(ca.decimals, 18))) >= {min_val}
+                """
+            except ValueError:
+                pass
+
+        # Get liquidator summary stats
+        summary_query = f"""
+        SELECT
+            COUNT(*) as total_liquidations,
+            SUM((toFloat64(l.liquidatedCollateralAmount) * COALESCE(cp.historical_price_usd, 0)) / POW(10, COALESCE(ca.decimals, 18))) as total_usd_volume,
+            MIN(l.blockTimestamp) as first_liquidation,
+            MAX(l.blockTimestamp) as last_liquidation
+        FROM aave_ethereum.LiquidationCall l
+        LEFT JOIN aave_ethereum.LatestPriceEvent cp ON l.collateralAsset = cp.asset
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration ca ON l.collateralAsset = ca.asset
+        WHERE l.liquidator = '{liquidator_address}'
+        AND l.blockTimestamp >= now() - {time_filter}
+        {min_value_condition}
+        """
+
+        summary_result = clickhouse_client.execute_query(summary_query)
+        summary_data = {}
+        if summary_result.result_rows:
+            row = summary_result.result_rows[0]
+            summary_data = {
+                "total_liquidations": row[0] or 0,
+                "total_usd_volume": row[1] or 0,
+                "first_liquidation": row[2],
+                "last_liquidation": row[3],
+                "liquidator_address": liquidator_address,
+                "liquidator_url": get_simple_explorer_url(liquidator_address),
+            }
+
+        # Get count for pagination
+        count_query = f"""
+        SELECT COUNT(*) as total
+        FROM aave_ethereum.LiquidationCall l
+        LEFT JOIN aave_ethereum.LatestPriceEvent cp ON l.collateralAsset = cp.asset
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration ca ON l.collateralAsset = ca.asset
+        WHERE l.liquidator = '{liquidator_address}'
+        AND l.blockTimestamp >= now() - {time_filter}
+        {min_value_condition}
+        """
+
+        count_result = clickhouse_client.execute_query(count_query)
+        total_items = count_result.result_rows[0][0] if count_result.result_rows else 0
+
+        # Get liquidations list
+        liquidations_query = f"""
+        SELECT
+            l.transactionHash,
+            l.blockTimestamp,
+            l.blockNumber,
+            l.transactionIndex,
+            l.logIndex,
+            l.liquidator,
+            l.user,
+            l.collateralAsset,
+            l.debtAsset,
+            toFloat64(l.liquidatedCollateralAmount) as liquidatedCollateralAmount,
+            toFloat64(l.debtToCover) as debtToCover,
+            COALESCE(ca.symbol, 'Unknown') as collateral_symbol,
+            COALESCE(ca.name, 'Unknown') as collateral_name,
+            COALESCE(ca.decimals, 18) as collateral_decimals,
+            COALESCE(da.symbol, 'Unknown') as debt_symbol,
+            COALESCE(da.name, 'Unknown') as debt_name,
+            COALESCE(da.decimals, 18) as debt_decimals,
+            COALESCE(cp.historical_price_usd, 0) as collateral_price,
+            COALESCE(dp.historical_price_usd, 0) as debt_price
+        FROM aave_ethereum.LiquidationCall l
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration ca ON l.collateralAsset = ca.asset
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration da ON l.debtAsset = da.asset
+        LEFT JOIN aave_ethereum.LatestPriceEvent cp ON l.collateralAsset = cp.asset
+        LEFT JOIN aave_ethereum.LatestPriceEvent dp ON l.debtAsset = dp.asset
+        WHERE l.liquidator = '{liquidator_address}'
+        AND l.blockTimestamp >= now() - {time_filter}
+        ORDER BY l.blockTimestamp DESC
+        LIMIT {page_size} OFFSET {offset}
+        """
+
+        liquidations_result = clickhouse_client.execute_query(liquidations_query)
+        liquidations = []
+
+        for row in liquidations_result.result_rows:
+            # Calculate USD values
+            collateral_decimals = row[13] or 18
+            debt_decimals = row[16] or 18
+            collateral_price = row[17] or 0
+            debt_price = row[18] or 0
+
+            collateral_usd_value = (
+                (float(row[9]) * collateral_price) / (10**collateral_decimals)
+                if row[9]
+                else 0
+            )
+            debt_usd_value = (
+                (float(row[10]) * debt_price) / (10**debt_decimals) if row[10] else 0
+            )
+
+            liquidation_data = {
+                "transactionHash": row[0],
+                "blockTimestamp": row[1],
+                "blockNumber": row[2],
+                "transactionIndex": row[3],
+                "logIndex": row[4],
+                "liquidator": row[5],
+                "user": row[6],
+                "collateralAsset": row[7],
+                "debtAsset": row[8],
+                "liquidatedCollateralAmount": row[9],
+                "debtToCover": row[10],
+                "collateral_symbol": row[11] or "Unknown",
+                "collateral_name": row[12] or "Unknown",
+                "debt_symbol": row[14] or "Unknown",
+                "debt_name": row[15] or "Unknown",
+                "collateral_usd_value": collateral_usd_value,
+                "debt_usd_value": debt_usd_value,
+                "usd_volume": collateral_usd_value,  # Use collateral USD value as volume
+                "transaction_url": get_simple_transaction_url(row[0]),
+                "liquidator_url": get_simple_explorer_url(row[5]),
+                "user_url": get_simple_explorer_url(row[6]),
+                "collateral_asset_url": get_simple_explorer_url(row[7]),
+                "debt_asset_url": get_simple_explorer_url(row[8]),
+            }
+            liquidations.append(liquidation_data)
+
+        # Calculate pagination info
+        has_next = offset + page_size < total_items
+        has_previous = page > 1
+        start_item = offset + 1 if liquidations else 0
+        end_item = min(offset + len(liquidations), total_items)
+
+        pagination = {
+            "current_page": page,
+            "total_pages": (total_items + page_size - 1) // page_size,
+            "has_next": has_next,
+            "has_previous": has_previous,
+            "start_item": start_item,
+            "end_item": end_item,
+            "total_items": total_items,
+        }
+
+        context = {
+            "summary": summary_data,
+            "liquidations": liquidations,
+            "pagination": pagination,
+            "time_window": time_window,
+            "liquidator_address": liquidator_address,
+        }
+
+        return render(request, "dashboard/liquidator_detail.html", context)
+
+    except Exception as e:
+        return render(
+            request,
+            "dashboard/liquidator_detail.html",
+            {
+                "error": f"Error loading liquidator details: {str(e)}",
+                "liquidator_address": liquidator_address,
+            },
+        )

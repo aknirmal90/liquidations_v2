@@ -50,4 +50,19 @@ urlpatterns = [
         views.liquidations_timeseries,
         name="liquidations_timeseries",
     ),
+    path(
+        "api/liquidations-recent/",
+        views.liquidations_recent,
+        name="liquidations_recent",
+    ),
+    path(
+        "liquidations/detail/<str:transaction_hash>/",
+        views.liquidation_detail,
+        name="liquidation_detail",
+    ),
+    path(
+        "liquidations/liquidator/<str:liquidator_address>/",
+        views.liquidator_detail,
+        name="liquidator_detail",
+    ),
 ]

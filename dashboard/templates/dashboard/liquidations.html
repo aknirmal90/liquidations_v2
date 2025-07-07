@@ -160,6 +160,13 @@
 
         .top-liquidators-table tbody tr:hover {
             background: rgba(239, 68, 68, 0.05);
+            cursor: pointer;
+        }
+
+        .top-liquidators-table tbody tr.clickable-row:hover {
+            background: rgba(239, 68, 68, 0.1);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         .liquidator-link {
@@ -255,22 +262,53 @@
                 </div>
             </div>
 
-            <!-- Time Period Selector -->
+            <!-- Navigation Tabs -->
             <div class="row mb-4">
-                <div class="col-md-6 mx-auto text-center">
-                    <label for="timeWindow" class="form-label text-white fw-bold">Time Period:</label>
-                    <select class="form-select time-selector" id="timeWindow" onchange="updateDashboard()">
-                        <option value="1_hour">Last 1 Hour</option>
-                        <option value="1_day" selected>Last 1 Day</option>
-                        <option value="1_week">Last 1 Week</option>
-                        <option value="1_month">Last 1 Month</option>
-                        <option value="1_year">Last 1 Year</option>
-                    </select>
+                <div class="col-12">
+                    <ul class="nav nav-pills nav-fill" id="liquidationTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active text-white fw-bold" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button" role="tab" aria-controls="overview" aria-selected="true">
+                                <i class="fas fa-chart-pie me-2"></i>Overview & Analytics
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link text-white fw-bold" id="recent-tab" data-bs-toggle="pill" data-bs-target="#recent" type="button" role="tab" aria-controls="recent" aria-selected="false">
+                                <i class="fas fa-list me-2"></i>Recent Liquidations
+                            </button>
+                        </li>
+                    </ul>
                 </div>
             </div>
 
-            <!-- Metrics Cards -->
-            <div class="row mb-4" id="metricsContainer">
+            <!-- Tab Content -->
+            <div class="tab-content" id="liquidationTabContent">
+                <!-- Overview Tab -->
+                <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
+                    <!-- Time Period Selector and Filters -->
+                    <div class="row mb-4">
+                        <div class="col-md-4 mx-auto text-center">
+                            <label for="timeWindow" class="form-label text-white fw-bold">Time Period:</label>
+                            <select class="form-select time-selector" id="timeWindow" onchange="updateDashboard()">
+                                <option value="1_hour">Last 1 Hour</option>
+                                <option value="1_day">Last 1 Day</option>
+                                <option value="1_week">Last 1 Week</option>
+                                <option value="1_month" selected>Last 1 Month</option>
+                                <option value="1_year">Last 1 Year</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mx-auto text-center">
+                            <label class="form-label text-white fw-bold">Value Filter:</label>
+                            <div class="form-check form-switch d-flex justify-content-center">
+                                <input class="form-check-input" type="checkbox" id="overviewMinValueToggle" checked onchange="updateDashboard()">
+                                <label class="form-check-label text-white ms-2" for="overviewMinValueToggle">
+                                    Show only $1000+ liquidations
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Cards -->
+                    <div class="row mb-4" id="metricsContainer">
                 <div class="col-md-4 mb-4">
                     <div class="card liquidations-metric">
                         <div class="card-body stats-card">
@@ -378,6 +416,91 @@
                                 <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
                                 <h5>Error Loading Data</h5>
                                 <p id="topLiquidatorsErrorMessage">Failed to load top liquidators data.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+                </div>
+
+                <!-- Recent Liquidations Tab -->
+                <div class="tab-pane fade" id="recent" role="tabpanel" aria-labelledby="recent-tab">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-list me-2"></i>
+                                            Recent Liquidations
+                                        </h5>
+                                    </div>
+                                    <div class="row align-items-center">
+                                        <div class="col-md-6">
+                                            <label for="recentTimeWindow" class="form-label text-muted me-2">Time Period:</label>
+                                            <select class="form-select form-select-sm d-inline-block w-auto" id="recentTimeWindow" onchange="loadRecentLiquidations()">
+                                                <option value="1_hour">Last 1 Hour</option>
+                                                <option value="1_day">Last 1 Day</option>
+                                                <option value="1_week">Last 1 Week</option>
+                                                <option value="1_month" selected>Last 1 Month</option>
+                                                <option value="1_year">Last 1 Year</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="recentMinValueToggle" checked onchange="loadRecentLiquidations()">
+                                                <label class="form-check-label text-muted" for="recentMinValueToggle">
+                                                    Show only $1000+ liquidations
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div id="recentLiquidationsLoading" class="loading-spinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <div id="recentLiquidationsTable" class="table-responsive" style="display: none;">
+                                        <table class="table table-hover">
+                                            <thead class="table-dark">
+                                                <tr>
+                                                    <th>Time</th>
+                                                    <th>Liquidator</th>
+                                                    <th>User</th>
+                                                    <th>Collateral Asset</th>
+                                                    <th>Debt Asset</th>
+                                                    <th>USD Volume</th>
+                                                    <th>Transaction</th>
+                                                    <th>Details</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="recentLiquidationsTableBody">
+                                                <!-- Data will be populated by JavaScript -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div id="recentLiquidationsError" class="error-message" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                        <h5>Error Loading Data</h5>
+                                        <p id="recentLiquidationsErrorMessage">Failed to load recent liquidations data.</p>
+                                    </div>
+                                    <!-- Pagination -->
+                                    <div id="recentLiquidationsPagination" class="d-flex justify-content-between align-items-center p-3" style="display: none;">
+                                        <div>
+                                            <span id="paginationInfo" class="text-muted"></span>
+                                        </div>
+                                        <div>
+                                            <button class="btn btn-outline-primary btn-sm me-2" id="prevPageBtn" onclick="changePage(-1)">
+                                                <i class="fas fa-chevron-left"></i> Previous
+                                            </button>
+                                            <button class="btn btn-outline-primary btn-sm" id="nextPageBtn" onclick="changePage(1)">
+                                                Next <i class="fas fa-chevron-right"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -520,20 +643,22 @@
         // Update entire dashboard
         function updateDashboard() {
             const timeWindow = document.getElementById('timeWindow').value;
+            const minValueFilter = document.getElementById('overviewMinValueToggle').checked;
 
             // Update metrics
-            updateMetrics(timeWindow);
+            updateMetrics(timeWindow, minValueFilter);
 
             // Update charts
-            updateTimeseries(timeWindow);
+            updateTimeseries(timeWindow, minValueFilter);
 
             // Update top liquidators
-            updateTopLiquidators(timeWindow);
+            updateTopLiquidators(timeWindow, minValueFilter);
         }
 
         // Update metrics cards
-        function updateMetrics(timeWindow) {
-            fetch(`/api/liquidations-metrics/?time_window=${timeWindow}`)
+        function updateMetrics(timeWindow, minValueFilter) {
+            const minValueParam = minValueFilter ? '&min_value=1000' : '';
+            fetch(`/api/liquidations-metrics/?time_window=${timeWindow}${minValueParam}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
@@ -557,8 +682,9 @@
         }
 
         // Update timeseries charts
-        function updateTimeseries(timeWindow) {
-            fetch(`/api/liquidations-timeseries/?time_window=${timeWindow}`)
+        function updateTimeseries(timeWindow, minValueFilter) {
+            const minValueParam = minValueFilter ? '&min_value=1000' : '';
+            fetch(`/api/liquidations-timeseries/?time_window=${timeWindow}${minValueParam}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
@@ -589,13 +715,14 @@
         }
 
         // Update top liquidators table
-        function updateTopLiquidators(timeWindow) {
+        function updateTopLiquidators(timeWindow, minValueFilter) {
             // Show loading
             document.getElementById('topLiquidatorsLoading').style.display = 'flex';
             document.getElementById('topLiquidatorsTable').style.display = 'none';
             document.getElementById('topLiquidatorsError').style.display = 'none';
 
-            fetch(`/api/liquidations-top-liquidators/?time_window=${timeWindow}`)
+            const minValueParam = minValueFilter ? '&min_value=1000' : '';
+            fetch(`/api/liquidations-top-liquidators/?time_window=${timeWindow}${minValueParam}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
@@ -629,6 +756,8 @@
 
             data.forEach((liquidator, index) => {
                 const tr = document.createElement('tr');
+                tr.className = 'clickable-row';
+                tr.style.cursor = 'pointer';
                 tr.innerHTML = `
                     <td>${index + 1}</td>
                     <td>
@@ -646,6 +775,16 @@
                         <span class="currency-format">$${formatNumber(liquidator.usd_volume)}</span>
                     </td>
                 `;
+
+                // Add click event to show liquidator details
+                tr.addEventListener('click', function(e) {
+                    // Prevent navigation if clicking on external link
+                    if (e.target.closest('a[target="_blank"]')) {
+                        return;
+                    }
+                    showLiquidatorDetails(liquidator.liquidator);
+                });
+
                 tbody.appendChild(tr);
             });
         }
@@ -656,6 +795,11 @@
             document.getElementById('topLiquidatorsTable').style.display = 'none';
             document.getElementById('topLiquidatorsError').style.display = 'block';
             document.getElementById('topLiquidatorsErrorMessage').textContent = errorMessage;
+        }
+
+        // Show liquidator details
+        function showLiquidatorDetails(liquidatorAddress) {
+            window.location.href = `/liquidations/liquidator/${liquidatorAddress}/`;
         }
 
         // Utility functions
@@ -675,6 +819,140 @@
         function truncateAddress(address) {
             if (!address) return 'N/A';
             return address.substring(0, 8) + '...' + address.substring(address.length - 6);
+        }
+
+        // Recent Liquidations Tab Functions
+        let currentPage = 1;
+        const pageSize = 20;
+
+        // Load recent liquidations when tab is activated
+        document.getElementById('recent-tab').addEventListener('shown.bs.tab', function() {
+            loadRecentLiquidations();
+        });
+
+        function loadRecentLiquidations() {
+            const timeWindow = document.getElementById('recentTimeWindow').value;
+            const minValueFilter = document.getElementById('recentMinValueToggle').checked;
+            currentPage = 1; // Reset to first page
+            fetchRecentLiquidations(timeWindow, currentPage, minValueFilter);
+        }
+
+        function changePage(direction) {
+            const newPage = currentPage + direction;
+            if (newPage < 1) return;
+
+            const timeWindow = document.getElementById('recentTimeWindow').value;
+            const minValueFilter = document.getElementById('recentMinValueToggle').checked;
+            fetchRecentLiquidations(timeWindow, newPage, minValueFilter);
+        }
+
+        function fetchRecentLiquidations(timeWindow, page, minValueFilter) {
+            // Show loading
+            document.getElementById('recentLiquidationsLoading').style.display = 'flex';
+            document.getElementById('recentLiquidationsTable').style.display = 'none';
+            document.getElementById('recentLiquidationsError').style.display = 'none';
+            document.getElementById('recentLiquidationsPagination').style.display = 'none';
+
+            const minValueParam = minValueFilter ? '&min_value=1000' : '';
+            fetch(`/api/liquidations-recent/?time_window=${timeWindow}&page=${page}&page_size=${pageSize}${minValueParam}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showRecentLiquidationsError(data.error);
+                        return;
+                    }
+
+                    populateRecentLiquidationsTable(data.data);
+                    updatePagination(data.pagination);
+
+                    // Hide loading and show table
+                    document.getElementById('recentLiquidationsLoading').style.display = 'none';
+                    document.getElementById('recentLiquidationsTable').style.display = 'block';
+                    document.getElementById('recentLiquidationsPagination').style.display = 'flex';
+                })
+                .catch(error => {
+                    console.error('Error fetching recent liquidations:', error);
+                    showRecentLiquidationsError('Failed to fetch data from server');
+                });
+        }
+
+        function populateRecentLiquidationsTable(data) {
+            const tbody = document.getElementById('recentLiquidationsTableBody');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="8" class="text-center py-5 text-muted">No liquidation data available for the selected time period.</td>';
+                tbody.appendChild(tr);
+                return;
+            }
+
+            data.forEach((liquidation) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <small class="text-muted">
+                            ${new Date(liquidation.blockTimestamp).toLocaleString()}
+                        </small>
+                    </td>
+                    <td>
+                        ${liquidation.liquidator_url ?
+                            `<a href="${liquidation.liquidator_url}" target="_blank" class="liquidator-link">
+                                ${truncateAddress(liquidation.liquidator)}
+                            </a>` :
+                            `<span class="liquidator-link">${truncateAddress(liquidation.liquidator)}</span>`
+                        }
+                    </td>
+                    <td>
+                        ${liquidation.user_url ?
+                            `<a href="${liquidation.user_url}" target="_blank" class="liquidator-link">
+                                ${truncateAddress(liquidation.user)}
+                            </a>` :
+                            `<span class="liquidator-link">${truncateAddress(liquidation.user)}</span>`
+                        }
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary">${liquidation.collateral_symbol || 'Unknown'}</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-warning">${liquidation.debt_symbol || 'Unknown'}</span>
+                    </td>
+                    <td>
+                        <span class="currency-format">$${formatNumber(liquidation.usd_volume || 0)}</span>
+                    </td>
+                    <td>
+                        ${liquidation.transaction_url ?
+                            `<a href="${liquidation.transaction_url}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>` :
+                            '<span class="text-muted">N/A</span>'
+                        }
+                    </td>
+                    <td>
+                        <a href="/liquidations/detail/${liquidation.transactionHash}/" class="btn btn-primary btn-sm">
+                            <i class="fas fa-search"></i> Details
+                        </a>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updatePagination(pagination) {
+            currentPage = pagination.current_page;
+
+            document.getElementById('paginationInfo').textContent =
+                `Showing ${pagination.start_item}-${pagination.end_item} of ${pagination.total_items} liquidations`;
+
+            document.getElementById('prevPageBtn').disabled = !pagination.has_previous;
+            document.getElementById('nextPageBtn').disabled = !pagination.has_next;
+        }
+
+        function showRecentLiquidationsError(errorMessage) {
+            document.getElementById('recentLiquidationsLoading').style.display = 'none';
+            document.getElementById('recentLiquidationsTable').style.display = 'none';
+            document.getElementById('recentLiquidationsError').style.display = 'block';
+            document.getElementById('recentLiquidationsErrorMessage').textContent = errorMessage;
         }
     </script>
 </body>

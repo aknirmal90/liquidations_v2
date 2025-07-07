@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liquidator Details | Aave Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --secondary-color: #8b5cf6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --dark-color: #1f2937;
+            --light-color: #f9fafb;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .navbar {
+            background: rgba(255, 255, 255, 0.1) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .navbar-nav .nav-link {
+            color: rgba(255, 255, 255, 0.8) !important;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem !important;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            margin-right: 0.5rem;
+        }
+
+        .navbar-nav .nav-link:hover {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar-nav .nav-link.active {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .main-container {
+            padding: 2rem 0;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .page-header {
+            background: linear-gradient(135deg, var(--danger-color), #dc2626);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .page-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-subtitle {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .stats-card {
+            text-align: center;
+            padding: 1.5rem;
+        }
+
+        .stats-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .stats-label {
+            font-size: 0.9rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 0.5rem;
+        }
+
+        .liquidations-metric {
+            background: linear-gradient(135deg, var(--danger-color), #dc2626);
+            color: white;
+        }
+
+        .volume-metric {
+            background: linear-gradient(135deg, var(--success-color), #059669);
+            color: white;
+        }
+
+        .address-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            padding: 0.25rem 0.5rem;
+            background: rgba(99, 102, 241, 0.1);
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .address-link:hover {
+            color: var(--primary-color);
+            background: rgba(99, 102, 241, 0.2);
+            text-decoration: none;
+        }
+
+        .currency-value {
+            color: var(--success-color);
+            font-weight: 600;
+        }
+
+        .back-button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .error-message {
+            text-align: center;
+            color: var(--danger-color);
+            padding: 3rem;
+            font-size: 1.2rem;
+        }
+
+        .time-selector {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+        }
+
+        .badge-asset {
+            background: linear-gradient(135deg, var(--warning-color), #d97706);
+            color: white;
+            font-size: 0.8rem;
+            padding: 0.4rem 0.8rem;
+        }
+
+        .section-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: 8px 8px 0 0;
+            padding: 1rem 1.5rem;
+            margin-bottom: 0;
+            font-weight: 600;
+        }
+
+        .info-row {
+            padding: 0.75rem 1.5rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #6b7280;
+            margin-bottom: 0.25rem;
+        }
+
+        .info-value {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            word-break: break-all;
+        }
+
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{% url 'dashboard:asset_list' %}">
+                <i class="fas fa-chart-line me-2"></i>
+                Aave Dashboard
+            </a>
+            <div class="navbar-nav ms-auto me-4">
+                <a class="nav-link" href="{% url 'dashboard:asset_list' %}">
+                    <i class="fas fa-coins me-2"></i>
+                    Assets
+                </a>
+                <a class="nav-link" href="{% url 'dashboard:prices_summary' %}">
+                    <i class="fas fa-dollar-sign me-2"></i>
+                    Prices
+                </a>
+                <a class="nav-link active" href="{% url 'dashboard:liquidations' %}">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Liquidations
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <div class="container">
+            <!-- Back Button and Page Header -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <a href="{% url 'dashboard:liquidations' %}" class="btn back-button mb-3">
+                        <i class="fas fa-arrow-left me-2"></i>
+                        Back to Liquidations
+                    </a>
+                    <div class="card page-header">
+                        <div class="page-title">
+                            <i class="fas fa-user-ninja me-3"></i>
+                            Liquidator Details
+                        </div>
+                        <div class="page-subtitle">
+                            {% if liquidator_address %}
+                                Address: {{ liquidator_address|truncatechars:16 }}...
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if error %}
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body error-message">
+                                <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                                <h4>Error</h4>
+                                <p>{{ error }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <!-- Time Period Selector and Filters -->
+                <div class="row mb-4">
+                    <div class="col-md-4 mx-auto text-center">
+                        <label for="timeWindow" class="form-label text-white fw-bold">Time Period:</label>
+                        <select class="form-select time-selector" id="timeWindow" onchange="updateTimeFilter()">
+                            <option value="1_hour" {% if time_window == '1_hour' %}selected{% endif %}>Last 1 Hour</option>
+                            <option value="1_day" {% if time_window == '1_day' %}selected{% endif %}>Last 1 Day</option>
+                            <option value="1_week" {% if time_window == '1_week' %}selected{% endif %}>Last 1 Week</option>
+                            <option value="1_month" {% if time_window == '1_month' %}selected{% endif %}>Last 1 Month</option>
+                            <option value="1_year" {% if time_window == '1_year' %}selected{% endif %}>Last 1 Year</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mx-auto text-center">
+                        <label class="form-label text-white fw-bold">Value Filter:</label>
+                        <div class="form-check form-switch d-flex justify-content-center">
+                            <input class="form-check-input" type="checkbox" id="minValueToggle" {% if request.GET.min_value == '' %}{% else %}checked{% endif %} onchange="updateTimeFilter()">
+                            <label class="form-check-label text-white ms-2" for="minValueToggle">
+                                Show only $1000+ liquidations
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Liquidator Summary -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <h5 class="section-header">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Liquidator Summary
+                            </h5>
+                            <div class="card-body p-0">
+                                <div class="info-row">
+                                    <div class="info-label">Liquidator Address</div>
+                                    <div class="info-value">
+                                        {% if summary.liquidator_url %}
+                                            <a href="{{ summary.liquidator_url }}" target="_blank" class="address-link">
+                                                {{ summary.liquidator_address }}
+                                            </a>
+                                        {% else %}
+                                            {{ summary.liquidator_address }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% if summary.first_liquidation %}
+                                <div class="info-row">
+                                    <div class="info-label">First Liquidation</div>
+                                    <div class="info-value">{{ summary.first_liquidation|date:"Y-m-d H:i:s T" }}</div>
+                                </div>
+                                {% endif %}
+                                {% if summary.last_liquidation %}
+                                <div class="info-row">
+                                    <div class="info-label">Last Liquidation</div>
+                                    <div class="info-value">{{ summary.last_liquidation|date:"Y-m-d H:i:s T" }}</div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metrics Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-6 mb-4">
+                        <div class="card liquidations-metric">
+                            <div class="card-body stats-card">
+                                <div class="metric-icon">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                                <div class="stats-value">{{ summary.total_liquidations|default:0|floatformat:0 }}</div>
+                                <div class="stats-label">Total Liquidations</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="card volume-metric">
+                            <div class="card-body stats-card">
+                                <div class="metric-icon">
+                                    <i class="fas fa-dollar-sign"></i>
+                                </div>
+                                <div class="stats-value">${{ summary.total_usd_volume|default:0|floatformat:2 }}</div>
+                                <div class="stats-label">USD Volume</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Liquidations List -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-list me-2"></i>
+                                    Recent Liquidations by this Liquidator
+                                </h5>
+                                <span class="badge bg-primary">{{ pagination.total_items }} total</span>
+                            </div>
+                            <div class="card-body p-0">
+                                {% if liquidations %}
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead class="table-dark">
+                                                <tr>
+                                                    <th>Time</th>
+                                                    <th>User</th>
+                                                    <th>Collateral Asset</th>
+                                                    <th>Debt Asset</th>
+                                                    <th>USD Volume</th>
+                                                    <th>Transaction</th>
+                                                    <th>Details</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for liquidation in liquidations %}
+                                                    <tr>
+                                                        <td>
+                                                            <small class="text-muted">
+                                                                {{ liquidation.blockTimestamp|date:"Y-m-d H:i:s" }}
+                                                            </small>
+                                                        </td>
+                                                        <td>
+                                                            {% if liquidation.user_url %}
+                                                                <a href="{{ liquidation.user_url }}" target="_blank" class="address-link">
+                                                                    {{ liquidation.user|truncatechars:12 }}
+                                                                </a>
+                                                            {% else %}
+                                                                <span class="address-link">{{ liquidation.user|truncatechars:12 }}</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge bg-secondary">{{ liquidation.collateral_symbol }}</span>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge bg-warning">{{ liquidation.debt_symbol }}</span>
+                                                        </td>
+                                                        <td>
+                                                            <span class="currency-value">${{ liquidation.usd_volume|floatformat:2 }}</span>
+                                                        </td>
+                                                        <td>
+                                                            {% if liquidation.transaction_url %}
+                                                                <a href="{{ liquidation.transaction_url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                                                    <i class="fas fa-external-link-alt"></i>
+                                                                </a>
+                                                            {% else %}
+                                                                <span class="text-muted">N/A</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>
+                                                            <a href="{% url 'dashboard:liquidation_detail' liquidation.transactionHash %}" class="btn btn-primary btn-sm">
+                                                                <i class="fas fa-search"></i> Details
+                                                            </a>
+                                                        </td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- Pagination -->
+                                    <div class="d-flex justify-content-between align-items-center p-3">
+                                        <div>
+                                            <span class="text-muted">
+                                                Showing {{ pagination.start_item }}-{{ pagination.end_item }} of {{ pagination.total_items }} liquidations
+                                            </span>
+                                        </div>
+                                        <div>
+                                            {% if pagination.has_previous %}
+                                                <a href="?page={{ pagination.current_page|add:'-1' }}&time_window={{ time_window }}" class="btn btn-outline-primary btn-sm me-2">
+                                                    <i class="fas fa-chevron-left"></i> Previous
+                                                </a>
+                                            {% endif %}
+                                            {% if pagination.has_next %}
+                                                <a href="?page={{ pagination.current_page|add:'1' }}&time_window={{ time_window }}" class="btn btn-outline-primary btn-sm">
+                                                    Next <i class="fas fa-chevron-right"></i>
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <div class="text-center py-5 text-muted">
+                                        <i class="fas fa-search fa-3x mb-3"></i>
+                                        <h5>No liquidations found</h5>
+                                        <p>This liquidator has not performed any liquidations in the selected time period.</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function updateTimeFilter() {
+            const timeWindow = document.getElementById('timeWindow').value;
+            const minValueFilter = document.getElementById('minValueToggle').checked;
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.set('time_window', timeWindow);
+            if (minValueFilter) {
+                urlParams.set('min_value', '1000');
+            } else {
+                urlParams.delete('min_value');
+            }
+            urlParams.delete('page'); // Reset to first page
+            window.location.search = urlParams.toString();
+        }
+    </script>
+</body>
+
+</html>
