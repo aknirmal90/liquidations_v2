@@ -384,6 +384,11 @@
                                                     <th>Collateral Asset</th>
                                                     <th>Debt Asset</th>
                                                     <th>USD Volume</th>
+                                                    <th>HF at Transaction</th>
+                                                    <th>HF at Previous Tx</th>
+                                                    <th>HF at Block Start</th>
+                                                    <th>HF at Previous Block</th>
+                                                    <th>HF at 2 Blocks Prior</th>
                                                     <th>Transaction</th>
                                                     <th>Details</th>
                                                 </tr>
@@ -413,6 +418,51 @@
                                                         </td>
                                                         <td>
                                                             <span class="currency-value">${{ liquidation.usd_volume|floatformat:2 }}</span>
+                                                        </td>
+                                                        <td>
+                                                            {% if liquidation.health_factor_at_transaction is not None %}
+                                                                <span class="badge {% if liquidation.health_factor_at_transaction < 1 %}bg-danger{% else %}bg-success{% endif %}">
+                                                                    {{ liquidation.health_factor_at_transaction|floatformat:4 }}
+                                                                </span>
+                                                            {% else %}
+                                                                <span class="text-muted">N/A</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>
+                                                            {% if liquidation.health_factor_at_previous_tx is not None %}
+                                                                <span class="badge {% if liquidation.health_factor_at_previous_tx < 1 %}bg-danger{% else %}bg-success{% endif %}">
+                                                                    {{ liquidation.health_factor_at_previous_tx|floatformat:4 }}
+                                                                </span>
+                                                            {% else %}
+                                                                <span class="text-muted">N/A</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>
+                                                            {% if liquidation.health_factor_at_block_start is not None %}
+                                                                <span class="badge {% if liquidation.health_factor_at_block_start < 1 %}bg-danger{% else %}bg-success{% endif %}">
+                                                                    {{ liquidation.health_factor_at_block_start|floatformat:4 }}
+                                                                </span>
+                                                            {% else %}
+                                                                <span class="text-muted">N/A</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>
+                                                            {% if liquidation.health_factor_at_previous_block is not None %}
+                                                                <span class="badge {% if liquidation.health_factor_at_previous_block < 1 %}bg-danger{% else %}bg-success{% endif %}">
+                                                                    {{ liquidation.health_factor_at_previous_block|floatformat:4 }}
+                                                                </span>
+                                                            {% else %}
+                                                                <span class="text-muted">N/A</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>
+                                                            {% if liquidation.health_factor_at_two_blocks_prior is not None %}
+                                                                <span class="badge {% if liquidation.health_factor_at_two_blocks_prior < 1 %}bg-danger{% else %}bg-success{% endif %}">
+                                                                    {{ liquidation.health_factor_at_two_blocks_prior|floatformat:4 }}
+                                                                </span>
+                                                            {% else %}
+                                                                <span class="text-muted">N/A</span>
+                                                            {% endif %}
                                                         </td>
                                                         <td>
                                                             {% if liquidation.transaction_url %}

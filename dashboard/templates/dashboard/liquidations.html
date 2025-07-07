@@ -276,6 +276,11 @@
                                 <i class="fas fa-list me-2"></i>Recent Liquidations
                             </button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link text-white fw-bold" id="health-factor-tab" data-bs-toggle="pill" data-bs-target="#health-factor" type="button" role="tab" aria-controls="health-factor" aria-selected="false">
+                                <i class="fas fa-heartbeat me-2"></i>Health Factor Analytics
+                            </button>
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -472,6 +477,11 @@
                                                     <th>Collateral Asset</th>
                                                     <th>Debt Asset</th>
                                                     <th>USD Volume</th>
+                                                    <th>HF at Transaction</th>
+                                                    <th>HF at Previous Tx</th>
+                                                    <th>HF at Block Start</th>
+                                                    <th>HF at Previous Block</th>
+                                                    <th>HF at 2 Blocks Prior</th>
                                                     <th>Transaction</th>
                                                     <th>Details</th>
                                                 </tr>
@@ -505,6 +515,194 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Health Factor Analytics Tab -->
+                <div class="tab-pane fade" id="health-factor" role="tabpanel" aria-labelledby="health-factor-tab">
+                    <!-- Time Period Selector -->
+                    <div class="row mb-4">
+                        <div class="col-md-4 mx-auto text-center">
+                            <label for="healthFactorTimeWindow" class="form-label text-white fw-bold">Time Period:</label>
+                            <select class="form-select time-selector" id="healthFactorTimeWindow" onchange="updateHealthFactorAnalytics()">
+                                <option value="1_hour">Last 1 Hour</option>
+                                <option value="1_day">Last 1 Day</option>
+                                <option value="1_week">Last 1 Week</option>
+                                <option value="1_month" selected>Last 1 Month</option>
+                                <option value="1_year">Last 1 Year</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Analytics Cards -->
+                    <div class="row mb-4">
+                        <div class="col-lg-3 col-md-6 mb-4">
+                            <div class="card analytics-card h-100">
+                                <div class="card-body text-center">
+                                    <div class="metric-icon text-danger">
+                                        <i class="fas fa-bolt"></i>
+                                    </div>
+                                    <h5 class="card-title">Ultra Fast Liquidations</h5>
+                                    <h2 class="metric-value text-danger" id="ultraFastCount">-</h2>
+                                    <p class="card-text text-muted">
+                                        <span id="ultraFastPercent">-%</span> of total
+                                    </p>
+                                    <small class="text-muted">HF at transaction < 1, others ≥ 1</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-4">
+                            <div class="card analytics-card h-100">
+                                <div class="card-body text-center">
+                                    <div class="metric-icon text-warning">
+                                        <i class="fas fa-forward"></i>
+                                    </div>
+                                    <h5 class="card-title">Fast Liquidations</h5>
+                                    <h2 class="metric-value text-warning" id="fastCount">-</h2>
+                                    <p class="card-text text-muted">
+                                        <span id="fastPercent">-%</span> of total
+                                    </p>
+                                    <small class="text-muted">HF at txn, prev txn & block start < 1</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-4">
+                            <div class="card analytics-card h-100">
+                                <div class="card-body text-center">
+                                    <div class="metric-icon text-info">
+                                        <i class="fas fa-play"></i>
+                                    </div>
+                                    <h5 class="card-title">Slow Liquidations</h5>
+                                    <h2 class="metric-value text-info" id="slowCount">-</h2>
+                                    <p class="card-text text-muted">
+                                        <span id="slowPercent">-%</span> of total
+                                    </p>
+                                    <small class="text-muted">HF at previous block < 1</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-4">
+                            <div class="card analytics-card h-100">
+                                <div class="card-body text-center">
+                                    <div class="metric-icon text-success">
+                                        <i class="fas fa-chart-line"></i>
+                                    </div>
+                                    <h5 class="card-title">Total with HF Data</h5>
+                                    <h2 class="metric-value text-success" id="totalWithHfCount">-</h2>
+                                    <p class="card-text text-muted">
+                                        <span id="hfDataPercent">-%</span> of all liquidations
+                                    </p>
+                                    <small class="text-muted">Liquidations with health factor metrics</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Row -->
+                    <!-- Liquidation Speed Distribution Row -->
+                    <div class="row">
+                        <!-- Liquidation Speed Distribution Chart (Count) -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="fas fa-chart-pie me-2"></i>
+                                        Liquidation Speed Distribution (Count)
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="liquidationCategoryLoading" class="loading-spinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <canvas id="liquidationCategoryChart" style="display: none;"></canvas>
+                                    <div id="liquidationCategoryError" class="error-message" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                        <h5>Error Loading Chart</h5>
+                                        <p id="liquidationCategoryErrorMessage">Failed to load category distribution data.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Liquidation Speed Distribution Chart (Volume) -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="fas fa-chart-pie me-2"></i>
+                                        Liquidation Speed Distribution (Volume)
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="volumeCategoryLoading" class="loading-spinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <canvas id="volumeCategoryChart" style="display: none;"></canvas>
+                                    <div id="volumeCategoryError" class="error-message" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                        <h5>Error Loading Chart</h5>
+                                        <p id="volumeCategoryErrorMessage">Failed to load volume distribution data.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Collateral Size by Speed Row -->
+                    <div class="row">
+                        <!-- Collateral Size by Speed Chart (Count) -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="fas fa-chart-bar me-2"></i>
+                                        Collateral Size by Speed (Count)
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="collateralSizeLoading" class="loading-spinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <canvas id="collateralSizeChart" style="display: none;"></canvas>
+                                    <div id="collateralSizeError" class="error-message" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                        <h5>Error Loading Chart</h5>
+                                        <p id="collateralSizeErrorMessage">Failed to load collateral size data.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Collateral Size by Speed Chart (Volume) -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="fas fa-chart-bar me-2"></i>
+                                        Collateral Size by Speed (Volume)
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="volumeSizeLoading" class="loading-spinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <canvas id="volumeSizeChart" style="display: none;"></canvas>
+                                    <div id="volumeSizeError" class="error-message" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                        <h5>Error Loading Chart</h5>
+                                        <p id="volumeSizeErrorMessage">Failed to load volume size data.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -516,27 +714,7 @@
         let liquidationCountChart;
         let volumeChart;
 
-        // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize charts
-            initializeCharts();
-
-            // Load initial data
-            updateDashboard();
-
-            // Add loading animation for cards
-            const cards = document.querySelectorAll('.card');
-            cards.forEach((card, index) => {
-                card.style.opacity = '0';
-                card.style.transform = 'translateY(20px)';
-
-                setTimeout(() => {
-                    card.style.transition = 'all 0.5s ease';
-                    card.style.opacity = '1';
-                    card.style.transform = 'translateY(0)';
-                }, index * 100);
-            });
-        });
+        // Initialize dashboard - removed duplicate, functionality moved to bottom
 
         // Initialize Chart.js charts
         function initializeCharts() {
@@ -882,7 +1060,7 @@
 
             if (data.length === 0) {
                 const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="8" class="text-center py-5 text-muted">No liquidation data available for the selected time period.</td>';
+                tr.innerHTML = '<td colspan="13" class="text-center py-5 text-muted">No liquidation data available for the selected time period.</td>';
                 tbody.appendChild(tr);
                 return;
             }
@@ -921,6 +1099,36 @@
                         <span class="currency-format">$${formatNumber(liquidation.usd_volume || 0)}</span>
                     </td>
                     <td>
+                        ${liquidation.health_factor_at_transaction !== null ?
+                            `<span class="badge ${liquidation.health_factor_at_transaction < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_transaction.toFixed(4)}</span>` :
+                            '<span class="text-muted">N/A</span>'
+                        }
+                    </td>
+                    <td>
+                        ${liquidation.health_factor_at_previous_tx !== null ?
+                            `<span class="badge ${liquidation.health_factor_at_previous_tx < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_previous_tx.toFixed(4)}</span>` :
+                            '<span class="text-muted">N/A</span>'
+                        }
+                    </td>
+                    <td>
+                        ${liquidation.health_factor_at_block_start !== null ?
+                            `<span class="badge ${liquidation.health_factor_at_block_start < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_block_start.toFixed(4)}</span>` :
+                            '<span class="text-muted">N/A</span>'
+                        }
+                    </td>
+                    <td>
+                        ${liquidation.health_factor_at_previous_block !== null ?
+                            `<span class="badge ${liquidation.health_factor_at_previous_block < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_previous_block.toFixed(4)}</span>` :
+                            '<span class="text-muted">N/A</span>'
+                        }
+                    </td>
+                    <td>
+                        ${liquidation.health_factor_at_two_blocks_prior !== null ?
+                            `<span class="badge ${liquidation.health_factor_at_two_blocks_prior < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_two_blocks_prior.toFixed(4)}</span>` :
+                            '<span class="text-muted">N/A</span>'
+                        }
+                    </td>
+                    <td>
                         ${liquidation.transaction_url ?
                             `<a href="${liquidation.transaction_url}" target="_blank" class="btn btn-outline-primary btn-sm">
                                 <i class="fas fa-external-link-alt"></i>
@@ -954,6 +1162,536 @@
             document.getElementById('recentLiquidationsError').style.display = 'block';
             document.getElementById('recentLiquidationsErrorMessage').textContent = errorMessage;
         }
+
+        // Global variables for health factor charts
+        let liquidationCategoryChart;
+        let collateralSizeChart;
+        let volumeCategoryChart;
+        let volumeSizeChart;
+
+        // Update health factor analytics
+        function updateHealthFactorAnalytics() {
+            const timeWindow = document.getElementById('healthFactorTimeWindow').value;
+            fetchHealthFactorAnalytics(timeWindow);
+        }
+
+        // Fetch health factor analytics data
+        function fetchHealthFactorAnalytics(timeWindow) {
+            console.log('fetchHealthFactorAnalytics called with timeWindow:', timeWindow);
+            showHealthFactorLoading();
+
+            const url = `/api/health-factor-analytics/?time_window=${timeWindow}`;
+            console.log('Fetching from URL:', url);
+
+            fetch(url)
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received data:', data);
+                    if (data.error) {
+                        console.error('API returned error:', data.error);
+                        showHealthFactorError('Error: ' + data.error);
+                        return;
+                    }
+                    updateHealthFactorCards(data);
+                    updateHealthFactorCharts(data);
+                    hideHealthFactorLoading();
+                })
+                .catch(error => {
+                    console.error('Error fetching health factor analytics:', error);
+                    showHealthFactorError('Failed to fetch health factor data from server');
+                });
+        }
+
+        // Update health factor metric cards
+        function updateHealthFactorCards(data) {
+            document.getElementById('ultraFastCount').textContent = data.category_distribution.ultra_fast.count.toLocaleString();
+            document.getElementById('ultraFastPercent').textContent = data.category_distribution.ultra_fast.percentage + '%';
+
+            document.getElementById('fastCount').textContent = data.category_distribution.fast.count.toLocaleString();
+            document.getElementById('fastPercent').textContent = data.category_distribution.fast.percentage + '%';
+
+            document.getElementById('slowCount').textContent = data.category_distribution.slow.count.toLocaleString();
+            document.getElementById('slowPercent').textContent = data.category_distribution.slow.percentage + '%';
+
+            document.getElementById('totalWithHfCount').textContent = data.total_with_hf.toLocaleString();
+            document.getElementById('hfDataPercent').textContent = data.hf_data_percentage + '%';
+        }
+
+        // Update health factor charts
+        function updateHealthFactorCharts(data) {
+            updateLiquidationCategoryChart(data);
+            updateCollateralSizeChart(data);
+            updateVolumeCategoryChart(data);
+            updateVolumeSizeChart(data);
+        }
+
+        // Update liquidation category distribution chart (pie chart)
+        function updateLiquidationCategoryChart(data) {
+            console.log('updateLiquidationCategoryChart called with data:', data);
+
+            const chartElement = document.getElementById('liquidationCategoryChart');
+            if (!chartElement) {
+                console.error('liquidationCategoryChart element not found!');
+                return;
+            }
+
+            const ctx = chartElement.getContext('2d');
+
+            if (liquidationCategoryChart) {
+                console.log('Destroying existing liquidationCategoryChart');
+                liquidationCategoryChart.destroy();
+            }
+
+            const categoryData = data.category_distribution;
+            const labels = [];
+            const values = [];
+            const colors = [];
+
+            if (categoryData.ultra_fast.count > 0) {
+                labels.push(`Ultra Fast (${categoryData.ultra_fast.percentage}%)`);
+                values.push(categoryData.ultra_fast.count);
+                colors.push('#dc3545'); // Red
+            }
+
+            if (categoryData.fast.count > 0) {
+                labels.push(`Fast (${categoryData.fast.percentage}%)`);
+                values.push(categoryData.fast.count);
+                colors.push('#ffc107'); // Yellow
+            }
+
+            if (categoryData.slow.count > 0) {
+                labels.push(`Slow (${categoryData.slow.percentage}%)`);
+                values.push(categoryData.slow.count);
+                colors.push('#17a2b8'); // Info blue
+            }
+
+
+            console.log('Creating doughnut chart with labels:', labels, 'values:', values, 'colors:', colors);
+
+            try {
+                liquidationCategoryChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: colors,
+                            borderWidth: 2,
+                            borderColor: '#1a1a1a'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: '#e0e0e0',
+                                    padding: 15,
+                                    font: {
+                                        size: 12
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                console.log('Doughnut chart created successfully');
+                document.getElementById('liquidationCategoryChart').style.display = 'block';
+            } catch (error) {
+                console.error('Error creating doughnut chart:', error);
+            }
+        }
+
+        // Update collateral size distribution chart (stacked bar chart)
+        function updateCollateralSizeChart(data) {
+            console.log('updateCollateralSizeChart called with data:', data);
+
+            const chartElement = document.getElementById('collateralSizeChart');
+            if (!chartElement) {
+                console.error('collateralSizeChart element not found!');
+                return;
+            }
+
+            const ctx = chartElement.getContext('2d');
+
+            if (collateralSizeChart) {
+                console.log('Destroying existing collateralSizeChart');
+                collateralSizeChart.destroy();
+            }
+
+            const sizeData = data.size_distribution;
+            console.log('Size data for chart:', sizeData);
+
+            collateralSizeChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['< $100', '< $1,000', '< $10,000', '> $10,000'],
+                    datasets: [
+                        {
+                            label: 'Ultra Fast',
+                            data: [
+                                sizeData.ultra_fast.under_100,
+                                sizeData.ultra_fast.under_1000,
+                                sizeData.ultra_fast.under_10000,
+                                sizeData.ultra_fast.over_10000
+                            ],
+                            backgroundColor: '#dc3545',
+                            borderColor: '#dc3545',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Fast',
+                            data: [
+                                sizeData.fast.under_100,
+                                sizeData.fast.under_1000,
+                                sizeData.fast.under_10000,
+                                sizeData.fast.over_10000
+                            ],
+                            backgroundColor: '#ffc107',
+                            borderColor: '#ffc107',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Slow',
+                            data: [
+                                sizeData.slow.under_100,
+                                sizeData.slow.under_1000,
+                                sizeData.slow.under_10000,
+                                sizeData.slow.over_10000
+                            ],
+                            backgroundColor: '#17a2b8',
+                            borderColor: '#17a2b8',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: {
+                            stacked: true,
+                            ticks: {
+                                color: '#e0e0e0'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        y: {
+                            stacked: true,
+                            ticks: {
+                                color: '#e0e0e0'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#e0e0e0',
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('collateralSizeChart').style.display = 'block';
+        }
+
+        // Update volume category distribution chart (doughnut chart)
+        function updateVolumeCategoryChart(data) {
+            console.log('updateVolumeCategoryChart called with data:', data);
+
+            const chartElement = document.getElementById('volumeCategoryChart');
+            if (!chartElement) {
+                console.error('volumeCategoryChart element not found!');
+                return;
+            }
+
+            const ctx = chartElement.getContext('2d');
+
+            if (volumeCategoryChart) {
+                console.log('Destroying existing volumeCategoryChart');
+                volumeCategoryChart.destroy();
+            }
+
+            const volumeData = data.volume_distribution;
+            const labels = [];
+            const values = [];
+            const colors = [];
+
+            if (volumeData.ultra_fast.total > 0) {
+                labels.push(`Ultra Fast ($${formatNumber(volumeData.ultra_fast.total)}) - ${volumeData.ultra_fast.percentage}%`);
+                values.push(volumeData.ultra_fast.total);
+                colors.push('#dc3545'); // Red
+            }
+
+            if (volumeData.fast.total > 0) {
+                labels.push(`Fast ($${formatNumber(volumeData.fast.total)}) - ${volumeData.fast.percentage}%`);
+                values.push(volumeData.fast.total);
+                colors.push('#ffc107'); // Yellow
+            }
+
+            if (volumeData.slow.total > 0) {
+                labels.push(`Slow ($${formatNumber(volumeData.slow.total)}) - ${volumeData.slow.percentage}%`);
+                values.push(volumeData.slow.total);
+                colors.push('#17a2b8'); // Info blue
+            }
+
+
+            console.log('Creating volume doughnut chart with labels:', labels, 'values:', values, 'colors:', colors);
+
+            try {
+                volumeCategoryChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: colors,
+                            borderWidth: 2,
+                            borderColor: '#1a1a1a'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: '#e0e0e0',
+                                    padding: 15,
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.label + ': $' + formatNumber(context.raw);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                console.log('Volume doughnut chart created successfully');
+                document.getElementById('volumeCategoryChart').style.display = 'block';
+            } catch (error) {
+                console.error('Error creating volume doughnut chart:', error);
+            }
+        }
+
+        // Update volume size distribution chart (stacked bar chart)
+        function updateVolumeSizeChart(data) {
+            console.log('updateVolumeSizeChart called with data:', data);
+
+            const chartElement = document.getElementById('volumeSizeChart');
+            if (!chartElement) {
+                console.error('volumeSizeChart element not found!');
+                return;
+            }
+
+            const ctx = chartElement.getContext('2d');
+
+            if (volumeSizeChart) {
+                console.log('Destroying existing volumeSizeChart');
+                volumeSizeChart.destroy();
+            }
+
+            const volumeSizeData = data.volume_size_distribution;
+            console.log('Volume size data for chart:', volumeSizeData);
+
+            try {
+                volumeSizeChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['< $100', '< $1,000', '< $10,000', '> $10,000'],
+                        datasets: [
+                            {
+                                label: 'Ultra Fast',
+                                data: [
+                                    volumeSizeData.ultra_fast.under_100,
+                                    volumeSizeData.ultra_fast.under_1000,
+                                    volumeSizeData.ultra_fast.under_10000,
+                                    volumeSizeData.ultra_fast.over_10000
+                                ],
+                                backgroundColor: '#dc3545',
+                                borderColor: '#dc3545',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Fast',
+                                data: [
+                                    volumeSizeData.fast.under_100,
+                                    volumeSizeData.fast.under_1000,
+                                    volumeSizeData.fast.under_10000,
+                                    volumeSizeData.fast.over_10000
+                                ],
+                                backgroundColor: '#ffc107',
+                                borderColor: '#ffc107',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Slow',
+                                data: [
+                                    volumeSizeData.slow.under_100,
+                                    volumeSizeData.slow.under_1000,
+                                    volumeSizeData.slow.under_10000,
+                                    volumeSizeData.slow.over_10000
+                                ],
+                                backgroundColor: '#17a2b8',
+                                borderColor: '#17a2b8',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        scales: {
+                            x: {
+                                stacked: true,
+                                ticks: {
+                                    color: '#e0e0e0'
+                                },
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                }
+                            },
+                            y: {
+                                stacked: true,
+                                ticks: {
+                                    color: '#e0e0e0',
+                                    callback: function(value) {
+                                        return '$' + formatNumber(value);
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    color: '#e0e0e0',
+                                    font: {
+                                        size: 12
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.dataset.label + ': $' + formatNumber(context.raw);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                console.log('Volume size chart created successfully');
+                document.getElementById('volumeSizeChart').style.display = 'block';
+            } catch (error) {
+                console.error('Error creating volume size chart:', error);
+            }
+        }
+
+        // Loading state management for health factor analytics
+        function showHealthFactorLoading() {
+            document.getElementById('liquidationCategoryLoading').style.display = 'flex';
+            document.getElementById('collateralSizeLoading').style.display = 'flex';
+            document.getElementById('volumeCategoryLoading').style.display = 'flex';
+            document.getElementById('volumeSizeLoading').style.display = 'flex';
+            document.getElementById('liquidationCategoryChart').style.display = 'none';
+            document.getElementById('collateralSizeChart').style.display = 'none';
+            document.getElementById('volumeCategoryChart').style.display = 'none';
+            document.getElementById('volumeSizeChart').style.display = 'none';
+            document.getElementById('liquidationCategoryError').style.display = 'none';
+            document.getElementById('collateralSizeError').style.display = 'none';
+            document.getElementById('volumeCategoryError').style.display = 'none';
+            document.getElementById('volumeSizeError').style.display = 'none';
+        }
+
+        function hideHealthFactorLoading() {
+            document.getElementById('liquidationCategoryLoading').style.display = 'none';
+            document.getElementById('collateralSizeLoading').style.display = 'none';
+            document.getElementById('volumeCategoryLoading').style.display = 'none';
+            document.getElementById('volumeSizeLoading').style.display = 'none';
+        }
+
+        function showHealthFactorError(errorMessage) {
+            hideHealthFactorLoading();
+            document.getElementById('liquidationCategoryChart').style.display = 'none';
+            document.getElementById('collateralSizeChart').style.display = 'none';
+            document.getElementById('volumeCategoryChart').style.display = 'none';
+            document.getElementById('volumeSizeChart').style.display = 'none';
+            document.getElementById('liquidationCategoryError').style.display = 'block';
+            document.getElementById('collateralSizeError').style.display = 'block';
+            document.getElementById('volumeCategoryError').style.display = 'block';
+            document.getElementById('volumeSizeError').style.display = 'block';
+            document.getElementById('liquidationCategoryErrorMessage').textContent = errorMessage;
+            document.getElementById('collateralSizeErrorMessage').textContent = errorMessage;
+            document.getElementById('volumeCategoryErrorMessage').textContent = errorMessage;
+            document.getElementById('volumeSizeErrorMessage').textContent = errorMessage;
+        }
+
+        // Update DOMContentLoaded to initialize health factor analytics when the tab is first opened
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded - Health Factor Analytics initializing...');
+
+            // Original initialization code
+            initializeCharts();
+            updateDashboard();
+
+            // Initialize health factor analytics when health factor tab is clicked
+            const healthFactorTab = document.getElementById('health-factor-tab');
+            if (healthFactorTab) {
+                console.log('Health factor tab found, adding click listener...');
+                healthFactorTab.addEventListener('click', function() {
+                    console.log('Health factor tab clicked, loading analytics...');
+                    // Load health factor analytics data if not already loaded
+                    if (!liquidationCategoryChart && !collateralSizeChart && !volumeCategoryChart && !volumeSizeChart) {
+                        console.log('Charts not initialized, calling updateHealthFactorAnalytics...');
+                        updateHealthFactorAnalytics();
+                    } else {
+                        console.log('Charts already initialized, skipping...');
+                    }
+                });
+            } else {
+                console.error('Health factor tab not found!');
+            }
+
+            // Add loading animation for cards
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+
+                setTimeout(() => {
+                    card.style.transition = 'all 0.5s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 100);
+            });
+        });
     </script>
 </body>
 

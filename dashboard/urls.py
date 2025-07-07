@@ -56,6 +56,11 @@ urlpatterns = [
         name="liquidations_recent",
     ),
     path(
+        "api/health-factor-analytics/",
+        views.health_factor_analytics,
+        name="health_factor_analytics",
+    ),
+    path(
         "liquidations/detail/<str:transaction_hash>/",
         views.liquidation_detail,
         name="liquidation_detail",

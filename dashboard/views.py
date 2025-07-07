@@ -1758,19 +1758,21 @@ def transaction_coverage_metrics(request):
         coverage_query = f"""
         WITH latest_asset_sources AS (
             SELECT asset, source as asset_source
-            FROM aave_ethereum.LatestAssetSourceUpdated
+            FROM aave_ethereum.LatestAssetSourceUpdated FINAL
             GROUP BY asset, source
         ),
         transaction_analysis AS (
             SELECT
                 t.transactionHash,
+                t.asset,
+                t.asset_source,
                 SUM(CASE WHEN t.type = 'event' THEN 1 ELSE 0 END) as has_event,
                 SUM(CASE WHEN t.type = 'transaction' THEN 1 ELSE 0 END) as has_transaction
             FROM aave_ethereum.TransactionRawNumerator t
             INNER JOIN latest_asset_sources las
                 ON t.asset = las.asset AND t.asset_source = las.asset_source
             WHERE t.blockTimestamp >= now() - INTERVAL {interval}
-            GROUP BY t.transactionHash
+            GROUP BY t.transactionHash, t.asset, t.asset_source
         )
         SELECT
             SUM(CASE WHEN has_event > 0 AND has_transaction = 0 THEN 1 ELSE 0 END) as event_only,
@@ -1818,7 +1820,7 @@ def transaction_timestamp_differences(request):
         diff_query = f"""
         WITH latest_asset_sources AS (
             SELECT asset, source as asset_source
-            FROM aave_ethereum.LatestAssetSourceUpdated
+            FROM aave_ethereum.LatestAssetSourceUpdated FINAL
             GROUP BY asset, source
         ),
         transaction_pairs AS (
@@ -2418,7 +2420,12 @@ def liquidations_recent(request):
                 WHEN lpe.historical_price_usd > 0 AND COALESCE(collateral_meta.decimals, 18) > 0
                 THEN (toFloat64(l.liquidatedCollateralAmount) * lpe.historical_price_usd) / POW(10, COALESCE(collateral_meta.decimals, 18))
                 ELSE 0
-            END as usd_volume
+            END as usd_volume,
+            hf.health_factor_at_transaction,
+            hf.health_factor_at_previous_tx,
+            hf.health_factor_at_block_start,
+            hf.health_factor_at_previous_block,
+            hf.health_factor_at_two_blocks_prior
         FROM aave_ethereum.LiquidationCall l
         LEFT JOIN aave_ethereum.view_LatestAssetConfiguration collateral_meta
             ON l.collateralAsset = collateral_meta.asset
@@ -2426,6 +2433,9 @@ def liquidations_recent(request):
             ON l.debtAsset = debt_meta.asset
         LEFT JOIN aave_ethereum.LatestPriceEvent lpe
             ON l.collateralAsset = lpe.asset
+        LEFT JOIN aave_ethereum.LiquidationHealthFactorMetrics hf
+            ON l.transactionHash = hf.transaction_hash
+            AND l.logIndex = hf.log_index
         WHERE l.blockTimestamp >= now() - INTERVAL {interval}
         {min_value_condition}
         ORDER BY l.blockTimestamp DESC
@@ -2450,6 +2460,21 @@ def liquidations_recent(request):
                 "collateral_symbol": row[10],
                 "debt_symbol": row[11],
                 "usd_volume": float(row[12]) if row[12] else 0.0,
+                "health_factor_at_transaction": float(row[13])
+                if row[13] is not None
+                else None,
+                "health_factor_at_previous_tx": float(row[14])
+                if row[14] is not None
+                else None,
+                "health_factor_at_block_start": float(row[15])
+                if row[15] is not None
+                else None,
+                "health_factor_at_previous_block": float(row[16])
+                if row[16] is not None
+                else None,
+                "health_factor_at_two_blocks_prior": float(row[17])
+                if row[17] is not None
+                else None,
                 "liquidator_url": get_simple_explorer_url(row[3]) if row[3] else None,
                 "user_url": get_simple_explorer_url(row[4]) if row[4] else None,
                 "transaction_url": get_simple_transaction_url(row[6])
@@ -2949,14 +2974,23 @@ def liquidator_detail(request, liquidator_address):
             COALESCE(da.name, 'Unknown') as debt_name,
             COALESCE(da.decimals, 18) as debt_decimals,
             COALESCE(cp.historical_price_usd, 0) as collateral_price,
-            COALESCE(dp.historical_price_usd, 0) as debt_price
+            COALESCE(dp.historical_price_usd, 0) as debt_price,
+            hf.health_factor_at_transaction,
+            hf.health_factor_at_previous_tx,
+            hf.health_factor_at_block_start,
+            hf.health_factor_at_previous_block,
+            hf.health_factor_at_two_blocks_prior
         FROM aave_ethereum.LiquidationCall l
         LEFT JOIN aave_ethereum.view_LatestAssetConfiguration ca ON l.collateralAsset = ca.asset
         LEFT JOIN aave_ethereum.view_LatestAssetConfiguration da ON l.debtAsset = da.asset
         LEFT JOIN aave_ethereum.LatestPriceEvent cp ON l.collateralAsset = cp.asset
         LEFT JOIN aave_ethereum.LatestPriceEvent dp ON l.debtAsset = dp.asset
+        LEFT JOIN aave_ethereum.LiquidationHealthFactorMetrics hf
+            ON l.transactionHash = hf.transaction_hash
+            AND l.logIndex = hf.log_index
         WHERE l.liquidator = '{liquidator_address}'
         AND l.blockTimestamp >= now() - {time_filter}
+        {min_value_condition}
         ORDER BY l.blockTimestamp DESC
         LIMIT {page_size} OFFSET {offset}
         """
@@ -2965,7 +2999,7 @@ def liquidator_detail(request, liquidator_address):
         liquidations = []
 
         for row in liquidations_result.result_rows:
-            # Calculate USD values
+            # Calculate USD values - note: indices shifted due to health factor columns
             collateral_decimals = row[13] or 18
             debt_decimals = row[16] or 18
             collateral_price = row[17] or 0
@@ -2999,6 +3033,21 @@ def liquidator_detail(request, liquidator_address):
                 "collateral_usd_value": collateral_usd_value,
                 "debt_usd_value": debt_usd_value,
                 "usd_volume": collateral_usd_value,  # Use collateral USD value as volume
+                "health_factor_at_transaction": float(row[19])
+                if row[19] is not None
+                else None,
+                "health_factor_at_previous_tx": float(row[20])
+                if row[20] is not None
+                else None,
+                "health_factor_at_block_start": float(row[21])
+                if row[21] is not None
+                else None,
+                "health_factor_at_previous_block": float(row[22])
+                if row[22] is not None
+                else None,
+                "health_factor_at_two_blocks_prior": float(row[23])
+                if row[23] is not None
+                else None,
                 "transaction_url": get_simple_transaction_url(row[0]),
                 "liquidator_url": get_simple_explorer_url(row[5]),
                 "user_url": get_simple_explorer_url(row[6]),
@@ -3042,3 +3091,296 @@ def liquidator_detail(request, liquidator_address):
                 "liquidator_address": liquidator_address,
             },
         )
+
+
+def health_factor_analytics(request):
+    """API endpoint to get health factor analytics and liquidation classification"""
+    try:
+        time_window = request.GET.get("time_window", "1_month")
+
+        # Convert time window to ClickHouse interval
+        interval_map = {
+            "1_hour": "1 HOUR",
+            "1_day": "1 DAY",
+            "1_week": "7 DAY",
+            "1_month": "30 DAY",
+            "1_year": "365 DAY",
+        }
+
+        interval = interval_map.get(time_window, "30 DAY")
+
+        # Query to get liquidation classification and collateral size distribution
+        analytics_query = f"""
+        WITH liquidation_data AS (
+            SELECT
+                hf.health_factor_at_transaction,
+                hf.health_factor_at_previous_tx,
+                hf.health_factor_at_block_start,
+                hf.health_factor_at_previous_block,
+                hf.health_factor_at_two_blocks_prior,
+                CASE
+                    WHEN lpe.historical_price_usd > 0 AND COALESCE(collateral_meta.decimals, 18) > 0
+                    THEN (toFloat64(l.liquidatedCollateralAmount) * lpe.historical_price_usd) / POW(10, COALESCE(collateral_meta.decimals, 18))
+                    ELSE 0
+                END as usd_volume,
+                -- Classification logic
+                CASE
+                    -- Ultra Fast: HF at transaction < 1, but all others >= 1
+                    WHEN hf.health_factor_at_transaction < 1
+                         AND COALESCE(hf.health_factor_at_previous_tx, 1) >= 1
+                         AND COALESCE(hf.health_factor_at_block_start, 1) >= 1
+                         AND COALESCE(hf.health_factor_at_previous_block, 1) >= 1
+                         AND COALESCE(hf.health_factor_at_two_blocks_prior, 1) >= 1
+                    THEN 'ultra_fast'
+                    -- Fast: HF at txn, prev txn, and block start < 1, but others >= 1
+                    WHEN hf.health_factor_at_transaction < 1
+                         AND COALESCE(hf.health_factor_at_previous_tx, 1) < 1
+                         AND COALESCE(hf.health_factor_at_block_start, 1) < 1
+                         AND COALESCE(hf.health_factor_at_previous_block, 1) >= 1
+                         AND COALESCE(hf.health_factor_at_two_blocks_prior, 1) >= 1
+                    THEN 'fast'
+                    -- Slow: HF at previous block < 1
+                    WHEN COALESCE(hf.health_factor_at_previous_block, 1) < 1
+                    THEN 'slow'
+                    ELSE 'slow'
+                END as liquidation_speed,
+                -- Size buckets based on usd_volume
+                CASE
+                    WHEN CASE
+                        WHEN lpe.historical_price_usd > 0 AND COALESCE(collateral_meta.decimals, 18) > 0
+                        THEN (toFloat64(l.liquidatedCollateralAmount) * lpe.historical_price_usd) / POW(10, COALESCE(collateral_meta.decimals, 18))
+                        ELSE 0
+                    END < 100 THEN 'under_100'
+                    WHEN CASE
+                        WHEN lpe.historical_price_usd > 0 AND COALESCE(collateral_meta.decimals, 18) > 0
+                        THEN (toFloat64(l.liquidatedCollateralAmount) * lpe.historical_price_usd) / POW(10, COALESCE(collateral_meta.decimals, 18))
+                        ELSE 0
+                    END < 1000 THEN 'under_1000'
+                    WHEN CASE
+                        WHEN lpe.historical_price_usd > 0 AND COALESCE(collateral_meta.decimals, 18) > 0
+                        THEN (toFloat64(l.liquidatedCollateralAmount) * lpe.historical_price_usd) / POW(10, COALESCE(collateral_meta.decimals, 18))
+                        ELSE 0
+                    END < 10000 THEN 'under_10000'
+                    ELSE 'over_10000'
+                END as size_bucket
+            FROM aave_ethereum.LiquidationCall l
+            INNER JOIN aave_ethereum.LiquidationHealthFactorMetrics hf
+                ON l.transactionHash = hf.transaction_hash
+                AND l.logIndex = hf.log_index
+            LEFT JOIN aave_ethereum.view_LatestAssetConfiguration collateral_meta
+                ON l.collateralAsset = collateral_meta.asset
+            LEFT JOIN aave_ethereum.LatestPriceEvent lpe
+                ON l.collateralAsset = lpe.asset
+            WHERE l.blockTimestamp >= now() - INTERVAL {interval}
+        )
+        SELECT
+            -- Category counts (indices 0-3)
+            COUNT(*) as total_with_hf,
+            SUM(CASE WHEN liquidation_speed = 'ultra_fast' THEN 1 ELSE 0 END) as ultra_fast_count,
+            SUM(CASE WHEN liquidation_speed = 'fast' THEN 1 ELSE 0 END) as fast_count,
+            SUM(CASE WHEN liquidation_speed = 'slow' THEN 1 ELSE 0 END) as slow_count,
+
+            -- Size distribution by category - Ultra Fast (indices 4-7)
+            SUM(CASE WHEN liquidation_speed = 'ultra_fast' AND size_bucket = 'under_100' THEN 1 ELSE 0 END) as ultra_fast_under_100,
+            SUM(CASE WHEN liquidation_speed = 'ultra_fast' AND size_bucket = 'under_1000' THEN 1 ELSE 0 END) as ultra_fast_under_1000,
+            SUM(CASE WHEN liquidation_speed = 'ultra_fast' AND size_bucket = 'under_10000' THEN 1 ELSE 0 END) as ultra_fast_under_10000,
+            SUM(CASE WHEN liquidation_speed = 'ultra_fast' AND size_bucket = 'over_10000' THEN 1 ELSE 0 END) as ultra_fast_over_10000,
+
+            -- Size distribution by category - Fast (indices 8-11)
+            SUM(CASE WHEN liquidation_speed = 'fast' AND size_bucket = 'under_100' THEN 1 ELSE 0 END) as fast_under_100,
+            SUM(CASE WHEN liquidation_speed = 'fast' AND size_bucket = 'under_1000' THEN 1 ELSE 0 END) as fast_under_1000,
+            SUM(CASE WHEN liquidation_speed = 'fast' AND size_bucket = 'under_10000' THEN 1 ELSE 0 END) as fast_under_10000,
+            SUM(CASE WHEN liquidation_speed = 'fast' AND size_bucket = 'over_10000' THEN 1 ELSE 0 END) as fast_over_10000,
+
+            -- Size distribution by category - Slow (indices 12-15)
+            SUM(CASE WHEN liquidation_speed = 'slow' AND size_bucket = 'under_100' THEN 1 ELSE 0 END) as slow_under_100,
+            SUM(CASE WHEN liquidation_speed = 'slow' AND size_bucket = 'under_1000' THEN 1 ELSE 0 END) as slow_under_1000,
+            SUM(CASE WHEN liquidation_speed = 'slow' AND size_bucket = 'under_10000' THEN 1 ELSE 0 END) as slow_under_10000,
+            SUM(CASE WHEN liquidation_speed = 'slow' AND size_bucket = 'over_10000' THEN 1 ELSE 0 END) as slow_over_10000,
+
+            -- Total all liquidations (index 16)
+            (SELECT COUNT(*) FROM aave_ethereum.LiquidationCall WHERE blockTimestamp >= now() - INTERVAL {interval}) as total_all_liquidations,
+
+            -- Volume-based analytics (indices 17-19)
+            SUM(CASE WHEN liquidation_speed = 'ultra_fast' THEN usd_volume ELSE 0 END) as ultra_fast_volume,
+            SUM(CASE WHEN liquidation_speed = 'fast' THEN usd_volume ELSE 0 END) as fast_volume,
+            SUM(CASE WHEN liquidation_speed = 'slow' THEN usd_volume ELSE 0 END) as slow_volume,
+
+            -- Volume distribution by category and size - Ultra Fast (indices 20-23)
+            SUM(CASE WHEN liquidation_speed = 'ultra_fast' AND size_bucket = 'under_100' THEN usd_volume ELSE 0 END) as ultra_fast_volume_under_100,
+            SUM(CASE WHEN liquidation_speed = 'ultra_fast' AND size_bucket = 'under_1000' THEN usd_volume ELSE 0 END) as ultra_fast_volume_under_1000,
+            SUM(CASE WHEN liquidation_speed = 'ultra_fast' AND size_bucket = 'under_10000' THEN usd_volume ELSE 0 END) as ultra_fast_volume_under_10000,
+            SUM(CASE WHEN liquidation_speed = 'ultra_fast' AND size_bucket = 'over_10000' THEN usd_volume ELSE 0 END) as ultra_fast_volume_over_10000,
+
+            -- Volume distribution by category and size - Fast (indices 24-27)
+            SUM(CASE WHEN liquidation_speed = 'fast' AND size_bucket = 'under_100' THEN usd_volume ELSE 0 END) as fast_volume_under_100,
+            SUM(CASE WHEN liquidation_speed = 'fast' AND size_bucket = 'under_1000' THEN usd_volume ELSE 0 END) as fast_volume_under_1000,
+            SUM(CASE WHEN liquidation_speed = 'fast' AND size_bucket = 'under_10000' THEN usd_volume ELSE 0 END) as fast_volume_under_10000,
+            SUM(CASE WHEN liquidation_speed = 'fast' AND size_bucket = 'over_10000' THEN usd_volume ELSE 0 END) as fast_volume_over_10000,
+
+            -- Volume distribution by category and size - Slow (indices 28-31)
+            SUM(CASE WHEN liquidation_speed = 'slow' AND size_bucket = 'under_100' THEN usd_volume ELSE 0 END) as slow_volume_under_100,
+            SUM(CASE WHEN liquidation_speed = 'slow' AND size_bucket = 'under_1000' THEN usd_volume ELSE 0 END) as slow_volume_under_1000,
+            SUM(CASE WHEN liquidation_speed = 'slow' AND size_bucket = 'under_10000' THEN usd_volume ELSE 0 END) as slow_volume_under_10000,
+            SUM(CASE WHEN liquidation_speed = 'slow' AND size_bucket = 'over_10000' THEN usd_volume ELSE 0 END) as slow_volume_over_10000
+        FROM liquidation_data
+        """
+
+        result = clickhouse_client.execute_query(analytics_query)
+
+        if not result.result_rows:
+            return JsonResponse(
+                {
+                    "total_with_hf": 0,
+                    "total_all_liquidations": 0,
+                    "category_distribution": {
+                        "ultra_fast": {"count": 0, "percentage": 0},
+                        "fast": {"count": 0, "percentage": 0},
+                        "slow": {"count": 0, "percentage": 0},
+                    },
+                    "size_distribution": {
+                        "ultra_fast": {
+                            "under_100": 0,
+                            "under_1000": 0,
+                            "under_10000": 0,
+                            "over_10000": 0,
+                        },
+                        "fast": {
+                            "under_100": 0,
+                            "under_1000": 0,
+                            "under_10000": 0,
+                            "over_10000": 0,
+                        },
+                        "slow": {
+                            "under_100": 0,
+                            "under_1000": 0,
+                            "under_10000": 0,
+                            "over_10000": 0,
+                        },
+                    },
+                    "volume_distribution": {
+                        "ultra_fast": {"total": 0, "percentage": 0},
+                        "fast": {"total": 0, "percentage": 0},
+                        "slow": {"total": 0, "percentage": 0},
+                    },
+                    "volume_size_distribution": {
+                        "ultra_fast": {
+                            "under_100": 0,
+                            "under_1000": 0,
+                            "under_10000": 0,
+                            "over_10000": 0,
+                        },
+                        "fast": {
+                            "under_100": 0,
+                            "under_1000": 0,
+                            "under_10000": 0,
+                            "over_10000": 0,
+                        },
+                        "slow": {
+                            "under_100": 0,
+                            "under_1000": 0,
+                            "under_10000": 0,
+                            "over_10000": 0,
+                        },
+                    },
+                }
+            )
+
+        row = result.result_rows[0]
+
+        total_with_hf = row[0] or 0
+        ultra_fast_count = row[1] or 0
+        fast_count = row[2] or 0
+        slow_count = row[3] or 0
+        total_all_liquidations = row[16] or 0
+
+        # Volume data
+        ultra_fast_volume = float(row[17] or 0)
+        fast_volume = float(row[18] or 0)
+        slow_volume = float(row[19] or 0)
+        total_volume = ultra_fast_volume + fast_volume + slow_volume
+
+        # Calculate percentages
+        def safe_percentage(part, total):
+            return round((part / total * 100), 2) if total > 0 else 0
+
+        return JsonResponse(
+            {
+                "total_with_hf": total_with_hf,
+                "total_all_liquidations": total_all_liquidations,
+                "hf_data_percentage": safe_percentage(
+                    total_with_hf, total_all_liquidations
+                ),
+                "category_distribution": {
+                    "ultra_fast": {
+                        "count": ultra_fast_count,
+                        "percentage": safe_percentage(ultra_fast_count, total_with_hf),
+                    },
+                    "fast": {
+                        "count": fast_count,
+                        "percentage": safe_percentage(fast_count, total_with_hf),
+                    },
+                    "slow": {
+                        "count": slow_count,
+                        "percentage": safe_percentage(slow_count, total_with_hf),
+                    },
+                },
+                "size_distribution": {
+                    "ultra_fast": {
+                        "under_100": row[4] or 0,
+                        "under_1000": row[5] or 0,
+                        "under_10000": row[6] or 0,
+                        "over_10000": row[7] or 0,
+                    },
+                    "fast": {
+                        "under_100": row[8] or 0,
+                        "under_1000": row[9] or 0,
+                        "under_10000": row[10] or 0,
+                        "over_10000": row[11] or 0,
+                    },
+                    "slow": {
+                        "under_100": row[12] or 0,
+                        "under_1000": row[13] or 0,
+                        "under_10000": row[14] or 0,
+                        "over_10000": row[15] or 0,
+                    },
+                },
+                "volume_distribution": {
+                    "ultra_fast": {
+                        "total": ultra_fast_volume,
+                        "percentage": safe_percentage(ultra_fast_volume, total_volume),
+                    },
+                    "fast": {
+                        "total": fast_volume,
+                        "percentage": safe_percentage(fast_volume, total_volume),
+                    },
+                    "slow": {
+                        "total": slow_volume,
+                        "percentage": safe_percentage(slow_volume, total_volume),
+                    },
+                },
+                "volume_size_distribution": {
+                    "ultra_fast": {
+                        "under_100": float(row[20] or 0),
+                        "under_1000": float(row[21] or 0),
+                        "under_10000": float(row[22] or 0),
+                        "over_10000": float(row[23] or 0),
+                    },
+                    "fast": {
+                        "under_100": float(row[24] or 0),
+                        "under_1000": float(row[25] or 0),
+                        "under_10000": float(row[26] or 0),
+                        "over_10000": float(row[27] or 0),
+                    },
+                    "slow": {
+                        "under_100": float(row[28] or 0),
+                        "under_1000": float(row[29] or 0),
+                        "under_10000": float(row[30] or 0),
+                        "over_10000": float(row[31] or 0),
+                    },
+                },
+            }
+        )
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
