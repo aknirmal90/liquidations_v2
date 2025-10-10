@@ -28,6 +28,31 @@ CACHE_TTL_4_HOURS = 60 * 60 * 4
 CACHE_TTL_24_HOURS = 60 * 60 * 24
 
 
+# Simple in-memory cache using Python's built-in dict
+# Much simpler than custom implementation, and we don't need complex TTL logic
+# since Redis handles the primary TTL, and memory cache is just for speed
+_memory_cache = {}
+_memory_cache_lock = __import__("threading").Lock()
+
+
+def _get_from_memory_cache(cache_key: str) -> Optional[Any]:
+    """Get value from simple memory cache."""
+    with _memory_cache_lock:
+        return _memory_cache.get(cache_key)
+
+
+def _set_memory_cache(cache_key: str, value: Any) -> None:
+    """Set value in simple memory cache."""
+    with _memory_cache_lock:
+        _memory_cache[cache_key] = value
+
+
+def _clear_memory_cache() -> None:
+    """Clear the memory cache."""
+    with _memory_cache_lock:
+        _memory_cache.clear()
+
+
 class UnsupportedAssetSourceError(Exception):
     pass
 
@@ -85,22 +110,57 @@ def get_latest_asset_tuple() -> list[str]:
 class RpcCacheStorage:
     @classmethod
     def get_cache(cls, asset_source: str, function_name: str) -> Any:
+        """
+        Multi-level cache retrieval:
+        1. Check in-memory cache first (fastest)
+        2. Check Redis cache (medium speed)
+        3. Return None if not found (will trigger contract call)
+        """
         cache_key = f"{NETWORK_NAME}:{PROTOCOL_NAME}:{asset_source}:{function_name}"
-        return cache.get(cache_key)
+
+        # Level 1: Check in-memory cache
+        value = _get_from_memory_cache(cache_key)
+        if value is not None:
+            return value
+
+        # Level 2: Check Redis cache
+        value = cache.get(cache_key)
+        if value is not None:
+            # Store in memory cache for future requests
+            _set_memory_cache(cache_key, value)
+            return value
+
+        return None
 
     @classmethod
     def set_cache(
         cls, asset_source: str, function_name: str, value: Union[str, int]
     ) -> None:
+        """
+        Store value in both in-memory cache and Redis cache.
+        """
         cache_key = f"{NETWORK_NAME}:{PROTOCOL_NAME}:{asset_source}:{function_name}"
+
+        # Store in Redis (persistent cache)
         cache.set(cache_key, value)
+
+        # Store in memory cache
+        _set_memory_cache(cache_key, value)
 
     @classmethod
     def set_cache_with_ttl(
         cls, asset_source: str, function_name: str, value: Union[str, int], ttl: int
     ) -> None:
+        """
+        Store value in both in-memory cache and Redis cache with custom TTL.
+        """
         cache_key = f"{NETWORK_NAME}:{PROTOCOL_NAME}:{asset_source}:{function_name}"
+
+        # Store in Redis with custom TTL
         cache.set(cache_key, value, ttl)
+
+        # Store in memory cache (no TTL needed - Redis handles expiration)
+        _set_memory_cache(cache_key, value)
 
     @classmethod
     def get_cached_asset_source_function(
@@ -111,18 +171,29 @@ class RpcCacheStorage:
         *args,
         **kwargs,
     ) -> Any:
-        cache_key = f"{NETWORK_NAME}:{PROTOCOL_NAME}:{asset_source}:{function_name}"
-        if cache.get(cache_key):
-            return cache.get(cache_key)
+        """
+        Multi-level cached function call:
+        1. Check in-memory cache (fastest)
+        2. Check Redis cache (medium speed)
+        3. Call contract function (slowest)
+        4. Store result in both caches
+        """
+        # Try to get from cache (checks memory first, then Redis)
+        cached_value = cls.get_cache(asset_source, function_name)
+        if cached_value is not None:
+            return cached_value
+
+        # Cache miss - call the contract function
+        value = cls.call_function(asset_source, function_name, *args, **kwargs)
+        decoded_value = decode_any(value)
+
+        # Store in both caches
+        if ttl:
+            cls.set_cache_with_ttl(asset_source, function_name, decoded_value, ttl)
         else:
-            value = cls.call_function(asset_source, function_name, *args, **kwargs)
-            if ttl:
-                cls.set_cache_with_ttl(
-                    asset_source, function_name, decode_any(value), ttl
-                )
-            else:
-                cls.set_cache(asset_source, function_name, decode_any(value))
-            return value
+            cls.set_cache(asset_source, function_name, decoded_value)
+
+        return value
 
     @classmethod
     def call_function(
@@ -164,11 +235,21 @@ class RpcCacheStorage:
             f"{NETWORK_NAME}:{PROTOCOL_NAME}:{asset_source}:ASSET_SOURCE_ABI"
         )
 
-        # First attempt: Check Redis cache
+        # First attempt: Check multi-level cache (memory + Redis)
+        name = _get_from_memory_cache(cache_name_key)
+        abi = _get_from_memory_cache(cache_abi_key)
+
+        if name and abi:
+            return name, abi
+
+        # Second attempt: Check Redis cache
         name = cache.get(cache_name_key)
         abi = cache.get(cache_abi_key)
 
         if name and abi:
+            # Store in memory cache for future requests
+            _set_memory_cache(cache_name_key, name)
+            _set_memory_cache(cache_abi_key, abi)
             return name, abi
 
         # Second attempt: Check file system
@@ -184,7 +265,7 @@ class RpcCacheStorage:
                     abi = abi_data.get("abi", "")
 
                     if name and abi:
-                        # Save to Redis for future use
+                        # Save to both caches for future use
                         cls.set_cache(asset_source, "ASSET_SOURCE_NAME", name)
                         cls.set_cache(asset_source, "ASSET_SOURCE_ABI", abi)
                         return name, abi
@@ -209,7 +290,7 @@ class RpcCacheStorage:
             logger.warning(f"ABI is not a string for {result}")
             return None, None
 
-        # Save to Redis
+        # Save to both caches
         cls.set_cache(asset_source, "ASSET_SOURCE_NAME", name)
         cls.set_cache(asset_source, "ASSET_SOURCE_ABI", abi)
 
@@ -223,6 +304,11 @@ class RpcCacheStorage:
 
         time.sleep(1)
         return name, abi
+
+    @classmethod
+    def clear_memory_cache(cls) -> None:
+        """Clear the in-memory cache. Useful for testing or memory management."""
+        _clear_memory_cache()
 
 
 class AssetSourceType:
