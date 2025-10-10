@@ -18,7 +18,7 @@ RUN apt-get update \
     # Translations dependencies
     && apt-get install -y gettext curl \
     # Git
-    && apt-get install -y git \
+    && apt-get install -y git apt-transport-https ca-certificates gnupg \
     # Chrome and its dependencies
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
     && rm -rf /var/lib/apt/lists/*
