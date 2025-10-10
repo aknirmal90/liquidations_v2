@@ -45,7 +45,10 @@ def get_underlying_sources(asset_source: str) -> List[str]:
         AssetSourceType.EBTCPriceCapAdapter: ["BASE_TO_USD_AGGREGATOR"],
         AssetSourceType.EUSDePriceCapAdapter: ["BASE_TO_USD_AGGREGATOR"],
         AssetSourceType.sDAIMainnetPriceCapAdapter: ["BASE_TO_USD_AGGREGATOR"],
+        AssetSourceType.TETHPriceCapAdapter: ["BASE_TO_USD_AGGREGATOR"],
         AssetSourceType.EURPriceCapAdapterStable: ["ASSET_TO_USD_AGGREGATOR"],
+        AssetSourceType.EzETHPriceCapAdapter: ["BASE_TO_USD_AGGREGATOR"],
+        AssetSourceType.LBTCPriceCapAdapter: ["BASE_TO_USD_AGGREGATOR"],
         # PendlePriceCapAdapter variants: Single ASSET_TO_USD_AGGREGATOR source
         AssetSourceType.PendlePriceCapAdapter: ["ASSET_TO_USD_AGGREGATOR"],
         AssetSourceType.PriceCapAdapterStable: ["ASSET_TO_USD_AGGREGATOR"],

@@ -193,14 +193,21 @@ class RpcCacheStorage:
 
         # Third attempt: Fetch from Etherscan
         response = requests.get(
-            f"https://api.etherscan.io/api?module=contract&action=getsourcecode&address={asset_source}&apikey=KNVMN27EBAAE1E9MUMX75N2QKFZWB2HB6J"
+            f"https://api.etherscan.io/v2/api?chainid=1&module=contract&action=getsourcecode&address={asset_source}&apikey=HRZ5P3FVMN1FEZUDVWUI6CFPZYZ6XJK1CN"
         )
+
         response = response.json()
         result = response["result"][0]
         if isinstance(result, str):
             logger.info(f"ABI is a string for {asset_source}")
-        name = result["ContractName"]
-        abi = result["ABI"]
+            logger.info(f"Result: {response['result']}")
+
+        try:
+            name = result["ContractName"]
+            abi = result["ABI"]
+        except TypeError:
+            logger.warning(f"ABI is not a string for {result}")
+            return None, None
 
         # Save to Redis
         cls.set_cache(asset_source, "ASSET_SOURCE_NAME", name)
@@ -214,7 +221,7 @@ class RpcCacheStorage:
         except IOError as e:
             logger.warning(f"Failed to save ABI to file {abi_file_path}: {e}")
 
-        time.sleep(0.5)
+        time.sleep(1)
         return name, abi
 
 
@@ -244,6 +251,9 @@ class AssetSourceType:
     WstETHSynchronicityPriceAdapter = "WstETHSynchronicityPriceAdapter"
     sDAISynchronicityPriceAdapter = "sDAISynchronicityPriceAdapter"
     EURPriceCapAdapterStable = "EURPriceCapAdapterStable"
+    TETHPriceCapAdapter = "TETHPriceCapAdapter"
+    EzETHPriceCapAdapter = "EzETHPriceCapAdapter"
+    LBTCPriceCapAdapter = "LBTCPriceCapAdapter"
 
 
 def send_unsupported_asset_source_notification(asset_source: str, event: str):

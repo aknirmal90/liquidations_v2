@@ -70,4 +70,15 @@ urlpatterns = [
         views.liquidator_detail,
         name="liquidator_detail",
     ),
+    path("users/", views.users, name="users"),
+    path(
+        "api/user-balances/<str:user_address>/",
+        views.user_balances_api,
+        name="user_balances_api",
+    ),
+    path(
+        "api/user-events/<str:user_address>/<str:asset>/",
+        views.user_events_api,
+        name="user_events_api",
+    ),
 ]

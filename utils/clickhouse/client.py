@@ -239,6 +239,7 @@ class ClickHouseClient:
             "TokenMetadata",
             "AssetSourceTokenMetadata",
             "NetworkBlockInfo",
+            "Balances",
         ]:
 
             def operation(client):
