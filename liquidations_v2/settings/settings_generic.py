@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "blockchains",
     "dashboard",
     "oracles",
+    "balances",
     # "aave",
     "django_admin_inline_paginator",
     "django_object_actions",

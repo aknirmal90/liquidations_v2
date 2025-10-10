@@ -133,6 +133,9 @@ def get_numerator(asset: str, asset_source: str, event=None, transaction=None) -
         AssetSourceType.WstETHSynchronicityPriceAdapter,
         AssetSourceType.sDAISynchronicityPriceAdapter,
         AssetSourceType.EURPriceCapAdapterStable,
+        AssetSourceType.TETHPriceCapAdapter,
+        AssetSourceType.EzETHPriceCapAdapter,
+        AssetSourceType.LBTCPriceCapAdapter,
     ):
         if event:
             price = int(event.args.answer)

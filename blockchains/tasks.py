@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.cache import cache
 from eth_utils import get_all_event_abis
 
+from balances.models import BalanceEvent
 from blockchains.models import Event
 from liquidations_v2.celery_app import app
 from oracles.models import PriceEvent
@@ -62,6 +63,11 @@ class InitializeAppTask(Task):
             os.path.dirname(settings.BASE_DIR), "oracles", "mv_queries"
         )
         self._create_materialized_view_for_folder(ORACLES_MATERIALIZED_VIEWS_PATH)
+
+        BALANCES_MATERIALIZED_VIEWS_PATH = os.path.join(
+            os.path.dirname(settings.BASE_DIR), "balances", "mv_queries"
+        )
+        self._create_materialized_view_for_folder(BALANCES_MATERIALIZED_VIEWS_PATH)
 
     def _create_materialized_view_for_folder(self, folder: str):
         files = os.listdir(folder)
@@ -171,6 +177,10 @@ class ResetAppTask(Task):
         price_events_count = PriceEvent.objects.all().count()
         PriceEvent.objects.all().delete()
         logger.info(f"Deleted {price_events_count} PriceEvents")
+
+        balance_events_count = BalanceEvent.objects.all().count()
+        BalanceEvent.objects.all().delete()
+        logger.info(f"Deleted {balance_events_count} BalanceEvents")
 
         # Clear cache
         cache.clear()

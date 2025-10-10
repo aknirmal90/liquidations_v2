@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import web3
 from celery import Task
@@ -8,6 +8,7 @@ from django.core.cache import cache
 from eth_utils import get_all_event_abis
 from web3.datastructures import AttributeDict
 
+from balances.models import BalanceEvent
 from liquidations_v2.celery_app import app
 from oracles.contracts.denominator import get_denominator
 from oracles.contracts.interface import PriceOracleInterface
@@ -22,7 +23,12 @@ from oracles.contracts.utils import (
 )
 from oracles.models import PriceEvent
 from utils.clickhouse.client import clickhouse_client
-from utils.constants import NETWORK_NAME, PRICES_ABI_PATH, PROTOCOL_NAME
+from utils.constants import (
+    NETWORK_NAME,
+    PRICES_ABI_PATH,
+    PROTOCOL_ABI_PATH,
+    PROTOCOL_NAME,
+)
 from utils.encoding import decode_any, get_signature, get_topic_0
 from utils.files import parse_json
 from utils.rpc import rpc_adapter
@@ -35,6 +41,74 @@ logger = logging.getLogger(__name__)
 class InitializePriceEvents(Task):
     def get_price_events_cache_key(self, asset: str, asset_source: str) -> str:
         return f"{PROTOCOL_NAME}-{NETWORK_NAME}-{asset}-{asset_source}"
+
+    def _create_mint_burn_transfer_balance_events(
+        self,
+        asset_token_address_pairs: List[Tuple[str, str]],
+        event_abis: Dict[str, Any],
+        type: BalanceEvent.BalanceType,
+    ):
+        for asset, aToken in asset_token_address_pairs:
+            self._create_or_get_balance_event(
+                event_abis=event_abis,
+                event_name="BalanceTransfer",
+                contract_addresses=[aToken],
+                asset=asset,
+                type=type,
+            )
+            self._create_or_get_balance_event(
+                event_abis=event_abis,
+                event_name="Mint",
+                contract_addresses=[aToken],
+                asset=asset,
+                type=type,
+            )
+            self._create_or_get_balance_event(
+                event_abis=event_abis,
+                event_name="Burn",
+                contract_addresses=[aToken],
+                asset=asset,
+                type=type,
+            )
+
+    def create_balance_events(self):
+        reserve_configurations = clickhouse_client.select_rows(
+            "view_LatestAssetConfiguration"
+        )
+        aTokens = [
+            (row[0], row[1])
+            for row in reserve_configurations
+            if row[1] != "0x0000000000000000000000000000000000000000"
+        ]
+        stableDebtTokens = [
+            (row[0], row[2])
+            for row in reserve_configurations
+            if row[2] != "0x0000000000000000000000000000000000000000"
+        ]
+        variableDebtTokens = [
+            (row[0], row[3])
+            for row in reserve_configurations
+            if row[3] != "0x0000000000000000000000000000000000000000"
+        ]
+
+        all_abis = parse_json(file_path=PROTOCOL_ABI_PATH)
+        all_events_abis = get_all_event_abis(all_abis)
+
+        self._create_mint_burn_transfer_balance_events(
+            asset_token_address_pairs=aTokens,
+            event_abis=all_events_abis,
+            type=BalanceEvent.BalanceType.COLLATERAL,
+        )
+        self._create_mint_burn_transfer_balance_events(
+            asset_token_address_pairs=stableDebtTokens,
+            event_abis=all_events_abis,
+            type=BalanceEvent.BalanceType.STABLE_DEBT,
+        )
+        self._create_mint_burn_transfer_balance_events(
+            asset_token_address_pairs=variableDebtTokens,
+            event_abis=all_events_abis,
+            type=BalanceEvent.BalanceType.VARIABLE_DEBT,
+        )
 
     def create_price_events(self):
         rows = clickhouse_client.select_rows(
@@ -109,6 +183,7 @@ class InitializePriceEvents(Task):
         """
         logger.info(f"Starting InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}")
         self.create_price_events()
+        self.create_balance_events()
         logger.info(
             f"Completed InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}"
         )
@@ -173,6 +248,65 @@ class InitializePriceEvents(Task):
             logger.info(
                 f"Updated existing PriceEvent instance: {event.name} for asset {asset} and source {asset_source} "
                 f"on protocol {PROTOCOL_NAME} network {NETWORK_NAME}"
+            )
+
+        return event
+
+    def _create_or_get_balance_event(
+        self,
+        event_abis: Dict[str, Any],
+        event_name: str,
+        contract_addresses: List[str],
+        asset: str,
+        type: BalanceEvent.BalanceType,
+    ):
+        """Create or get an Event instance for the given event configuration.
+
+        Args:
+            event_abis (Dict[str, Any]): Dictionary of event ABIs from the protocol
+            event_name (str): Name of the event to create/update
+            contract_addresses (List[str]): List of contract addresses associated with the event
+
+        Returns:
+            Event: Created or existing Event instance
+
+        Raises:
+            Exception: If the ABI for the specified event name is not found
+        """
+        abi = None
+        for event_abi in event_abis:
+            if event_name == event_abi["name"]:
+                abi = event_abi
+                break
+
+        if abi is None:
+            raise Exception(f"ABI for event {event_name} not found")
+
+        topic_0 = get_topic_0(abi)
+        signature = get_signature(abi)
+
+        event, is_created = BalanceEvent.objects.update_or_create(
+            contract_addresses=contract_addresses,
+            asset=asset,
+            name=event_name,
+            type=type,
+            defaults={
+                "topic_0": topic_0,
+                "signature": signature,
+                "abi": abi,
+                "is_enabled": True,
+            },
+        )
+
+        if is_created:
+            logger.info(
+                f"Created Event instance: {event.name} for protocol "
+                f"{PROTOCOL_NAME} on network {NETWORK_NAME}"
+            )
+        else:
+            logger.info(
+                f"Found existing Event instance: {event.name} for protocol "
+                f"{PROTOCOL_NAME} on network {NETWORK_NAME}"
             )
 
         return event

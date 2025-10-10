@@ -3384,3 +3384,179 @@ def health_factor_analytics(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def users(request):
+    """Users page with search functionality"""
+    return render(request, "dashboard/users.html")
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET"])
+def user_balances_api(request, user_address):
+    """API endpoint to get user balances"""
+    try:
+        query = """
+        SELECT
+            user,
+            asset,
+            sumMerge(is_enabled_as_collateral) as is_enabled_as_collateral_total,
+            sumMerge(collateral_balance) as collateral_balance_total,
+            maxMerge(collateral_liquidityIndex) as collateral_liquidityIndex_total,
+            sumMerge(stable_debt_balance) as stable_debt_balance_total,
+            maxMerge(stable_debt_liquidityIndex) as stable_debt_liquidityIndex,
+            sumMerge(variable_debt_balance) as variable_debt_balance_total,
+            maxMerge(variable_debt_liquidityIndex) as variable_debt_liquidityIndex
+        FROM aave_ethereum.LatestBalances
+        WHERE user = %(user_address)s
+        GROUP BY user, asset
+        ORDER BY asset
+        """
+
+        result = clickhouse_client.execute_query(query, {"user_address": user_address})
+
+        balances = []
+        for row in result.result_rows:
+            balance = {
+                "user": row[0],
+                "asset": row[1],
+                "is_enabled_as_collateral": int(row[2]) if row[2] else 0,
+                "collateral_balance": float(row[3]) if row[3] else 0,
+                "collateral_liquidityIndex": int(row[4]) if row[4] else 0,
+                "stable_debt_balance": float(row[5]) if row[5] else 0,
+                "stable_debt_liquidityIndex": int(row[6]) if row[6] else 0,
+                "variable_debt_balance": float(row[7]) if row[7] else 0,
+                "variable_debt_liquidityIndex": int(row[8]) if row[8] else 0,
+            }
+            balances.append(balance)
+
+        return JsonResponse({"balances": balances})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET"])
+def user_events_api(request, user_address, asset):
+    """API endpoint to get user events for a specific asset"""
+    try:
+        # Get BalanceTransfer events
+        balance_transfer_query = """
+        SELECT
+            'BalanceTransfer' as event_type,
+            blockNumber,
+            blockTimestamp,
+            transactionHash,
+            _from,
+            _to,
+            value,
+            index,
+            type
+        FROM aave_ethereum.BalanceTransfer
+        WHERE ((_from = %(user_address)s) OR (_to = %(user_address)s)) AND asset = %(asset)s
+        ORDER BY blockTimestamp DESC
+        LIMIT 100
+        """
+
+        # Get Mint events
+        mint_query = """
+        SELECT
+            'Mint' as event_type,
+            blockNumber,
+            blockTimestamp,
+            transactionHash,
+            onBehalfOf,
+            '' as _to,
+            value,
+            index,
+            type
+        FROM aave_ethereum.Mint
+        WHERE onBehalfOf = %(user_address)s AND asset = %(asset)s
+        ORDER BY blockTimestamp DESC
+        LIMIT 100
+        """
+
+        # Get Burn events
+        burn_query = """
+        SELECT
+            'Burn' as event_type,
+            blockNumber,
+            blockTimestamp,
+            transactionHash,
+            from,
+            '' as _to,
+            value,
+            index,
+            type
+        FROM aave_ethereum.Burn
+        WHERE from = %(user_address)s AND asset = %(asset)s
+        ORDER BY blockTimestamp DESC
+        LIMIT 100
+        """
+
+        params = {"user_address": user_address, "asset": asset}
+
+        balance_transfers = clickhouse_client.execute_query(
+            balance_transfer_query, params
+        )
+        mints = clickhouse_client.execute_query(mint_query, params)
+        burns = clickhouse_client.execute_query(burn_query, params)
+
+        events = []
+
+        # Process BalanceTransfer events
+        for row in balance_transfers.result_rows:
+            event = {
+                "event_type": row[0],
+                "block_number": row[1],
+                "block_timestamp": row[2].isoformat() if row[2] else None,
+                "transaction_hash": row[3],
+                "from": row[4],
+                "to": row[5],
+                "value": float(row[6]) if row[6] else 0,
+                "index": int(row[7]) if row[7] else 0,
+                "type": row[8],
+            }
+            events.append(event)
+
+        # Process Mint events
+        for row in mints.result_rows:
+            event = {
+                "event_type": row[0],
+                "block_number": row[1],
+                "block_timestamp": row[2].isoformat() if row[2] else None,
+                "transaction_hash": row[3],
+                "from": "",
+                "to": row[4],
+                "value": float(row[6]) if row[6] else 0,
+                "index": int(row[7]) if row[7] else 0,
+                "type": row[8],
+            }
+            events.append(event)
+
+        # Process Burn events
+        for row in burns.result_rows:
+            event = {
+                "event_type": row[0],
+                "block_number": row[1],
+                "block_timestamp": row[2].isoformat() if row[2] else None,
+                "transaction_hash": row[3],
+                "from": row[4],
+                "to": "",
+                "value": float(row[6]) if row[6] else 0,
+                "index": int(row[7]) if row[7] else 0,
+                "type": row[8],
+            }
+            events.append(event)
+
+        # Sort all events by timestamp
+        events.sort(key=lambda x: x["block_timestamp"] or "", reverse=True)
+
+        return JsonResponse({"events": events})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

@@ -5,9 +5,6 @@ events:
   - EModeAssetCategoryChanged
   - EModeCategoryAdded
   - LiquidationCall
-  - Mint
-  - Burn
-  - BalanceTransfer
   - ReserveUsedAsCollateralDisabled
   - ReserveUsedAsCollateralEnabled
   - UserEModeSet

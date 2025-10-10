@@ -1,6 +1,7 @@
 from oracles.contracts.multiplier_abis import METHOD_ABI_MAPPING
 from oracles.contracts.utils import (
     CACHE_TTL_1_MINUTE,
+    CACHE_TTL_4_HOURS,
     AssetSourceType,
     RpcCacheStorage,
     UnsupportedAssetSourceError,
@@ -77,6 +78,15 @@ def _calculate_pendle_discount_multiplier(asset_source: str, event) -> int:
 def _calculate_default_multiplier() -> int:
     """Calculate multiplier for default asset source types."""
     return 1
+
+
+def _calculate_static_get_ratio_multiplier(
+    asset_source: str, config: dict, event
+) -> int:
+    """Calculate multiplier for static get ratio asset source types."""
+    return RpcCacheStorage.get_cached_asset_source_function(
+        asset_source, config["method"], ttl=CACHE_TTL_4_HOURS
+    )
 
 
 def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) -> int:
@@ -210,6 +220,24 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
         AssetSourceType.CLSynchronicityPriceAdapterPegToBase: {"type": "default"},
         AssetSourceType.GhoOracle: {"type": "default"},
         AssetSourceType.EURPriceCapAdapterStable: {"type": "default"},
+        AssetSourceType.TETHPriceCapAdapter: {
+            "type": "ratio_provider",
+            "provider_key": "RATIO_PROVIDER",
+            "decimals_key": "RATIO_DECIMALS",
+            "method": "convertToAssets",
+            "requires_parameter": True,
+        },
+        AssetSourceType.EzETHPriceCapAdapter: {
+            "type": "static_get_ratio",
+            "method": "getRatio",
+        },
+        AssetSourceType.LBTCPriceCapAdapter: {
+            "type": "ratio_provider",
+            "provider_key": "RATIO_PROVIDER",
+            "decimals_key": "RATIO_DECIMALS",
+            "method": "getRate",
+            "requires_parameter": False,
+        },
     }
 
     # Get configuration for this asset source type
@@ -235,6 +263,9 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
     # Handle default multiplier of 1
     elif config_type == "default":
         multiplier = _calculate_default_multiplier()
+
+    elif config_type == "static_get_ratio":
+        multiplier = _calculate_static_get_ratio_multiplier(asset_source, config, event)
 
     else:
         raise UnsupportedAssetSourceError(f"Unknown config type: {config_type}")
