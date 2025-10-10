@@ -30,6 +30,9 @@ def get_denominator(asset: str, asset_source: str, event=None, transaction=None)
         AssetSourceType.sDAISynchronicityPriceAdapter,
         AssetSourceType.WstETHSynchronicityPriceAdapter,
         AssetSourceType.CLrETHSynchronicityPriceAdapterPegToBase,
+        AssetSourceType.TETHPriceCapAdapter,
+        AssetSourceType.EzETHPriceCapAdapter,
+        AssetSourceType.LBTCPriceCapAdapter,
     ]:
         denominator = 10 ** RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "RATIO_DECIMALS", ttl=CACHE_TTL_4_HOURS
