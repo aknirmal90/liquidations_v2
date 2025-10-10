@@ -60,8 +60,10 @@ COPY ./bin/start-celery-high /start-celery-high
 RUN sed -i 's/\r$//g' /start-celery-high
 RUN chmod +x /start-celery-high
 
-# install doppler
-RUN (curl -Ls https://cli.doppler.com/install.sh || wget -qO- https://cli.doppler.com/install.sh) | sh
+# install doppler using official method
+RUN curl -sLf --retry 3 --tlsv1.2 --proto "=https" 'https://packages.doppler.com/public/cli/gpg.DE2A7741A397C129.key' | gpg --dearmor -o /usr/share/keyrings/doppler-archive-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/doppler-archive-keyring.gpg] https://packages.doppler.com/public/cli/deb/debian any-version main" | tee /etc/apt/sources.list.d/doppler-cli.list \
+    && apt-get update && apt-get install -y doppler
 
 EXPOSE 8000
 
