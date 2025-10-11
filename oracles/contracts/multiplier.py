@@ -1,4 +1,3 @@
-from oracles.contracts.multiplier_abis import METHOD_ABI_MAPPING
 from oracles.contracts.utils import (
     CACHE_TTL_1_MINUTE,
     CACHE_TTL_4_HOURS,
@@ -10,48 +9,6 @@ from oracles.contracts.utils import (
     send_unsupported_asset_source_notification,
 )
 from utils.encoding import decode_any
-
-
-def _calculate_ratio_provider_multiplier(asset_source: str, config: dict, event) -> int:
-    """Calculate multiplier for ratio provider asset source types."""
-    provider = RpcCacheStorage.get_cached_asset_source_function(
-        asset_source, config["provider_key"], ttl=CACHE_TTL_1_MINUTE
-    )
-    method = config["method"]
-    requires_parameter = config.get("requires_parameter", False)
-
-    # Get the appropriate ABI for this method
-    abi = METHOD_ABI_MAPPING.get(method)
-    if not abi:
-        raise ValueError(f"No ABI found for method: {method}")
-
-    if requires_parameter:
-        ratio_decimals = RpcCacheStorage.get_cached_asset_source_function(
-            asset_source, config["decimals_key"], ttl=CACHE_TTL_1_MINUTE
-        )
-        parameter = int(10**ratio_decimals)
-        multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
-        if multiplier is None:
-            multiplier = RpcCacheStorage.call_function(
-                provider,
-                method,
-                parameter,
-                abi=abi,
-            )
-            RpcCacheStorage.set_cache_with_ttl(
-                asset_source, "MULTIPLIER", multiplier, CACHE_TTL_1_MINUTE
-            )
-    else:
-        multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
-        if multiplier is None:
-            multiplier = RpcCacheStorage.get_cached_asset_source_function(
-                provider, method, abi=abi, ttl=CACHE_TTL_1_MINUTE
-            )
-            RpcCacheStorage.set_cache_with_ttl(
-                asset_source, "MULTIPLIER", multiplier, CACHE_TTL_1_MINUTE
-            )
-
-    return multiplier
 
 
 def _calculate_pendle_discount_multiplier(asset_source: str, event) -> int:
@@ -98,121 +55,73 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
 
     # Define configuration for different asset source types
     MULTIPLIER_CONFIGS = {
-        # PriceCapAdapter variants: Use ratio from ratio provider
+        # PriceCapAdapter variants: Use ratio from static get ratio
         AssetSourceType.PriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
+            "type": "static_get_ratio",
             "method": "getRatio",
-            "requires_parameter": False,
         },
         AssetSourceType.OsETHPriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "convertToAssets",
-            "requires_parameter": True,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.WstETHPriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "getPooledEthByShares",
-            "requires_parameter": True,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.SUSDePriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "convertToAssets",
-            "requires_parameter": True,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.RsETHPriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "rsETHPrice",
-            "requires_parameter": False,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.RETHPriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "getExchangeRate",
-            "requires_parameter": False,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.CbETHPriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "exchangeRate",
-            "requires_parameter": False,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.WeETHPriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "getRate",
-            "requires_parameter": False,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.EthXPriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "getExchangeRate",
-            "requires_parameter": False,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.EBTCPriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "getRate",
-            "requires_parameter": False,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.EUSDePriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "convertToAssets",
-            "requires_parameter": True,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         # PendlePriceCapAdapter: Uses discount calculation
         AssetSourceType.PendlePriceCapAdapter: {"type": "pendle_discount"},
         # SynchronicityPriceAdapter variants
         AssetSourceType.WstETHSynchronicityPriceAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "STETH",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "getPooledEthByShares",
-            "requires_parameter": True,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.sDAIMainnetPriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "chi",
-            "requires_parameter": False,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.sDAISynchronicityPriceAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATE_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "chi",
-            "requires_parameter": False,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.CLrETHSynchronicityPriceAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RETH",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "getExchangeRate",
-            "requires_parameter": False,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.CLwstETHSynchronicityPriceAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "STETH",
-            "method": "getPooledEthByShares",
-            "decimals_key": "RATIO_DECIMALS",
-            "requires_parameter": True,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         # Default multiplier of 1
         AssetSourceType.EACAggregatorProxy: {"type": "default"},
@@ -221,22 +130,16 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
         AssetSourceType.GhoOracle: {"type": "default"},
         AssetSourceType.EURPriceCapAdapterStable: {"type": "default"},
         AssetSourceType.TETHPriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "convertToAssets",
-            "requires_parameter": True,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
         AssetSourceType.EzETHPriceCapAdapter: {
             "type": "static_get_ratio",
             "method": "getRatio",
         },
         AssetSourceType.LBTCPriceCapAdapter: {
-            "type": "ratio_provider",
-            "provider_key": "RATIO_PROVIDER",
-            "decimals_key": "RATIO_DECIMALS",
-            "method": "getRate",
-            "requires_parameter": False,
+            "type": "static_get_ratio",
+            "method": "getRatio",
         },
     }
 
@@ -252,12 +155,8 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
 
     config_type = config["type"]
 
-    # Handle ratio provider type
-    if config_type == "ratio_provider":
-        multiplier = _calculate_ratio_provider_multiplier(asset_source, config, event)
-
     # Handle Pendle discount calculation
-    elif config_type == "pendle_discount":
+    if config_type == "pendle_discount":
         multiplier = _calculate_pendle_discount_multiplier(asset_source, event)
 
     # Handle default multiplier of 1
