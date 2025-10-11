@@ -747,9 +747,7 @@ class VerifyHistoricalPriceTask(Task):
         return True
 
     def run(self):
-        all_assets = clickhouse_client.execute_query(
-            "SELECT asset, asset_source, name FROM aave_ethereum.LatestPriceEvent FINAL"
-        )
+        latest_price_events = get_latest_asset_sources()
         num_verified = 0
         num_different = 0
         delta_threshold = 0.000001
@@ -760,9 +758,9 @@ class VerifyHistoricalPriceTask(Task):
         }
         verification_records = []
 
-        for asset, asset_source, name in all_assets.result_rows:
+        for price_event in latest_price_events.iterator():
             asset_source_interface = PriceOracleInterface(
-                asset=asset, asset_source=asset_source
+                asset=price_event.asset, asset_source=price_event.asset_source
             )
 
             try:
@@ -775,7 +773,9 @@ class VerifyHistoricalPriceTask(Task):
                     asset_source_interface.predicted_price_from_transaction
                 )
             except Exception as e:
-                logger.error(f"Error getting prices for {asset} {asset_source}: {e}")
+                logger.error(
+                    f"Error getting prices for {price_event.asset} {price_event.asset_source}: {e}"
+                )
                 continue
 
             # Compare all three price types using the same function
@@ -784,9 +784,9 @@ class VerifyHistoricalPriceTask(Task):
                     price=historical_event,
                     rpc_price=latest_price_from_rpc,
                     price_type="historical_event",
-                    asset=asset,
-                    asset_source=asset_source,
-                    name=name,
+                    asset=price_event.asset,
+                    asset_source=price_event.asset_source,
+                    name=price_event.asset_source_name,
                     threshold=delta_threshold,
                     mismatch_counts=mismatch_counts,
                     verification_records=verification_records,
@@ -795,9 +795,9 @@ class VerifyHistoricalPriceTask(Task):
                     price=historical_transaction,
                     rpc_price=latest_price_from_rpc,
                     price_type="historical_transaction",
-                    asset=asset,
-                    asset_source=asset_source,
-                    name=name,
+                    asset=price_event.asset,
+                    asset_source=price_event.asset_source,
+                    name=price_event.asset_source_name,
                     threshold=delta_threshold,
                     mismatch_counts=mismatch_counts,
                     verification_records=verification_records,
@@ -806,9 +806,9 @@ class VerifyHistoricalPriceTask(Task):
                     price=predicted_transaction,
                     rpc_price=latest_price_from_rpc,
                     price_type="predicted_transaction",
-                    asset=asset,
-                    asset_source=asset_source,
-                    name=name,
+                    asset=price_event.asset,
+                    asset_source=price_event.asset_source,
+                    name=price_event.asset_source_name,
                     threshold=delta_threshold,
                     mismatch_counts=mismatch_counts,
                     verification_records=verification_records,
