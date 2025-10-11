@@ -1,6 +1,6 @@
 import logging
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal, DivisionByZero, DivisionUndefined
 
 from celery import Task
@@ -9,7 +9,7 @@ from django.db import models
 from web3 import Web3
 
 from aave.dataprovider import AaveDataProvider
-from aave.models import AaveBalanceLog, AaveDataQualityAnalyticsReport, AaveLiquidationLog, Asset, AssetPriceLog
+from aave.models import AaveBalanceLog, AaveDataQualityAnalyticsReport, AaveLiquidationLog, Asset, AssetPriceLog, MevShareTransactionLog
 from blockchains.models import Event, Network
 from liquidations_v2.celery_app import app
 from utils.constants import BALANCES_AMOUNT_ERROR_THRESHOLD_PCT, BALANCES_AMOUNT_ERROR_THRESHOLD_VALUE
@@ -755,3 +755,102 @@ class VerifyReserveConfigurationTask(Task):
 
 
 VerifyReserveConfigurationTask = app.register_task(VerifyReserveConfigurationTask())
+
+
+class ProcessMevShareTransactionTask(Task):
+    """Task to process and store MEV Share transaction data."""
+
+    acks_late = False
+
+    def run(
+        self,
+        transaction_hash,
+        asset_address,
+        network_id,
+        network_name,
+        price,
+        round_id,
+        block_height,
+        mev_received_at,
+        onchain_created_at,
+        processed_at,
+        raw_transaction_data=None
+    ):
+        """Process MEV Share transaction data and store it."""
+        logger.info(f"Processing MEV Share transaction: {transaction_hash}")
+
+        if onchain_created_at:
+            onchain_created_at = datetime.fromtimestamp(onchain_created_at, tz=timezone.utc)
+
+        try:
+            # Create or update MEV Share transaction log
+            mev_log, created = MevShareTransactionLog.objects.get_or_create(
+                transaction_hash=transaction_hash,
+                defaults={
+                    'asset_address': asset_address,
+                    'network_id': network_id,
+                    'price': price,
+                    'round_id': round_id,
+                    'block_height': block_height,
+                    'mev_received_at': mev_received_at,
+                    'onchain_created_at': onchain_created_at,
+                    'processed_at': processed_at,
+                    'raw_transaction_data': raw_transaction_data,
+                }
+            )
+
+            if created:
+                logger.info(f"Created new MEV Share transaction log: {transaction_hash}")
+            else:
+                logger.info(f"MEV Share transaction already exists: {transaction_hash}")
+
+            # Perform MEV analysis
+            self._analyze_mev_opportunity(mev_log)
+
+        except Exception as e:
+            logger.error(f"Error processing MEV Share transaction {transaction_hash}: {str(e)}")
+            raise
+
+    def _analyze_mev_opportunity(self, mev_log):
+        """Analyze the MEV transaction for potential opportunities."""
+        try:
+            # Basic MEV opportunity detection
+            # This is a simplified analysis - you can expand this with more sophisticated logic
+            
+            # Check if there are related transactions around the same time
+            time_window_start = mev_log.mev_received_at - timedelta(seconds=10)
+            time_window_end = mev_log.mev_received_at + timedelta(seconds=10)
+            
+            related_transactions = MevShareTransactionLog.objects.filter(
+                asset_address=mev_log.asset_address,
+                mev_received_at__range=(time_window_start, time_window_end)
+            ).exclude(id=mev_log.id)
+
+            if related_transactions.exists():
+                mev_log.is_mev_opportunity = True
+                logger.info(f"Detected MEV opportunity for {mev_log.transaction_hash}")
+
+            # Check price differences that might indicate frontrunning/backrunning
+            if mev_log.price:
+                recent_prices = AssetPriceLog.objects.filter(
+                    aggregator_address__iexact=mev_log.asset_address,
+                    network=mev_log.network,
+                    onchain_created_at__isnull=False
+                ).order_by('-onchain_created_at')[:5]
+
+                if recent_prices.exists():
+                    avg_recent_price = sum(log.price for log in recent_prices) / len(recent_prices)
+                    price_difference_pct = abs(mev_log.price - avg_recent_price) / avg_recent_price * 100
+
+                    # If price difference is significant (> 1%), it might be MEV related
+                    if price_difference_pct > 1.0:
+                        mev_log.is_mev_opportunity = True
+                        logger.info(f"Price anomaly detected for {mev_log.transaction_hash}: {price_difference_pct:.2f}%")
+
+            mev_log.save(update_fields=['is_mev_opportunity', 'frontrun_detected', 'backrun_detected'])
+
+        except Exception as e:
+            logger.error(f"Error analyzing MEV opportunity for {mev_log.transaction_hash}: {str(e)}")
+
+
+ProcessMevShareTransactionTask = app.register_task(ProcessMevShareTransactionTask())
