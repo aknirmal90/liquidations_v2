@@ -11,10 +11,10 @@ from django.views.decorators.http import require_http_methods
 
 from oracles.contracts.interface import PriceOracleInterface
 from utils.clickhouse.client import clickhouse_client
-from utils.constants import NETWORK_NAME, NETWORK_ID
+from utils.constants import NETWORK_ID, NETWORK_NAME
+from utils.event_parser import parse_transaction_logs
 from utils.rpc import rpc_adapter
 from utils.simulation import get_simulated_health_factor
-from utils.event_parser import parse_transaction_logs
 
 
 def get_simple_explorer_url(address_id: str):
@@ -1487,7 +1487,7 @@ def prices_summary(request):
                 pct_error,
                 blockTimestamp,
                 ROW_NUMBER() OVER (
-                    PARTITION BY asset, type
+                    PARTITION BY asset
                     ORDER BY blockTimestamp DESC
                 ) as rn
             FROM aave_ethereum.PriceVerificationRecords
