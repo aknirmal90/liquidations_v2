@@ -18,19 +18,24 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         "get_asset_display",
         "get_asset_source_display",
         "is_enabled",
+        "is_active",
         "last_synced_block",
         "last_inserted_block",
         "blocks_to_sync",
         "logs_count",
         "get_contracts_display",
+        "get_transmitters_display",
     )
 
-    list_filter = ("is_enabled", "updated_at", "asset_source_name", "name")
+    list_filter = ("is_enabled", "updated_at", "is_active", "asset_source_name", "name")
 
     search_fields = ("name", "signature", "topic_0", "asset", "asset_source")
 
     fieldsets = (
-        ("Basic Information", {"fields": ("name", "asset_source_name", "is_enabled")}),
+        (
+            "Basic Information",
+            {"fields": ("name", "asset_source_name", "is_enabled", "is_active")},
+        ),
         (
             "Asset Information",
             {"fields": ("get_asset_display", "get_asset_source_display")},
@@ -83,6 +88,7 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         "transmitters",
         "get_transmitters_display",
         "last_inserted_block",
+        "is_active",
     )
 
     def abi_display(self, obj):

@@ -1,3 +1,4 @@
+from oracles.contracts.multiplier_abis import METHOD_ABI_MAPPING
 from oracles.contracts.utils import (
     CACHE_TTL_1_MINUTE,
     CACHE_TTL_4_HOURS,
@@ -29,6 +30,48 @@ def _calculate_pendle_discount_multiplier(asset_source: str, event) -> int:
     RpcCacheStorage.set_cache_with_ttl(
         asset_source, "MULTIPLIER", multiplier, CACHE_TTL_1_MINUTE
     )
+    return multiplier
+
+
+def _calculate_ratio_provider_multiplier(asset_source: str, config: dict, event) -> int:
+    """Calculate multiplier for ratio provider asset source types."""
+    provider = RpcCacheStorage.get_cached_asset_source_function(
+        asset_source, config["provider_key"], ttl=CACHE_TTL_1_MINUTE
+    )
+    method = config["method"]
+    requires_parameter = config.get("requires_parameter", False)
+
+    # Get the appropriate ABI for this method
+    abi = METHOD_ABI_MAPPING.get(method)
+    if not abi:
+        raise ValueError(f"No ABI found for method: {method}")
+
+    if requires_parameter:
+        ratio_decimals = RpcCacheStorage.get_cached_asset_source_function(
+            asset_source, config["decimals_key"], ttl=CACHE_TTL_1_MINUTE
+        )
+        parameter = int(10**ratio_decimals)
+        multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
+        if multiplier is None:
+            multiplier = RpcCacheStorage.call_function(
+                provider,
+                method,
+                parameter,
+                abi=abi,
+            )
+            RpcCacheStorage.set_cache_with_ttl(
+                asset_source, "MULTIPLIER", multiplier, CACHE_TTL_1_MINUTE
+            )
+    else:
+        multiplier = RpcCacheStorage.get_cache(asset_source, "MULTIPLIER")
+        if multiplier is None:
+            multiplier = RpcCacheStorage.get_cached_asset_source_function(
+                provider, method, abi=abi, ttl=CACHE_TTL_1_MINUTE
+            )
+            RpcCacheStorage.set_cache_with_ttl(
+                asset_source, "MULTIPLIER", multiplier, CACHE_TTL_1_MINUTE
+            )
+
     return multiplier
 
 
@@ -104,24 +147,36 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
         AssetSourceType.PendlePriceCapAdapter: {"type": "pendle_discount"},
         # SynchronicityPriceAdapter variants
         AssetSourceType.WstETHSynchronicityPriceAdapter: {
-            "type": "static_get_ratio",
-            "method": "getRatio",
+            "type": "ratio_provider",
+            "provider_key": "STETH",
+            "decimals_key": "RATIO_DECIMALS",
+            "method": "getPooledEthByShares",
+            "requires_parameter": True,
         },
         AssetSourceType.sDAIMainnetPriceCapAdapter: {
             "type": "static_get_ratio",
             "method": "getRatio",
         },
         AssetSourceType.sDAISynchronicityPriceAdapter: {
-            "type": "static_get_ratio",
-            "method": "getRatio",
+            "type": "ratio_provider",
+            "provider_key": "RATE_PROVIDER",
+            "decimals_key": "RATIO_DECIMALS",
+            "method": "chi",
+            "requires_parameter": False,
         },
         AssetSourceType.CLrETHSynchronicityPriceAdapter: {
-            "type": "static_get_ratio",
-            "method": "getRatio",
+            "type": "ratio_provider",
+            "provider_key": "RETH",
+            "decimals_key": "RATIO_DECIMALS",
+            "method": "getExchangeRate",
+            "requires_parameter": False,
         },
         AssetSourceType.CLwstETHSynchronicityPriceAdapter: {
-            "type": "static_get_ratio",
-            "method": "getRatio",
+            "type": "ratio_provider",
+            "provider_key": "STETH",
+            "method": "getPooledEthByShares",
+            "decimals_key": "RATIO_DECIMALS",
+            "requires_parameter": True,
         },
         # Default multiplier of 1
         AssetSourceType.EACAggregatorProxy: {"type": "default"},

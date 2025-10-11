@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Tuple
 import web3
 from celery import Task
 from django.core.cache import cache
+from django.db import transaction
+from django.db.models import Q
 from eth_utils import get_all_event_abis
 from web3.datastructures import AttributeDict
 
@@ -175,6 +177,25 @@ class InitializePriceEvents(Task):
             )
             clickhouse_client.optimize_table("AssetSourceTokenMetadata")
 
+    def activate_price_events(self):
+        # Fetch all (asset, asset_source) pairs from ClickHouse result
+        result = clickhouse_client.execute_query(
+            "SELECT asset, source FROM aave_ethereum.LatestAssetSourceUpdated FINAL"
+        )
+        clickhouse_pairs = [(row[0], row[1]) for row in result.result_rows]
+
+        with transaction.atomic():
+            query = Q()
+            PriceEvent.objects.all().update(is_active=False)
+            if clickhouse_pairs:
+                assetsources_q = Q()
+                for asset, asset_source in clickhouse_pairs:
+                    assetsources_q |= Q(asset=asset, asset_source=asset_source)
+                query &= assetsources_q
+
+                PriceEvent.objects.filter(query).update(is_active=True)
+        logger.info(f"Activated {len(clickhouse_pairs)} price events")
+
     def run(self):
         """Execute the initialization task.
 
@@ -187,6 +208,7 @@ class InitializePriceEvents(Task):
         logger.info(
             f"Completed InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}"
         )
+        self.activate_price_events()
 
     def create_or_get_price_event(
         self,
