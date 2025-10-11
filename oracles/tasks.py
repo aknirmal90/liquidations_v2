@@ -728,7 +728,9 @@ class VerifyHistoricalPriceTask(Task):
         if rpc_price == 0:
             return True  # Skip comparison for zero prices
 
-        percent_diff = (price - rpc_price) / rpc_price
+        percent_diff = (Decimal(str(price)) - Decimal(str(rpc_price))) / Decimal(
+            str(rpc_price)
+        )
 
         # Store verification record
         verification_records.append(
@@ -738,7 +740,7 @@ class VerifyHistoricalPriceTask(Task):
                 name,
                 price_type,
                 int(datetime.now().timestamp() * 1_000_000),  # Convert to microseconds
-                (percent_diff),
+                str(percent_diff),
             ]
         )
 
