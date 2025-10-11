@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Dict, List, Tuple
 
 import web3
@@ -741,7 +742,9 @@ class VerifyHistoricalPriceTask(Task):
             ]
         )
 
-        if rpc_price != 0 and abs(price - rpc_price) / rpc_price > threshold:
+        if rpc_price != 0 and abs(
+            Decimal(str(price)) - Decimal(str(rpc_price))
+        ) / Decimal(str(rpc_price)) > Decimal(str(threshold)):
             mismatch_counts[f"{price_type}_vs_rpc"] += 1
             return False
         return True
