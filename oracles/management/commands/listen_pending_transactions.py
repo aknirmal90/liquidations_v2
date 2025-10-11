@@ -111,6 +111,9 @@ class Command(WebsocketCommand, BaseCommand):
                     )
                 )
             InsertTransactionNumeratorTask.delay(transaction_numerators)
+            logger.info(
+                f"Inserted transaction numerators for {asset} with median price: {median_price}"
+            )
         else:
             logger.info(
                 f"Skipping transaction {tx_data['hash']} because it is not a valid transmitter or sender"
