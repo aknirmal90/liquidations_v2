@@ -42,7 +42,7 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         ),
         (
             "Transmitters",
-            {"fields": ("get_transmitters_display",)},
+            {"fields": ("get_transmitters_display", "get_authorized_senders_display")},
         ),
         (
             "Sync Status",
@@ -89,6 +89,8 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         "get_transmitters_display",
         "last_inserted_block",
         "is_active",
+        "authorized_senders",
+        "get_authorized_senders_display",
     )
 
     def abi_display(self, obj):
@@ -114,6 +116,16 @@ class PriceEventAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
         return format_html("<br>".join(transmitter_links))
 
     get_transmitters_display.short_description = "Transmitters"
+
+    def get_authorized_senders_display(self, obj):
+        if not obj.authorized_senders:
+            return
+        authorized_sender_links = []
+        for authorized_sender in obj.authorized_senders:
+            authorized_sender_links.append(get_explorer_address_url(authorized_sender))
+        return format_html("<br>".join(authorized_sender_links))
+
+    get_authorized_senders_display.short_description = "Authorized Senders"
 
     def get_asset_display(self, obj):
         return get_explorer_address_url(obj.asset)

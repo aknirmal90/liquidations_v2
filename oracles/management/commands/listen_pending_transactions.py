@@ -86,10 +86,19 @@ class Command(WebsocketCommand, BaseCommand):
         median_price = parsed_data["median_price"]
         oracle_address = parsed_data["oracle_address"]
         parsed_data["hash"] = tx_data["hash"]
+        transmitter = tx_data["to"].lower() if tx_data["to"] else None
+        sender = tx_data["from"].lower() if tx_data["from"] else None
 
         asset_sources = cache.get(f"underlying_asset_source_{oracle_address}")
+        allowed_transmitters = cache.get("transmitters_for_websockets")
+        authorized_senders = cache.get("authorized_senders_for_websockets")
         transaction_numerators = []
-        if asset_sources:
+
+        if (
+            asset_sources
+            and transmitter in allowed_transmitters
+            and sender in authorized_senders
+        ):
             for asset, asset_source in asset_sources:
                 logger.info(
                     f"Processing oracle update for {asset} with median price: {median_price}"
@@ -102,3 +111,7 @@ class Command(WebsocketCommand, BaseCommand):
                     )
                 )
             InsertTransactionNumeratorTask.delay(transaction_numerators)
+        else:
+            logger.info(
+                f"Skipping transaction {tx_data['hash']} because it is not a valid transmitter or sender"
+            )

@@ -19,6 +19,7 @@ from oracles.contracts.multiplier import get_multiplier
 from oracles.contracts.numerator import get_numerator
 from oracles.contracts.underlying_sources import get_underlying_sources
 from oracles.contracts.utils import (
+    CACHE_TTL_4_HOURS,
     RpcCacheStorage,
     UnsupportedAssetSourceError,
     get_latest_asset_sources,
@@ -31,7 +32,7 @@ from utils.constants import (
     PROTOCOL_ABI_PATH,
     PROTOCOL_NAME,
 )
-from utils.encoding import decode_any, get_signature, get_topic_0
+from utils.encoding import get_signature, get_topic_0
 from utils.files import parse_json
 from utils.rpc import rpc_adapter
 from utils.tasks import EventSynchronizeMixin, ParentSynchronizeTaskMixin
@@ -209,6 +210,7 @@ class InitializePriceEvents(Task):
             f"Completed InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}"
         )
         self.activate_price_events()
+        UpdateTransmittersForPriceAggregatorsTask.delay()
 
     def create_or_get_price_event(
         self,
@@ -343,6 +345,13 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
     rpc_adapter = rpc_adapter
     network_name = NETWORK_NAME
 
+    def run(self, event_ids: List[int]):
+        """Default run method for child synchronize tasks."""
+        active_event_ids = PriceEvent.objects.filter(
+            is_active=True, id__in=event_ids
+        ).values_list("id", flat=True)
+        self.run_event_sync(active_event_ids)
+
     def group_event_logs_by_address(
         self, event_logs: List[Any]
     ) -> Dict[str, List[Any]]:
@@ -448,60 +457,81 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
     def post_handle_hook(
         self, network_events: List[Any], start_block: int, end_block: int
     ):
-        contract_addresses_array = network_events.values_list(
-            "contract_addresses", flat=True
+        UpdateTransmittersForPriceAggregatorsTask.delay()
+
+
+PriceEventSynchronizeTask = app.register_task(PriceEventSynchronizeTask())
+
+
+class UpdateTransmittersForPriceAggregatorsTask(Task):
+    def run(self):
+        """
+        Retrieves transmitters for price aggregators and updates the PriceEvent model.
+        """
+
+        self.set_transmitters()
+        self.set_authorized_senders()
+        self.cache_transmitters_for_websockets()
+        self.cache_authorized_senders_for_websockets()
+        self.cache_asset_sources_for_websockets()
+
+    def set_transmitters(self):
+        price_events = PriceEvent.objects.filter(is_active=True).exclude(
+            asset_source="0xd110cac5d8682a3b045d5524a9903e031d70fccd"
         )
-        contract_addresses = []
-        for contract_addresses_item in contract_addresses_array:
-            contract_addresses.extend(contract_addresses_item)
-        contract_addresses = list(set(contract_addresses))
-        contract_addresses = [
-            web3.Web3.to_checksum_address(address) for address in contract_addresses
-        ]
-
-        events = rpc_adapter.extract_raw_event_data(
-            topics=[
-                "0x78af32efdcad432315431e9b03d27e6cd98fb79c405fdc5af7c1714d9c0f75b3"
-            ],
-            # EX: https://etherscan.io/tx/0xd5127d96ca9519c89cda89a57d69437d654da21f773f992f469d4e7128977da1#eventlog
-            contract_addresses=contract_addresses,
-            start_block=start_block,
-            end_block=end_block,
-        )
-
-        # Group events by address to map to PriceEvents
-        address_to_transmitters = {}
-        for event in events:
-            address = decode_any(event.address)
-            transmitter = "0x" + decode_any(event.topics[1])[-40:]
-
-            if address not in address_to_transmitters:
-                address_to_transmitters[address] = set()
-            address_to_transmitters[address].add(transmitter)
-
-        # Batch update PriceEvents with unique transmitters
-        for address, transmitters_set in address_to_transmitters.items():
-            try:
-                price_events = PriceEvent.objects.filter(
-                    contract_addresses__contains=address
-                )
-                for price_event in price_events:
-                    # Get existing transmitters and add new ones
-                    existing_transmitters = set(price_event.transmitters or [])
-                    updated_transmitters = list(
-                        existing_transmitters.union(transmitters_set)
+        # Exclude retrieving a transmitter for the GhoOracle
+        # GHOOracle uses a hardcoded value and does not change ever
+        updated_price_events = []
+        for price_event in price_events.iterator():
+            contract_addresses = price_event.contract_addresses
+            if contract_addresses:
+                for contract_address in contract_addresses:
+                    transmitters = RpcCacheStorage.get_cached_asset_source_function(
+                        asset_source=contract_address,
+                        function_name="getTransmitters",
+                        ttl=CACHE_TTL_4_HOURS,
                     )
 
-                    # Update only if there are new transmitters
-                    if len(updated_transmitters) > len(existing_transmitters):
-                        price_event.transmitters = updated_transmitters
-                        price_event.save(update_fields=["transmitters"])
+                    if transmitters:
+                        if isinstance(transmitters, list):
+                            transmitters = list(set(transmitters))
+                        else:
+                            transmitters = list(
+                                set([t for t in dict(transmitters).values()])
+                            )
 
-            except Exception as e:
-                logger.error(f"Error updating transmitters for address {address}: {e}")
+                        price_event.transmitters = [
+                            transmitter.lower() for transmitter in transmitters
+                        ]
+                        updated_price_events.append(price_event)
+        PriceEvent.objects.bulk_update(updated_price_events, ["transmitters"])
 
-        self.cache_transmitters_for_websockets()
-        self.cache_asset_sources_for_websockets()
+    def set_authorized_senders(self):
+        price_events = PriceEvent.objects.filter(is_active=True).exclude(
+            asset_source="0xd110cac5d8682a3b045d5524a9903e031d70fccd"
+        )
+        updated_price_events = []
+        for price_event in price_events.iterator():
+            all_authorized_senders = []
+            for transmitter in price_event.transmitters:
+                authorized_senders = RpcCacheStorage.get_cached_asset_source_function(
+                    asset_source=transmitter,
+                    function_name="getAuthorizedSenders",
+                    ttl=CACHE_TTL_4_HOURS,
+                )
+
+                if authorized_senders:
+                    if isinstance(authorized_senders, list):
+                        authorized_senders = [a for a in list(set(authorized_senders))]
+                    else:
+                        authorized_senders = list(
+                            set([a for a in dict(authorized_senders).values()])
+                        )
+                    all_authorized_senders.extend(authorized_senders)
+            all_authorized_senders = [a.lower() for a in all_authorized_senders]
+            price_event.authorized_senders = list(set(all_authorized_senders))
+            updated_price_events.append(price_event)
+        PriceEvent.objects.bulk_update(updated_price_events, ["authorized_senders"])
 
     def cache_transmitters_for_websockets(self):
         # Get only active asset sources from utils
@@ -513,6 +543,18 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
                 transmitters.extend(transmitters_array)
         transmitters = list(set(transmitters))
         cache.set("transmitters_for_websockets", transmitters)
+
+    def cache_authorized_senders_for_websockets(self):
+        active_price_events = get_latest_asset_sources()
+        authorized_senders_qs = active_price_events.values_list(
+            "authorized_senders", flat=True
+        )
+        authorized_senders = []
+        for authorized_senders_array in authorized_senders_qs:
+            if authorized_senders_array:
+                authorized_senders.extend(authorized_senders_array)
+        authorized_senders = list(set(authorized_senders))
+        cache.set("authorized_senders_for_websockets", authorized_senders)
 
     def cache_asset_sources_for_websockets(self):
         # Get only active asset sources from utils
@@ -540,7 +582,9 @@ class PriceEventSynchronizeTask(EventSynchronizeMixin, Task):
             cache.set(cache_key, asset_sources_list)
 
 
-PriceEventSynchronizeTask = app.register_task(PriceEventSynchronizeTask())
+UpdateTransmittersForPriceAggregatorsTask = app.register_task(
+    UpdateTransmittersForPriceAggregatorsTask()
+)
 
 
 class PriceEventDynamicSynchronizeTask(ParentSynchronizeTaskMixin, Task):
