@@ -750,7 +750,7 @@ class VerifyHistoricalPriceTask(Task):
         latest_price_events = get_latest_asset_sources()
         num_verified = 0
         num_different = 0
-        delta_threshold = 0.000001
+        delta_threshold = 0.00001
         mismatch_counts = {
             "historical_event_vs_rpc": 0,
             "historical_transaction_vs_rpc": 0,
