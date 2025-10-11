@@ -283,3 +283,39 @@ class AssetPriceLog(models.Model):
 
     def __str__(self):
         return f"{self.aggregator_address} price: {self.price} at {self.onchain_created_at}"
+
+
+class MevShareTransactionLog(models.Model):
+    """Model to store MEV Share transaction data for analysis."""
+    transaction_hash = models.CharField(max_length=66, unique=True)
+    asset_address = models.CharField(max_length=42)
+    network = models.ForeignKey("blockchains.Network", on_delete=models.PROTECT)
+    price = models.DecimalField(max_digits=72, decimal_places=0, null=True, blank=True)
+    round_id = models.PositiveIntegerField(null=True, blank=True)
+    block_height = models.PositiveIntegerField(null=True, blank=True)
+    
+    # MEV specific fields
+    mev_received_at = models.DateTimeField()  # When we received it from MEV Share
+    onchain_created_at = models.DateTimeField(null=True, blank=True)  # From transaction data
+    processed_at = models.DateTimeField()
+    db_created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Analysis fields
+    is_mev_opportunity = models.BooleanField(default=False)
+    frontrun_detected = models.BooleanField(default=False)
+    backrun_detected = models.BooleanField(default=False)
+    
+    # Raw data for debugging
+    raw_transaction_data = models.JSONField(null=True, blank=True)
+    
+    class Meta:
+        app_label = "aave"
+        indexes = [
+            models.Index(fields=["asset_address", "network"]),
+            models.Index(fields=["transaction_hash"]),
+            models.Index(fields=["mev_received_at"]),
+            models.Index(fields=["is_mev_opportunity"]),
+        ]
+
+    def __str__(self):
+        return f"MEV {self.transaction_hash}: {self.asset_address} price: {self.price}"

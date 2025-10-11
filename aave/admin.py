@@ -24,7 +24,7 @@ from aave.inlines import (
     get_transfer_events_for_address,
     get_withdraw_events_for_address,
 )
-from aave.models import AaveBalanceLog, AaveDataQualityAnalyticsReport, AaveLiquidationLog, Asset, AssetPriceLog
+from aave.models import AaveBalanceLog, AaveDataQualityAnalyticsReport, AaveLiquidationLog, Asset, AssetPriceLog, MevShareTransactionLog
 from utils.admin import (
     EnableDisableAdminMixin,
     format_pretty_json,
@@ -958,3 +958,126 @@ class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
         rate = (obj.num_collateral_index_verified / total) * 100
         return f'{rate:.2f}%'
     get_collateral_index_verification_rate.short_description = 'Collateral Index Verification Rate'
+
+
+@admin.register(MevShareTransactionLog)
+class MevShareTransactionLogAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'get_transaction_hash_link',
+        'get_asset_address_link',
+        'network',
+        'price',
+        'is_mev_opportunity',
+        'frontrun_detected',
+        'backrun_detected',
+        'mev_received_at',
+        'get_mev_delay_ms',
+    )
+
+    list_filter = (
+        'network',
+        'is_mev_opportunity',
+        'frontrun_detected',
+        'backrun_detected',
+        'mev_received_at',
+        'db_created_at',
+    )
+
+    search_fields = (
+        'transaction_hash',
+        'asset_address',
+    )
+
+    readonly_fields = (
+        'id',
+        'transaction_hash',
+        'get_transaction_hash_link',
+        'asset_address',
+        'get_asset_address_link',
+        'network',
+        'price',
+        'round_id',
+        'block_height',
+        'mev_received_at',
+        'onchain_created_at',
+        'processed_at',
+        'db_created_at',
+        'is_mev_opportunity',
+        'frontrun_detected',
+        'backrun_detected',
+        'get_mev_delay_ms',
+        'get_processing_delay_ms',
+        'get_formatted_raw_data',
+    )
+
+    fieldsets = (
+        ('Transaction Information', {
+            'fields': (
+                'get_transaction_hash_link',
+                'get_asset_address_link', 
+                'network',
+                'block_height',
+            )
+        }),
+        ('Price Information', {
+            'fields': (
+                'price',
+                'round_id',
+            )
+        }),
+        ('MEV Analysis', {
+            'fields': (
+                'is_mev_opportunity',
+                'frontrun_detected',
+                'backrun_detected',
+            )
+        }),
+        ('Timestamps', {
+            'fields': (
+                'mev_received_at',
+                'onchain_created_at',
+                'processed_at',
+                'db_created_at',
+                'get_mev_delay_ms',
+                'get_processing_delay_ms',
+            )
+        }),
+        ('Raw Data', {
+            'fields': ('get_formatted_raw_data',),
+            'classes': ('collapse',),
+        }),
+    )
+
+    ordering = ('-mev_received_at',)
+
+    def get_transaction_hash_link(self, obj):
+        return get_explorer_transaction_url(obj.network, obj.transaction_hash)
+    get_transaction_hash_link.short_description = 'Transaction Hash'
+
+    def get_asset_address_link(self, obj):
+        return get_explorer_address_url(obj.network, obj.asset_address)
+    get_asset_address_link.short_description = 'Asset Address'
+
+    def get_mev_delay_ms(self, obj):
+        """Calculate delay between onchain creation and MEV Share detection."""
+        if obj.onchain_created_at and obj.mev_received_at:
+            delta = obj.mev_received_at - obj.onchain_created_at
+            return int(delta.total_seconds() * 1000)
+        return None
+    get_mev_delay_ms.short_description = 'MEV Detection Delay (ms)'
+
+    def get_processing_delay_ms(self, obj):
+        """Calculate delay between MEV detection and processing completion."""
+        if obj.processed_at and obj.mev_received_at:
+            delta = obj.processed_at - obj.mev_received_at
+            return int(delta.total_seconds() * 1000)
+        return None
+    get_processing_delay_ms.short_description = 'Processing Delay (ms)'
+
+    def get_formatted_raw_data(self, obj):
+        """Format raw transaction data for display."""
+        if obj.raw_transaction_data:
+            return format_pretty_json(json_data=obj.raw_transaction_data)
+        return "No raw data available"
+    get_formatted_raw_data.short_description = 'Raw Transaction Data'
