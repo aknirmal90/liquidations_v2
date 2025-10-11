@@ -30,7 +30,6 @@ def get_denominator(asset: str, asset_source: str, event=None, transaction=None)
         AssetSourceType.sDAISynchronicityPriceAdapter,
         AssetSourceType.WstETHSynchronicityPriceAdapter,
         AssetSourceType.CLrETHSynchronicityPriceAdapterPegToBase,
-        AssetSourceType.TETHPriceCapAdapter,
         AssetSourceType.EzETHPriceCapAdapter,
         AssetSourceType.LBTCPriceCapAdapter,
     ]:
@@ -60,6 +59,18 @@ def get_denominator(asset: str, asset_source: str, event=None, transaction=None)
             asset_source, "DENOMINATOR", ttl=CACHE_TTL_4_HOURS
         )
         denominator = int(denominator_base / (10**decimals))
+
+    elif AssetSourceType.TETHPriceCapAdapter:
+        denominator_1 = RpcCacheStorage.get_cached_asset_source_function(
+            asset_source, "RATIO_DECIMALS", ttl=CACHE_TTL_4_HOURS
+        )
+        underlying = RpcCacheStorage.get_cached_asset_source_function(
+            asset_source, "BASE_TO_USD_AGGREGATOR", ttl=CACHE_TTL_4_HOURS
+        )
+        denominator_2 = RpcCacheStorage.get_cached_asset_source_function(
+            underlying, "RATIO_DECIMALS", ttl=CACHE_TTL_4_HOURS
+        )
+        denominator = (10**denominator_1) * (10**denominator_2)
 
     elif asset_source_type in [
         AssetSourceType.GhoOracle,
