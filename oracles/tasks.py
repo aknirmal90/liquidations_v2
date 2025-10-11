@@ -767,7 +767,6 @@ class VerifyHistoricalPriceTask(Task):
             )
 
             try:
-                latest_price_from_rpc = asset_source_interface.latest_price_from_rpc
                 historical_event = asset_source_interface.historical_price_from_event
                 historical_transaction = (
                     asset_source_interface.historical_price_from_transaction
@@ -775,6 +774,8 @@ class VerifyHistoricalPriceTask(Task):
                 predicted_transaction = (
                     asset_source_interface.predicted_price_from_transaction
                 )
+                latest_price_from_rpc = asset_source_interface.latest_price_from_rpc
+
             except Exception as e:
                 logger.error(
                     f"Error getting prices for {price_event.asset} {price_event.asset_source}: {e}"
