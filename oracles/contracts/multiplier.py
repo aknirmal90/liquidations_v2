@@ -221,6 +221,9 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
     elif config_type == "static_get_ratio":
         multiplier = _calculate_static_get_ratio_multiplier(asset_source, config, event)
 
+    elif config_type == "ratio_provider":
+        multiplier = _calculate_ratio_provider_multiplier(asset_source, config, event)
+
     else:
         raise UnsupportedAssetSourceError(f"Unknown config type: {config_type}")
 
