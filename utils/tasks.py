@@ -150,7 +150,9 @@ class EventSynchronizeMixin:
                     )
 
                     if iter_to_block >= global_to_block:
-                        self.update_last_synced_block(network_events, global_to_block)
+                        self.update_last_synced_block(
+                            network_events, global_to_block, locked_event_ids
+                        )
                         logger.info(
                             f"Event Extraction for network {self.network_name} "
                             f"has completed from {global_from_block} to {global_to_block}"
@@ -161,7 +163,9 @@ class EventSynchronizeMixin:
                             iter_to_block - iter_from_block,
                             self.rpc_adapter.max_blockrange_size_for_events,
                         )
-                        self.update_last_synced_block(network_events, iter_to_block)
+                        self.update_last_synced_block(
+                            network_events, iter_to_block, locked_event_ids
+                        )
                         iter_from_block = iter_to_block + 1
 
                         if len(event_dicts) >= self.EVENTS_ARRAY_THRESHOLD_SIZE:
@@ -266,10 +270,26 @@ class EventSynchronizeMixin:
             network_event.save()
             logger.info(f"Number of records inserted: {len(event_logs)}")
 
-    def update_last_synced_block(self, events: List[Any], block: int):
-        self.event_model.objects.filter(id__in=[event.id for event in events]).update(
-            last_synced_block=block, updated_at=datetime.now(pytz.utc)
-        )
+    def update_last_synced_block(
+        self, events: List[Any], block: int, locked_event_ids: List[int] = None
+    ):
+        """
+        Update last_synced_block for events. If locked_event_ids is provided,
+        only update events that have locks obtained.
+        """
+        if locked_event_ids is not None:
+            # Only update events that have locks obtained
+            event_ids_to_update = [
+                event.id for event in events if event.id in locked_event_ids
+            ]
+        else:
+            # Fallback to updating all events (for backward compatibility)
+            event_ids_to_update = [event.id for event in events]
+
+        if event_ids_to_update:
+            self.event_model.objects.filter(id__in=event_ids_to_update).update(
+                last_synced_block=block, updated_at=datetime.now(pytz.utc)
+            )
 
 
 class ParentSynchronizeTaskMixin:
