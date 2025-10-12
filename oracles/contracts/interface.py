@@ -1,4 +1,4 @@
-from oracles.contracts.utils import CACHE_TTL_1_MINUTE, RpcCacheStorage
+from oracles.contracts.utils import RpcCacheStorage
 from utils.clickhouse.client import clickhouse_client
 
 
@@ -10,10 +10,7 @@ class PriceOracleInterface:
 
     @property
     def latest_price_from_rpc(self) -> float:
-        if self.name in ("EACAggregatorProxy", "PriceCapAdapterStable", "GhoOracle"):
-            ttl = CACHE_TTL_1_MINUTE
-        else:
-            ttl = 2  # 2 seconds
+        ttl = 2  # 2 seconds
         return RpcCacheStorage.get_cached_asset_source_function(
             self.asset_source, "latestAnswer", abi=self.abi, ttl=ttl
         )
