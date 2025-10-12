@@ -1,11 +1,12 @@
+import asyncio
 import logging
 
+import orjson as json
+import websockets
 from django.core.cache import cache
 from django.core.management.base import BaseCommand
 
-from oracles.contracts.numerator import get_numerator
 from oracles.management.commands.listen_base import WebsocketCommand
-from oracles.tasks import InsertTransactionNumeratorTask
 from utils.oracle import (
     InvalidMethodSignature,
     InvalidObservations,
@@ -21,27 +22,73 @@ logging.basicConfig(
 
 
 class Command(WebsocketCommand, BaseCommand):
-    help = "Subscribe to new pending transactions on a blockchain using websockets"
+    help = "Subscribe to mempool transactions on QuickNode using websockets"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.total_transactions = 0
+        self.filtered_transactions = 0
+        self.processed_transactions = 0
 
     def get_subscribe_message(self):
-        transmitters = cache.get("transmitters_for_websockets")
+        """
+        Create subscription message for QuickNode mempool transactions.
+        QuickNode uses eth_subscribe with "newPendingTransactions" method.
+        Setting includeTransactions to true to get full transaction payloads.
+        """
         message = {
             "id": "1",
             "jsonrpc": "2.0",
             "method": "eth_subscribe",
-            "params": [
-                "alchemy_pendingTransactions",
-                {
-                    "toAddress": transmitters,
-                },
-            ],
+            "params": ["newPendingTransactions", True],
         }
         logger.debug(f"Subscribe message created: {message}")
         return message
 
+    async def listen(self):
+        """
+        Override the listen method to use QuickNode WebSocket endpoint.
+        """
+        wss = "wss://distinguished-chaotic-field.quiknode.pro/72950ba7ca289f717c9fecd5a8ff574d94ed7eb0"
+        logger.info(f"Connecting to QuickNode mempool WebSocket: {wss}")
+
+        # Pre-compute subscribe message once
+        subscribe_message = self.get_subscribe_message()
+        subscribe_message_json = json.dumps(subscribe_message)
+        logger.info(f"Subscription message: {subscribe_message_json}")
+
+        # Reconnection loop
+        while True:
+            try:
+                # Attempt to connect with optimized settings
+                async with websockets.connect(
+                    wss,
+                    ping_interval=None,  # Disable ping/pong
+                    max_size=2**24,  # Increase max message size
+                    compression=None,  # Disable compression
+                ) as websocket:
+                    await websocket.send(subscribe_message_json)
+                    logger.info("Successfully subscribed to QuickNode mempool")
+
+                    # Process messages as fast as possible
+                    while True:
+                        msg = json.loads(await websocket.recv())
+                        if "params" not in msg:
+                            continue
+
+                        # Process message without awaiting to reduce latency
+                        asyncio.create_task(self.process(msg))
+
+            except websockets.exceptions.ConnectionClosed as e:
+                logger.warning(f"Connection closed with error: {e}. Reconnecting...")
+                await asyncio.sleep(0.1)  # Reduced reconnection delay
+            except Exception as e:
+                logger.error(f"Error in connection: {e}")
+                break
+
     async def process(self, response):
         """
-        Process incoming pending transaction data and parse forwarder calls.
+        Process incoming mempool transaction data with filtering and oracle processing.
         """
         try:
             # Extract transaction data from the response
@@ -49,8 +96,24 @@ class Command(WebsocketCommand, BaseCommand):
                 return
 
             tx_data = response["params"]["result"]
+            self.total_transactions += 1
 
-            logger.info(f"Processing pending transaction: {tx_data}")
+            # Log every 100 transactions for monitoring
+            if self.total_transactions % 100 == 0:
+                logger.info(
+                    f"Processed {self.total_transactions} transactions, "
+                    f"filtered {self.filtered_transactions}, "
+                    f"successfully processed {self.processed_transactions}"
+                )
+
+            # Filter for relevant transactions
+            if not self._is_relevant_transaction(tx_data):
+                return
+
+            self.filtered_transactions += 1
+            logger.info(
+                f"Processing relevant transaction: {tx_data.get('hash', 'unknown')}"
+            )
 
             # Check if this is a forwarder call
             if "input" in tx_data and tx_data["input"].startswith("0x6fadcf72"):
@@ -60,6 +123,7 @@ class Command(WebsocketCommand, BaseCommand):
                     # Parse the forwarder call
                     parsed_data = parse_forwarder_call(tx_data["input"])
                     await self.handle_oracle_update(parsed_data, tx_data)
+                    self.processed_transactions += 1
 
                 except InvalidMethodSignature as e:
                     logger.warning(
@@ -73,48 +137,45 @@ class Command(WebsocketCommand, BaseCommand):
                     logger.error(f"Error parsing forwarder call {tx_data['hash']}: {e}")
 
         except Exception as e:
-            logger.error(f"Error processing transaction: {e}")
+            logger.error(f"Error processing mempool transaction: {e}")
 
-    async def handle_oracle_update(self, parsed_data: dict, tx_data: dict):
+    def _is_relevant_transaction(self, tx_data):
         """
-        Handle oracle price updates and make liquidation decisions.
+        Filter transactions to only process those relevant to oracle updates.
 
         Args:
-            parsed_data: Parsed oracle data from forwarder call
-            tx_data: Original transaction data
+            tx_data: Transaction data from mempool
+
+        Returns:
+            bool: True if transaction is relevant for oracle processing
         """
-        median_price = parsed_data["median_price"]
-        oracle_address = parsed_data["oracle_address"]
-        parsed_data["hash"] = tx_data["hash"]
-        transmitter = tx_data["to"].lower() if tx_data["to"] else None
-        sender = tx_data["from"].lower() if tx_data["from"] else None
+        try:
+            # Get cached transmitters and authorized senders
+            allowed_transmitters = cache.get("transmitters_for_websockets", [])
+            authorized_senders = cache.get("authorized_senders_for_websockets", [])
 
-        asset_sources = cache.get(f"underlying_asset_source_{oracle_address}")
-        allowed_transmitters = cache.get("transmitters_for_websockets")
-        authorized_senders = cache.get("authorized_senders_for_websockets")
-        transaction_numerators = []
+            if not allowed_transmitters or not authorized_senders:
+                logger.warning("No transmitters or authorized senders in cache")
+                return False
 
-        if (
-            asset_sources
-            and transmitter in allowed_transmitters
-            and sender in authorized_senders
-        ):
-            for asset, asset_source in asset_sources:
-                logger.info(
-                    f"Processing oracle update for {asset} with median price: {median_price}"
-                )
-                transaction_numerators.append(
-                    get_numerator(
-                        asset=asset,
-                        asset_source=asset_source,
-                        transaction=parsed_data,
-                    )
-                )
-            InsertTransactionNumeratorTask.delay(transaction_numerators)
-            logger.info(
-                f"Inserted transaction numerators for {asset} with median price: {median_price}"
-            )
-        else:
-            logger.info(
-                f"Skipping transaction {tx_data['hash']} because it is not a valid transmitter or sender"
-            )
+            # Check if transaction is to a known transmitter
+            to_address = tx_data.get("to", "").lower()
+            from_address = tx_data.get("from", "").lower()
+
+            # Must be to a known transmitter
+            if to_address not in allowed_transmitters:
+                return False
+
+            # Must be from an authorized sender
+            if from_address not in authorized_senders:
+                return False
+
+            # Must have input data (for forwarder calls)
+            if not tx_data.get("input") or len(tx_data["input"]) < 10:
+                return False
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error filtering transaction: {e}")
+            return False
