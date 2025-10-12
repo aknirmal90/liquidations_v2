@@ -15,8 +15,8 @@ SELECT
     maxMerge(lb.collateral_liquidityIndex) as collateral_liquidityIndex,
 
     -- Calculate debt value in USD
-    toFloat64(sumMerge(lb.variable_debt_balance)) * lpe.historical_price_usd as debt_value_usd
-    maxMerge(lb.variable_debt_liquidityIndex) as variable_debt_liquidityIndex,
+    toFloat64(sumMerge(lb.variable_debt_balance)) * lpe.historical_price_usd as debt_value_usd,
+    maxMerge(lb.variable_debt_liquidityIndex) as variable_debt_liquidityIndex
 FROM aave_ethereum.LatestBalances lb
 LEFT JOIN aave_ethereum.view_LatestAssetConfiguration ac ON lb.asset = ac.asset
 LEFT JOIN aave_ethereum.LatestPriceEvent lpe ON lb.asset = lpe.asset
