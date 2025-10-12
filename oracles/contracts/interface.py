@@ -10,9 +10,8 @@ class PriceOracleInterface:
 
     @property
     def latest_price_from_rpc(self) -> float:
-        ttl = 2  # 2 seconds
-        return RpcCacheStorage.get_cached_asset_source_function(
-            self.asset_source, "latestAnswer", abi=self.abi, ttl=ttl
+        return RpcCacheStorage.call_function(
+            self.asset_source, "latestAnswer", abi=self.abi
         )
 
     @property
