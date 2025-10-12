@@ -60,7 +60,7 @@ def get_denominator(asset: str, asset_source: str, event=None, transaction=None)
         )
         denominator = int(denominator_base / (10**decimals))
 
-    elif AssetSourceType.TETHPriceCapAdapter:
+    elif asset_source_type == AssetSourceType.TETHPriceCapAdapter:
         denominator_1 = RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "RATIO_DECIMALS", ttl=CACHE_TTL_4_HOURS
         )
@@ -71,7 +71,6 @@ def get_denominator(asset: str, asset_source: str, event=None, transaction=None)
             underlying, "RATIO_DECIMALS", ttl=CACHE_TTL_4_HOURS
         )
         denominator = (10**denominator_1) * (10**denominator_2)
-
     elif asset_source_type in [
         AssetSourceType.GhoOracle,
         AssetSourceType.EACAggregatorProxy,

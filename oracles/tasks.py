@@ -20,7 +20,6 @@ from oracles.contracts.multiplier import get_multiplier
 from oracles.contracts.numerator import get_numerator
 from oracles.contracts.underlying_sources import get_underlying_sources
 from oracles.contracts.utils import (
-    CACHE_TTL_4_HOURS,
     RpcCacheStorage,
     UnsupportedAssetSourceError,
     get_latest_asset_sources,
@@ -490,7 +489,6 @@ class UpdateTransmittersForPriceAggregatorsTask(Task):
                     transmitters = RpcCacheStorage.get_cached_asset_source_function(
                         asset_source=contract_address,
                         function_name="getTransmitters",
-                        ttl=CACHE_TTL_4_HOURS,
                     )
 
                     if transmitters:
@@ -518,7 +516,6 @@ class UpdateTransmittersForPriceAggregatorsTask(Task):
                 authorized_senders = RpcCacheStorage.get_cached_asset_source_function(
                     asset_source=transmitter,
                     function_name="getAuthorizedSenders",
-                    ttl=CACHE_TTL_4_HOURS,
                 )
 
                 if authorized_senders:
