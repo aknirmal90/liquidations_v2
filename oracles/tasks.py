@@ -84,9 +84,9 @@ class InitializePriceEvents(Task):
             if row[1] != "0x0000000000000000000000000000000000000000"
         ]
         variableDebtTokens = [
-            (row[0], row[3])
+            (row[0], row[2])
             for row in reserve_configurations
-            if row[3] != "0x0000000000000000000000000000000000000000"
+            if row[2] != "0x0000000000000000000000000000000000000000"
         ]
 
         all_abis = parse_json(file_path=PROTOCOL_ABI_PATH)
