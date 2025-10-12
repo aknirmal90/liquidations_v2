@@ -35,16 +35,16 @@ def _calculate_pendle_discount_multiplier(asset_source: str, event) -> int:
 
 def _calculate_static_get_teth_ratio_multiplier(asset_source: str, event) -> int:
     """Calculate multiplier for static get teth ratio asset source types."""
-    ratio_1 = RpcCacheStorage.get_cached_asset_source_function(
-        asset_source, "getRatio", ttl=CACHE_TTL_1_MINUTE
-    )
+    # ratio_1 = RpcCacheStorage.get_cached_asset_source_function(
+    #     asset_source, "getRatio", ttl=CACHE_TTL_1_MINUTE
+    # )
     underlying = RpcCacheStorage.get_cached_asset_source_function(
         asset_source, "BASE_TO_USD_AGGREGATOR", ttl=CACHE_TTL_1_MINUTE
     )
     ratio_2 = RpcCacheStorage.get_cached_asset_source_function(
         underlying, "getRatio", ttl=CACHE_TTL_1_MINUTE
     )
-    return ratio_1 * ratio_2
+    return ratio_2
 
 
 def _calculate_ratio_provider_multiplier(asset_source: str, config: dict, event) -> int:
