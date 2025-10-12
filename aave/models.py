@@ -15,7 +15,6 @@ class Asset(models.Model):
     asset = models.CharField(max_length=255, null=False, blank=False)
 
     atoken_address = models.CharField(max_length=255, null=True, blank=True)
-    stable_debt_token_address = models.CharField(max_length=255, null=True, blank=True)
     variable_debt_token_address = models.CharField(
         max_length=255, null=True, blank=True
     )

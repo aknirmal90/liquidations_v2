@@ -83,11 +83,6 @@ class InitializePriceEvents(Task):
             for row in reserve_configurations
             if row[1] != "0x0000000000000000000000000000000000000000"
         ]
-        stableDebtTokens = [
-            (row[0], row[2])
-            for row in reserve_configurations
-            if row[2] != "0x0000000000000000000000000000000000000000"
-        ]
         variableDebtTokens = [
             (row[0], row[3])
             for row in reserve_configurations
@@ -101,11 +96,6 @@ class InitializePriceEvents(Task):
             asset_token_address_pairs=aTokens,
             event_abis=all_events_abis,
             type=BalanceEvent.BalanceType.COLLATERAL,
-        )
-        self._create_mint_burn_transfer_balance_events(
-            asset_token_address_pairs=stableDebtTokens,
-            event_abis=all_events_abis,
-            type=BalanceEvent.BalanceType.STABLE_DEBT,
         )
         self._create_mint_burn_transfer_balance_events(
             asset_token_address_pairs=variableDebtTokens,
