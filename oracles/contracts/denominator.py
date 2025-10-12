@@ -70,7 +70,7 @@ def get_denominator(asset: str, asset_source: str, event=None, transaction=None)
         denominator_2 = RpcCacheStorage.get_cached_asset_source_function(
             underlying, "RATIO_DECIMALS", ttl=CACHE_TTL_4_HOURS
         )
-        denominator = (10**denominator_1) * (10**denominator_2)
+        denominator = (10**denominator_2) * (10**denominator_1)
     elif asset_source_type in [
         AssetSourceType.GhoOracle,
         AssetSourceType.EACAggregatorProxy,
