@@ -277,14 +277,11 @@ class EventSynchronizeMixin:
         Update last_synced_block for events. If locked_event_ids is provided,
         only update events that have locks obtained.
         """
-        if locked_event_ids is not None:
+        if locked_event_ids:
             # Only update events that have locks obtained
             event_ids_to_update = [
                 event.id for event in events if event.id in locked_event_ids
             ]
-        else:
-            # Fallback to updating all events (for backward compatibility)
-            event_ids_to_update = [event.id for event in events]
 
         if event_ids_to_update:
             self.event_model.objects.filter(id__in=event_ids_to_update).update(
