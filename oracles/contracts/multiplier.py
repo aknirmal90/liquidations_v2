@@ -200,7 +200,6 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
         AssetSourceType.EURPriceCapAdapterStable: {"type": "default"},
         AssetSourceType.TETHPriceCapAdapter: {
             "type": "static_get_teth_ratio",
-            "method": "getRatio",
         },
         AssetSourceType.EzETHPriceCapAdapter: {
             "type": "static_get_ratio",
