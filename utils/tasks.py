@@ -31,7 +31,7 @@ class EventSynchronizeMixin:
     network_name: str = None
 
     EVENTS_ARRAY_THRESHOLD_SIZE = 10_000
-    EVENT_LOCK_TIMEOUT = 1800  # 30 minutes for individual event locks
+    EVENT_LOCK_TIMEOUT = 60  # 1 minute for individual event locks
 
     def run(self, event_ids: List[int]):
         """Default run method for child synchronize tasks."""
