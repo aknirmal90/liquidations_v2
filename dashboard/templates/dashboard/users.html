@@ -162,11 +162,9 @@
                         <div class="col-md-8">
                             <div class="mb-3">
                                 <label for="userSearch" class="form-label text-white">Search User Address</label>
-                                <input type="text"
-                                       class="form-control"
-                                       id="userSearch"
-                                       placeholder="Enter user address (0x...)"
-                                       style="background: rgba(255, 255, 255, 0.9);">
+                                <input type="text" class="form-control" id="userSearch"
+                                    placeholder="Enter user address (0x...)"
+                                    style="background: rgba(255, 255, 255, 0.9);">
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -225,7 +223,8 @@
 </div>
 
 <!-- Events Modal -->
-<div class="modal fade events-modal" id="eventsModal" tabindex="-1" aria-labelledby="eventsModalLabel" aria-hidden="true">
+<div class="modal fade events-modal" id="eventsModal" tabindex="-1" aria-labelledby="eventsModalLabel"
+    aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
@@ -245,191 +244,184 @@
 
 {% block extra_js %}
 <script type="text/javascript">
-document.addEventListener('DOMContentLoaded', function() {
-    var currentUser = null;
+    document.addEventListener('DOMContentLoaded', function () {
+        var currentUser = null;
 
-    // Get elements
-    var searchButton = document.getElementById('searchButton');
-    var userSearchInput = document.getElementById('userSearch');
+        // Get elements
+        var searchButton = document.getElementById('searchButton');
+        var userSearchInput = document.getElementById('userSearch');
 
-    // Add event listeners
-    if (searchButton) {
-        searchButton.addEventListener('click', searchUser);
-    }
-
-    if (userSearchInput) {
-        userSearchInput.addEventListener('keypress', function(event) {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                searchUser();
-            }
-        });
-    }
-
-    function searchUser() {
-        console.log('Search function called');
-
-        var userAddress = userSearchInput.value.trim();
-        console.log('User address:', userAddress);
-
-        if (!userAddress) {
-            showError('Please enter a user address');
-            return;
+        // Add event listeners
+        if (searchButton) {
+            searchButton.addEventListener('click', searchUser);
         }
 
-        if (!userAddress.startsWith('0x') || userAddress.length !== 42) {
-            showError('Please enter a valid Ethereum address (0x...)');
-            return;
-        }
-
-        currentUser = userAddress;
-
-        // Show loading
-        document.getElementById('loadingSpinner').style.display = 'block';
-        document.getElementById('resultsContainer').style.display = 'none';
-        document.getElementById('noResults').style.display = 'none';
-        document.getElementById('errorMessage').style.display = 'none';
-
-        // Make API call
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', '/api/user-balances/' + userAddress + '/', true);
-        xhr.setRequestHeader('Accept', 'application/json');
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.setRequestHeader('X-CSRFToken', getCsrfToken());
-
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4) {
-                document.getElementById('loadingSpinner').style.display = 'none';
-
-                if (xhr.status === 200) {
-                    try {
-                        var data = JSON.parse(xhr.responseText);
-                        console.log('Response data:', data);
-                        if (data.error) {
-                            showError(data.error);
-                        } else {
-                            displayBalances(data.balances, userAddress);
-                        }
-                    } catch (e) {
-                        console.error('JSON parse error:', e);
-                        showError('Invalid response from server');
-                    }
-                } else {
-                    console.error('HTTP error:', xhr.status);
-                    showError('Failed to fetch user balances. Status: ' + xhr.status);
+        if (userSearchInput) {
+            userSearchInput.addEventListener('keypress', function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    searchUser();
                 }
+            });
+        }
+
+        function searchUser() {
+            console.log('Search function called');
+
+            var userAddress = userSearchInput.value.trim();
+            console.log('User address:', userAddress);
+
+            if (!userAddress) {
+                showError('Please enter a user address');
+                return;
             }
+
+            if (!userAddress.startsWith('0x') || userAddress.length !== 42) {
+                showError('Please enter a valid Ethereum address (0x...)');
+                return;
+            }
+
+            currentUser = userAddress;
+
+            // Show loading
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('resultsContainer').style.display = 'none';
+            document.getElementById('noResults').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+
+            // Make API call
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/api/user-balances/' + userAddress + '/', true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.setRequestHeader('X-CSRFToken', getCsrfToken());
+
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                    document.getElementById('loadingSpinner').style.display = 'none';
+
+                    if (xhr.status === 200) {
+                        try {
+                            var data = JSON.parse(xhr.responseText);
+                            console.log('Response data:', data);
+                            if (data.error) {
+                                showError(data.error);
+                            } else {
+                                displayBalances(data.balances, userAddress);
+                            }
+                        } catch (e) {
+                            console.error('JSON parse error:', e);
+                            showError('Invalid response from server');
+                        }
+                    } else {
+                        console.error('HTTP error:', xhr.status);
+                        showError('Failed to fetch user balances. Status: ' + xhr.status);
+                    }
+                }
+            };
+
+            xhr.send();
+        }
+
+        function getCsrfToken() {
+            var tokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
+            return tokenElement ? tokenElement.value : '';
+        }
+
+        function displayBalances(balances, userAddress) {
+            var resultsContainer = document.getElementById('resultsContainer');
+            var balancesContainer = document.getElementById('balancesContainer');
+            var noResults = document.getElementById('noResults');
+            var userAddressSpan = document.getElementById('userAddress');
+
+            userAddressSpan.textContent = userAddress;
+
+            if (!balances || balances.length === 0) {
+                resultsContainer.style.display = 'none';
+                noResults.style.display = 'block';
+                return;
+            }
+
+            var balancesHtml = '';
+
+            for (var i = 0; i < balances.length; i++) {
+                var balance = balances[i];
+                var isCollateralEnabled = balance.is_enabled_as_collateral > 0;
+
+                balancesHtml += '<div class="balance-card">';
+                balancesHtml += '<div class="asset-header">';
+                balancesHtml += '<div>';
+                balancesHtml += '<h6 class="mb-1">' + balance.asset + '</h6>';
+                balancesHtml += '<div class="asset-address">' + balance.asset + '</div>';
+                balancesHtml += '</div>';
+                balancesHtml += '<div>';
+                if (isCollateralEnabled) {
+                    balancesHtml += '<span class="collateral-badge">Collateral Enabled</span>';
+                } else {
+                    balancesHtml += '<span class="collateral-badge disabled">Collateral Disabled</span>';
+                }
+                balancesHtml += '</div>';
+                balancesHtml += '</div>';
+
+                balancesHtml += '<div class="balance-grid">';
+                balancesHtml += '<div class="balance-item">';
+                balancesHtml += '<div class="balance-label">Collateral Balance</div>';
+                balancesHtml += '<div class="balance-value ' + getBalanceClass(balance.collateral_balance) + '">';
+                balancesHtml += formatBalance(balance.collateral_balance);
+                balancesHtml += '</div>';
+                balancesHtml += '<div class="balance-label mt-1">Liquidity Index: ' + balance.collateral_liquidityIndex + '</div>';
+                balancesHtml += '</div>';
+
+
+                balancesHtml += '<div class="balance-item">';
+                balancesHtml += '<div class="balance-label">Variable Debt</div>';
+                balancesHtml += '<div class="balance-value ' + getBalanceClass(balance.variable_debt_balance) + '">';
+                balancesHtml += formatBalance(balance.variable_debt_balance);
+                balancesHtml += '</div>';
+                balancesHtml += '<div class="balance-label mt-1">Liquidity Index: ' + balance.variable_debt_liquidityIndex + '</div>';
+                balancesHtml += '</div>';
+
+                balancesHtml += '</div>';
+                balancesHtml += '</div>';
+            }
+
+            balancesContainer.innerHTML = balancesHtml;
+            resultsContainer.style.display = 'block';
+            noResults.style.display = 'none';
+        }
+
+        function getBalanceClass(balance) {
+            if (balance > 0) return 'positive';
+            if (balance < 0) return 'negative';
+            return 'zero';
+        }
+
+        function formatBalance(balance) {
+            if (balance === 0) return '0';
+            return Number(balance).toLocaleString(undefined, {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 6
+            });
+        }
+
+        function showError(message) {
+            var errorMessage = document.getElementById('errorMessage');
+            var errorText = document.getElementById('errorText');
+
+            errorText.textContent = message;
+            errorMessage.style.display = 'block';
+
+            // Hide other containers
+            document.getElementById('resultsContainer').style.display = 'none';
+            document.getElementById('noResults').style.display = 'none';
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+
+        // Make functions available globally for testing
+        window.testSearch = function () {
+            userSearchInput.value = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
+            searchUser();
         };
-
-        xhr.send();
-    }
-
-    function getCsrfToken() {
-        var tokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
-        return tokenElement ? tokenElement.value : '';
-    }
-
-    function displayBalances(balances, userAddress) {
-        var resultsContainer = document.getElementById('resultsContainer');
-        var balancesContainer = document.getElementById('balancesContainer');
-        var noResults = document.getElementById('noResults');
-        var userAddressSpan = document.getElementById('userAddress');
-
-        userAddressSpan.textContent = userAddress;
-
-        if (!balances || balances.length === 0) {
-            resultsContainer.style.display = 'none';
-            noResults.style.display = 'block';
-            return;
-        }
-
-        var balancesHtml = '';
-
-        for (var i = 0; i < balances.length; i++) {
-            var balance = balances[i];
-            var isCollateralEnabled = balance.is_enabled_as_collateral > 0;
-
-            balancesHtml += '<div class="balance-card">';
-            balancesHtml += '<div class="asset-header">';
-            balancesHtml += '<div>';
-            balancesHtml += '<h6 class="mb-1">' + balance.asset + '</h6>';
-            balancesHtml += '<div class="asset-address">' + balance.asset + '</div>';
-            balancesHtml += '</div>';
-            balancesHtml += '<div>';
-            if (isCollateralEnabled) {
-                balancesHtml += '<span class="collateral-badge">Collateral Enabled</span>';
-            } else {
-                balancesHtml += '<span class="collateral-badge disabled">Collateral Disabled</span>';
-            }
-            balancesHtml += '</div>';
-            balancesHtml += '</div>';
-
-            balancesHtml += '<div class="balance-grid">';
-            balancesHtml += '<div class="balance-item">';
-            balancesHtml += '<div class="balance-label">Collateral Balance</div>';
-            balancesHtml += '<div class="balance-value ' + getBalanceClass(balance.collateral_balance) + '">';
-            balancesHtml += formatBalance(balance.collateral_balance);
-            balancesHtml += '</div>';
-            balancesHtml += '<div class="balance-label mt-1">Liquidity Index: ' + balance.collateral_liquidityIndex + '</div>';
-            balancesHtml += '</div>';
-
-            balancesHtml += '<div class="balance-item">';
-            balancesHtml += '<div class="balance-label">Stable Debt</div>';
-            balancesHtml += '<div class="balance-value ' + getBalanceClass(balance.stable_debt_balance) + '">';
-            balancesHtml += formatBalance(balance.stable_debt_balance);
-            balancesHtml += '</div>';
-            balancesHtml += '<div class="balance-label mt-1">Liquidity Index: ' + balance.stable_debt_liquidityIndex + '</div>';
-            balancesHtml += '</div>';
-
-            balancesHtml += '<div class="balance-item">';
-            balancesHtml += '<div class="balance-label">Variable Debt</div>';
-            balancesHtml += '<div class="balance-value ' + getBalanceClass(balance.variable_debt_balance) + '">';
-            balancesHtml += formatBalance(balance.variable_debt_balance);
-            balancesHtml += '</div>';
-            balancesHtml += '<div class="balance-label mt-1">Liquidity Index: ' + balance.variable_debt_liquidityIndex + '</div>';
-            balancesHtml += '</div>';
-
-            balancesHtml += '</div>';
-            balancesHtml += '</div>';
-        }
-
-        balancesContainer.innerHTML = balancesHtml;
-        resultsContainer.style.display = 'block';
-        noResults.style.display = 'none';
-    }
-
-    function getBalanceClass(balance) {
-        if (balance > 0) return 'positive';
-        if (balance < 0) return 'negative';
-        return 'zero';
-    }
-
-    function formatBalance(balance) {
-        if (balance === 0) return '0';
-        return Number(balance).toLocaleString(undefined, {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 6
-        });
-    }
-
-    function showError(message) {
-        var errorMessage = document.getElementById('errorMessage');
-        var errorText = document.getElementById('errorText');
-
-        errorText.textContent = message;
-        errorMessage.style.display = 'block';
-
-        // Hide other containers
-        document.getElementById('resultsContainer').style.display = 'none';
-        document.getElementById('noResults').style.display = 'none';
-        document.getElementById('loadingSpinner').style.display = 'none';
-    }
-
-    // Make functions available globally for testing
-    window.testSearch = function() {
-        userSearchInput.value = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
-        searchUser();
-    };
-});
+    });
 </script>
 {% endblock %}

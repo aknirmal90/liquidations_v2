@@ -137,7 +137,6 @@ def asset_detail(request, asset_address):
         SELECT
             asset,
             aToken,
-            stableDebtToken,
             variableDebtToken,
             interestRateStrategyAddress,
             name,
@@ -737,27 +736,26 @@ def asset_detail(request, asset_address):
             "asset": {
                 "address": asset_config[0],
                 "aToken": asset_config[1],
-                "stableDebtToken": asset_config[2],
-                "variableDebtToken": asset_config[3],
-                "interest_rate_strategy": asset_config[4],
-                "name": asset_config[5] or "Unknown",
-                "symbol": asset_config[6] or "Unknown",
+                "variableDebtToken": asset_config[2],
+                "interest_rate_strategy": asset_config[3],
+                "name": asset_config[4] or "Unknown",
+                "symbol": asset_config[5] or "Unknown",
                 "price_event_name": event_price_data.get("name")
                 if event_price_data
                 else "Unknown",
-                "decimals": asset_config[7] or 18,
-                "decimals_places": asset_config[8] or 18,
-                "collateral_ltv": round(asset_config[9] / 100.0, 2) or 0,
-                "collateral_liquidation_threshold": round(asset_config[10] / 100.0, 2)
+                "decimals": asset_config[6] or 18,
+                "decimals_places": asset_config[7] or 18,
+                "collateral_ltv": round(asset_config[8] / 100.0, 2) or 0,
+                "collateral_liquidation_threshold": round(asset_config[9] / 100.0, 2)
                 or 0,
                 "collateral_liquidation_bonus": max(
-                    round((asset_config[11] / 100.0) - 100.00, 2) or 0, 0
+                    round((asset_config[10] / 100.0) - 100.00, 2) or 0, 0
                 ),
-                "emode_category_id": asset_config[12],
-                "emode_ltv": round(asset_config[13] / 100.0, 2) or 0,
-                "emode_liquidation_threshold": round(asset_config[14] / 100.0, 2) or 0,
+                "emode_category_id": asset_config[11],
+                "emode_ltv": round(asset_config[12] / 100.0, 2) or 0,
+                "emode_liquidation_threshold": round(asset_config[13] / 100.0, 2) or 0,
                 "emode_liquidation_bonus": max(
-                    round((asset_config[15] / 100.0) - 100.00, 2) or 0, 0
+                    round((asset_config[14] / 100.0) - 100.00, 2) or 0, 0
                 ),
                 "current_price": current_price,
                 "asset_source": asset_source,
@@ -766,9 +764,8 @@ def asset_detail(request, asset_address):
             "addresses": {
                 "asset": get_simple_explorer_url(asset_config[0]),
                 "aToken": get_simple_explorer_url(asset_config[1]),
-                "stableDebtToken": get_simple_explorer_url(asset_config[2]),
-                "variableDebtToken": get_simple_explorer_url(asset_config[3]),
-                "interest_rate_strategy": get_simple_explorer_url(asset_config[4]),
+                "variableDebtToken": get_simple_explorer_url(asset_config[2]),
+                "interest_rate_strategy": get_simple_explorer_url(asset_config[3]),
             },
             "source_events": source_events,
             "collateral_events": collateral_events,
@@ -3400,19 +3397,19 @@ def user_balances_api(request, user_address):
     try:
         query = """
         SELECT
-            user,
-            asset,
-            sumMerge(is_enabled_as_collateral) as is_enabled_as_collateral_total,
-            sumMerge(collateral_balance) as collateral_balance_total,
-            maxMerge(collateral_liquidityIndex) as collateral_liquidityIndex_total,
-            sumMerge(stable_debt_balance) as stable_debt_balance_total,
-            maxMerge(stable_debt_liquidityIndex) as stable_debt_liquidityIndex,
-            sumMerge(variable_debt_balance) as variable_debt_balance_total,
-            maxMerge(variable_debt_liquidityIndex) as variable_debt_liquidityIndex
-        FROM aave_ethereum.LatestBalances
-        WHERE user = %(user_address)s
-        GROUP BY user, asset
-        ORDER BY asset
+            lb.user,
+            lb.asset,
+            COALESCE(csd.is_enabled_as_collateral, 0) as is_enabled_as_collateral_total,
+            sumMerge(lb.collateral_balance) as collateral_balance_total,
+            maxMerge(lb.collateral_liquidityIndex) as collateral_liquidityIndex_total,
+            sumMerge(lb.variable_debt_balance) as variable_debt_balance_total,
+            maxMerge(lb.variable_debt_liquidityIndex) as variable_debt_liquidityIndex
+        FROM aave_ethereum.LatestBalances lb
+        LEFT JOIN aave_ethereum.CollateralStatusDictionary csd
+            ON lb.user = csd.user AND lb.asset = csd.asset
+        WHERE lb.user = %(user_address)s
+        GROUP BY lb.user, lb.asset, csd.is_enabled_as_collateral
+        ORDER BY lb.asset
         """
 
         result = clickhouse_client.execute_query(query, {"user_address": user_address})
@@ -3425,10 +3422,8 @@ def user_balances_api(request, user_address):
                 "is_enabled_as_collateral": int(row[2]) if row[2] else 0,
                 "collateral_balance": float(row[3]) if row[3] else 0,
                 "collateral_liquidityIndex": int(row[4]) if row[4] else 0,
-                "stable_debt_balance": float(row[5]) if row[5] else 0,
-                "stable_debt_liquidityIndex": int(row[6]) if row[6] else 0,
-                "variable_debt_balance": float(row[7]) if row[7] else 0,
-                "variable_debt_liquidityIndex": int(row[8]) if row[8] else 0,
+                "variable_debt_balance": float(row[5]) if row[5] else 0,
+                "variable_debt_liquidityIndex": int(row[6]) if row[6] else 0,
             }
             balances.append(balance)
 

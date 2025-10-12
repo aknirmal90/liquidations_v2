@@ -24,7 +24,13 @@ from aave.inlines import (
     get_transfer_events_for_address,
     get_withdraw_events_for_address,
 )
-from aave.models import AaveBalanceLog, AaveDataQualityAnalyticsReport, AaveLiquidationLog, Asset, AssetPriceLog
+from aave.models import (
+    AaveBalanceLog,
+    AaveDataQualityAnalyticsReport,
+    AaveLiquidationLog,
+    Asset,
+    AssetPriceLog,
+)
 from utils.admin import (
     EnableDisableAdminMixin,
     format_pretty_json,
@@ -36,137 +42,152 @@ from utils.admin import (
 @admin.register(Asset)
 class AssetAdmin(EnableDisableAdminMixin, admin.ModelAdmin):
     list_display = (
-        'symbol',
-        'network',
-        'get_asset_link',
-        'is_enabled',
-        'get_pricesource_link',
-        'emode_category',
-        'price_in_nativeasset',
-        'priceA',
-        'priceB',
-        'liquidation_threshold',
-        'liquidation_bonus',
-        'emode_liquidation_threshold',
-        'emode_liquidation_bonus',
+        "symbol",
+        "network",
+        "get_asset_link",
+        "is_enabled",
+        "get_pricesource_link",
+        "emode_category",
+        "price_in_nativeasset",
+        "priceA",
+        "priceB",
+        "liquidation_threshold",
+        "liquidation_bonus",
+        "emode_liquidation_threshold",
+        "emode_liquidation_bonus",
     )
     list_filter = (
-        'network',
-        'is_enabled',
-        'emode_category',
-        'price_type',
+        "network",
+        "is_enabled",
+        "emode_category",
+        "price_type",
     )
 
     fieldsets = (
-        ('Asset Information', {
-            'fields': (
-                ('symbol', 'network'),
-                'is_enabled',
-                ('decimals', 'num_decimals'),
-                'get_asset_link',
-                ('collateral_liquidity_index', 'borrow_liquidity_index')
-            )
-        }),
-        ('Associated Token Addresses', {
-            'fields': (
-                'get_atoken_address_link',
-                'get_stable_debt_token_address_link',
-                'get_variable_debt_token_address_link',
-            )
-        }),
-        ('Price Information', {
-            'fields': (
-                ('price', 'price_in_nativeasset'),
-                ('get_pricesource_link', 'price_type'),
-                ('get_contractA_link', 'priceA', 'decimals_price'),
-                ('get_contractB_link', 'priceB', 'max_cap')
-            )
-        }),
-        ('Risk Parameters', {
-            'fields': (
-                ('liquidation_threshold', 'liquidation_bonus'),
-                'emode_category',
-                ('emode_liquidation_threshold', 'emode_liquidation_bonus')
-            )
-        }),
+        (
+            "Asset Information",
+            {
+                "fields": (
+                    ("symbol", "network"),
+                    "is_enabled",
+                    ("decimals", "num_decimals"),
+                    "get_asset_link",
+                    ("collateral_liquidity_index", "borrow_liquidity_index"),
+                )
+            },
+        ),
+        (
+            "Associated Token Addresses",
+            {
+                "fields": (
+                    "get_atoken_address_link",
+                    "get_variable_debt_token_address_link",
+                )
+            },
+        ),
+        (
+            "Price Information",
+            {
+                "fields": (
+                    ("price", "price_in_nativeasset"),
+                    ("get_pricesource_link", "price_type"),
+                    ("get_contractA_link", "priceA", "decimals_price"),
+                    ("get_contractB_link", "priceB", "max_cap"),
+                )
+            },
+        ),
+        (
+            "Risk Parameters",
+            {
+                "fields": (
+                    ("liquidation_threshold", "liquidation_bonus"),
+                    "emode_category",
+                    ("emode_liquidation_threshold", "emode_liquidation_bonus"),
+                )
+            },
+        ),
     )
 
     readonly_fields = (
-        'symbol',
-        'network',
-        'decimals',
-        'num_decimals',
-        'get_asset_link',
-        'get_atoken_address_link',
-        'get_stable_debt_token_address_link',
-        'get_variable_debt_token_address_link',
-        'liquidation_threshold',
-        'liquidation_bonus',
-        'emode_liquidation_threshold',
-        'emode_liquidation_bonus',
-        'emode_category',
-        'get_pricesource_link',
-        'get_contractA_link',
-        'get_contractB_link',
-        'priceA',
-        'priceB',
-        'decimals_price',
-        'max_cap',
-        'price',
-        'price_in_nativeasset',
-        'price_type',
-        'borrow_liquidity_index',
-        'collateral_liquidity_index'
+        "symbol",
+        "network",
+        "decimals",
+        "num_decimals",
+        "get_asset_link",
+        "get_atoken_address_link",
+        "get_variable_debt_token_address_link",
+        "liquidation_threshold",
+        "liquidation_bonus",
+        "emode_liquidation_threshold",
+        "emode_liquidation_bonus",
+        "emode_category",
+        "get_pricesource_link",
+        "get_contractA_link",
+        "get_contractB_link",
+        "priceA",
+        "priceB",
+        "decimals_price",
+        "max_cap",
+        "price",
+        "price_in_nativeasset",
+        "price_type",
+        "borrow_liquidity_index",
+        "collateral_liquidity_index",
     )
 
     def get_asset_link(self, obj):
         return get_explorer_address_url(obj.network, obj.asset)
+
     get_asset_link.short_description = "Asset"
 
     def get_atoken_address_link(self, obj):
         return get_explorer_address_url(obj.network, obj.atoken_address)
-    get_atoken_address_link.short_description = "aToken Address"
 
-    def get_stable_debt_token_address_link(self, obj):
-        return get_explorer_address_url(obj.network, obj.stable_debt_token_address)
-    get_stable_debt_token_address_link.short_description = "Stable Debt Token Address"
+    get_atoken_address_link.short_description = "aToken Address"
 
     def get_variable_debt_token_address_link(self, obj):
         return get_explorer_address_url(obj.network, obj.variable_debt_token_address)
-    get_variable_debt_token_address_link.short_description = "Variable Debt Token Address"
+
+    get_variable_debt_token_address_link.short_description = (
+        "Variable Debt Token Address"
+    )
 
     def get_contractA_link(self, obj):
         return get_explorer_address_url(obj.network, obj.contractA)
+
     get_contractA_link.short_description = "Contract A"
 
     def get_contractB_link(self, obj):
         return get_explorer_address_url(obj.network, obj.contractB)
+
     get_contractB_link.short_description = "Contract B"
 
     def get_pricesource_link(self, obj):
         return get_explorer_address_url(obj.network, obj.pricesource)
+
     get_pricesource_link.short_description = "Price Source"
 
 
 @admin.register(AssetPriceLog)
 class AssetPriceLogAdmin(admin.ModelAdmin):
     list_display = (
-        'id',
-        'get_aggregator_address_link',
-        'provider',
-        'network',
-        'price',
-        'round_id',
-        'get_rpc_latency_ms',
-        'get_parsing_latency_ms',
-        'get_celery_latency_ms'
+        "id",
+        "get_aggregator_address_link",
+        "provider",
+        "network",
+        "price",
+        "round_id",
+        "get_rpc_latency_ms",
+        "get_parsing_latency_ms",
+        "get_celery_latency_ms",
     )
-    list_filter = ('network', 'onchain_created_at', 'db_created_at', 'provider')
-    search_fields = ('aggregator_address', 'round_id')
-    ordering = ('-db_created_at',)
+    list_filter = ("network", "onchain_created_at", "db_created_at", "provider")
+    search_fields = ("aggregator_address", "round_id")
+    ordering = ("-db_created_at",)
 
     def get_aggregator_address_link(self, obj):
         return get_explorer_address_url(obj.network, obj.aggregator_address)
+
     get_aggregator_address_link.short_description = "Asset Address"
 
     def get_rpc_latency_ms(self, obj):
@@ -174,6 +195,7 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
             delta = obj.onchain_received_at - obj.onchain_created_at
             return int(delta.total_seconds() * 1000)
         return None
+
     get_rpc_latency_ms.short_description = "RPC Latency (ms)"
 
     def get_parsing_latency_ms(self, obj):
@@ -181,322 +203,367 @@ class AssetPriceLogAdmin(admin.ModelAdmin):
             delta = obj.processed_at - obj.onchain_received_at
             return int(delta.total_seconds() * 1000)
         return None
+
     get_parsing_latency_ms.short_description = "Parsing Latency (ms)"
 
     def get_celery_latency_ms(self, obj):
         if obj.processed_at:
             delta = obj.db_created_at - obj.processed_at
             return int(delta.total_seconds() * 1000)
+
     get_celery_latency_ms.short_description = "Celery Latency (ms)"
 
     readonly_fields = (
-        'db_created_at',
-        'get_aggregator_address_link',
-        'aggregator_address',
-        'network',
-        'price',
-        'round_id',
-        'onchain_created_at',
-        'onchain_received_at',
-        'processed_at',
-        'get_rpc_latency_ms',
-        'get_parsing_latency_ms',
-        'get_celery_latency_ms',
-        'id',
-        'provider',
+        "db_created_at",
+        "get_aggregator_address_link",
+        "aggregator_address",
+        "network",
+        "price",
+        "round_id",
+        "onchain_created_at",
+        "onchain_received_at",
+        "processed_at",
+        "get_rpc_latency_ms",
+        "get_parsing_latency_ms",
+        "get_celery_latency_ms",
+        "id",
+        "provider",
     )
 
     fieldsets = (
-        ('Asset Information', {
-            'fields': (
-                'aggregator_address',
-                'provider',
-                'get_aggregator_address_link',
-                'network',
-            )
-        }),
-        ('Price Information', {
-            'fields': (
-                'price',
-                'round_id'
-            )
-        }),
-        ('Timestamps', {
-            'fields': (
-                'onchain_created_at',
-                'db_created_at',
-                'onchain_received_at',
-                'processed_at',
-                'get_rpc_latency_ms',
-                'get_parsing_latency_ms',
-                'get_celery_latency_ms'
-            )
-        })
+        (
+            "Asset Information",
+            {
+                "fields": (
+                    "aggregator_address",
+                    "provider",
+                    "get_aggregator_address_link",
+                    "network",
+                )
+            },
+        ),
+        ("Price Information", {"fields": ("price", "round_id")}),
+        (
+            "Timestamps",
+            {
+                "fields": (
+                    "onchain_created_at",
+                    "db_created_at",
+                    "onchain_received_at",
+                    "processed_at",
+                    "get_rpc_latency_ms",
+                    "get_parsing_latency_ms",
+                    "get_celery_latency_ms",
+                )
+            },
+        ),
     )
 
 
 @admin.register(AaveLiquidationLog)
 class AaveLiquidationLogAdmin(admin.ModelAdmin):
     list_display = (
-        'id',
-        'get_transaction_hash_link',
-        'network',
-        'block_datetime',
-        'transaction_index',
-        'get_liquidator_link',
-        'collateral_asset',
-        'debt_asset',
-        'profit_in_usd',
-        'health_factor_t',
-        'health_factor_t0',
-        'health_factor_t1',
-        'health_factor_t2',
-        'health_factor_t3'
+        "id",
+        "get_transaction_hash_link",
+        "network",
+        "block_datetime",
+        "transaction_index",
+        "get_liquidator_link",
+        "collateral_asset",
+        "debt_asset",
+        "profit_in_usd",
+        "health_factor_t",
+        "health_factor_t0",
+        "health_factor_t1",
+        "health_factor_t2",
+        "health_factor_t3",
     )
 
     def health_factor_t(self, obj):
         if obj.health_factor_before_tx is None:
             return None
-        return obj.health_factor_before_tx < Decimal('1.00')
+        return obj.health_factor_before_tx < Decimal("1.00")
+
     health_factor_t.boolean = True
-    health_factor_t.short_description = 'T'
+    health_factor_t.short_description = "T"
 
     def health_factor_t0(self, obj):
         if obj.health_factor_before_zero_blocks is None:
             return None
-        return obj.health_factor_before_zero_blocks < Decimal('1.00')
+        return obj.health_factor_before_zero_blocks < Decimal("1.00")
+
     health_factor_t0.boolean = True
-    health_factor_t0.short_description = 'T-0'
+    health_factor_t0.short_description = "T-0"
 
     def health_factor_t1(self, obj):
         if obj.health_factor_before_one_blocks is None:
             return None
-        return obj.health_factor_before_one_blocks < Decimal('1.00')
+        return obj.health_factor_before_one_blocks < Decimal("1.00")
+
     health_factor_t1.boolean = True
-    health_factor_t1.short_description = 'T-1'
+    health_factor_t1.short_description = "T-1"
 
     def health_factor_t2(self, obj):
         if obj.health_factor_before_two_blocks is None:
             return None
-        return obj.health_factor_before_two_blocks < Decimal('1.00')
+        return obj.health_factor_before_two_blocks < Decimal("1.00")
+
     health_factor_t2.boolean = True
-    health_factor_t2.short_description = 'T-2'
+    health_factor_t2.short_description = "T-2"
 
     def health_factor_t3(self, obj):
         if obj.health_factor_before_three_blocks is None:
             return None
-        return obj.health_factor_before_three_blocks < Decimal('1.00')
+        return obj.health_factor_before_three_blocks < Decimal("1.00")
+
     health_factor_t3.boolean = True
-    health_factor_t3.short_description = 'T-3'
+    health_factor_t3.short_description = "T-3"
 
     list_filter = (
-        'network',
-        'collateral_asset',
-        'debt_asset',
-        'db_created_at',
+        "network",
+        "collateral_asset",
+        "debt_asset",
+        "db_created_at",
     )
 
     search_fields = (
-        'transaction_hash',
-        'user',
-        'liquidator',
-        'collateral_asset__symbol',
-        'debt_asset__symbol',
+        "transaction_hash",
+        "user",
+        "liquidator",
+        "collateral_asset__symbol",
+        "debt_asset__symbol",
     )
 
     fieldsets = (
-        ('Transaction Information', {
-            'fields': (
-                'get_transaction_hash_link',
-                'block_datetime',
-                'block_height',
-                'transaction_index',
-                'network',
-            )
-        }),
-        ('Addresses', {
-            'fields': (
-                'user',
-                'get_liquidator_link',
-            )
-        }),
-        ('Assets and Amounts', {
-            'fields': (
-                ('profit_in_usd'),
-                ('collateral_asset', 'liquidated_collateral_amount', 'liquidated_collateral_amount_in_usd'),
-                ('debt_asset', 'debt_to_cover', 'debt_to_cover_in_usd'),
-            )
-        }),
-        ('Simulations', {
-            'fields': (
-                'health_factor_before_tx',
-                'health_factor_before_zero_blocks',
-                'health_factor_before_one_blocks',
-                'health_factor_before_two_blocks',
-                'health_factor_before_three_blocks',
-            )
-        }),
-        ('Timestamps', {
-            'fields': (
-                'onchain_created_at',
-                'onchain_received_at',
-                'db_created_at',
-            )
-        }),
+        (
+            "Transaction Information",
+            {
+                "fields": (
+                    "get_transaction_hash_link",
+                    "block_datetime",
+                    "block_height",
+                    "transaction_index",
+                    "network",
+                )
+            },
+        ),
+        (
+            "Addresses",
+            {
+                "fields": (
+                    "user",
+                    "get_liquidator_link",
+                )
+            },
+        ),
+        (
+            "Assets and Amounts",
+            {
+                "fields": (
+                    ("profit_in_usd"),
+                    (
+                        "collateral_asset",
+                        "liquidated_collateral_amount",
+                        "liquidated_collateral_amount_in_usd",
+                    ),
+                    ("debt_asset", "debt_to_cover", "debt_to_cover_in_usd"),
+                )
+            },
+        ),
+        (
+            "Simulations",
+            {
+                "fields": (
+                    "health_factor_before_tx",
+                    "health_factor_before_zero_blocks",
+                    "health_factor_before_one_blocks",
+                    "health_factor_before_two_blocks",
+                    "health_factor_before_three_blocks",
+                )
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": (
+                    "onchain_created_at",
+                    "onchain_received_at",
+                    "db_created_at",
+                )
+            },
+        ),
     )
 
     readonly_fields = (
-        'transaction_hash',
-        'block_datetime',
-        'block_height',
-        'transaction_index',
-        'network',
-        'user',
-        'liquidator',
-        'collateral_asset',
-        'liquidated_collateral_amount',
-        'liquidated_collateral_amount_in_usd',
-        'debt_asset',
-        'debt_to_cover',
-        'debt_to_cover_in_usd',
-        'onchain_created_at',
-        'onchain_received_at',
-        'db_created_at',
-        'get_liquidator_link',
-        'get_transaction_hash_link',
-        'id',
-        'health_factor_before_tx',
-        'health_factor_before_zero_blocks',
-        'health_factor_before_one_blocks',
-        'health_factor_before_two_blocks',
-        'health_factor_before_three_blocks',
-        'profit_in_usd'
+        "transaction_hash",
+        "block_datetime",
+        "block_height",
+        "transaction_index",
+        "network",
+        "user",
+        "liquidator",
+        "collateral_asset",
+        "liquidated_collateral_amount",
+        "liquidated_collateral_amount_in_usd",
+        "debt_asset",
+        "debt_to_cover",
+        "debt_to_cover_in_usd",
+        "onchain_created_at",
+        "onchain_received_at",
+        "db_created_at",
+        "get_liquidator_link",
+        "get_transaction_hash_link",
+        "id",
+        "health_factor_before_tx",
+        "health_factor_before_zero_blocks",
+        "health_factor_before_one_blocks",
+        "health_factor_before_two_blocks",
+        "health_factor_before_three_blocks",
+        "profit_in_usd",
     )
 
-    ordering = ('-block_height', '-transaction_index',)
+    ordering = (
+        "-block_height",
+        "-transaction_index",
+    )
 
     def get_transaction_hash_link(self, obj):
         return get_explorer_transaction_url(obj.network, obj.transaction_hash)
-    get_transaction_hash_link.short_description = 'Transaction Hash'
+
+    get_transaction_hash_link.short_description = "Transaction Hash"
 
     def get_liquidator_link(self, obj):
         return get_explorer_address_url(obj.network, obj.liquidator)
-    get_liquidator_link.short_description = 'Liquidator'
+
+    get_liquidator_link.short_description = "Liquidator"
 
 
 @admin.register(AaveBalanceLog)
 class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
     list_display = (
-        'id',
-        'network',
-        'get_address_link',
-        'asset',
-        'collateral_amount',
-        'borrow_amount',
-        'collateral_health_factor',
-        'price_in_nativeasset'
+        "id",
+        "network",
+        "get_address_link",
+        "asset",
+        "collateral_amount",
+        "borrow_amount",
+        "collateral_health_factor",
+        "price_in_nativeasset",
     )
 
     list_filter = (
-        'network',
-        'collateral_is_enabled',
-        'borrow_is_enabled',
-        'collateral_amount_live_is_verified',
-        'borrow_amount_live_is_verified',
-        'mark_for_deletion',
-        'collateral_liquidity_index_verified',
-        'borrow_liquidity_index_verified',
-        'is_verified',
-        'is_emode_verified',
-        'is_collateral_enabled_verified'
+        "network",
+        "collateral_is_enabled",
+        "borrow_is_enabled",
+        "collateral_amount_live_is_verified",
+        "borrow_amount_live_is_verified",
+        "mark_for_deletion",
+        "collateral_liquidity_index_verified",
+        "borrow_liquidity_index_verified",
+        "is_verified",
+        "is_emode_verified",
+        "is_collateral_enabled_verified",
     )
 
-    search_fields = (
-        'address',
-        'asset__symbol'
-    )
+    search_fields = ("address", "asset__symbol")
 
     readonly_fields = (
-        'id',
-        'network',
-        'get_address_link',
-        'address',
-        'asset',
-        'last_updated_collateral_liquidity_index',
-        'last_updated_borrow_liquidity_index',
-        'collateral_amount',
-        'collateral_amount_live',
-        'collateral_is_enabled',
-        'borrow_amount',
-        'borrow_is_enabled',
-        'get_collateral_amount_contract',
-        'collateral_amount_live_is_verified',
-        'get_collateral_aggregate_amounts',
-        'borrow_amount_live',
-        'borrow_amount_live_is_verified',
-        'get_borrow_amount_contract',
-        'get_borrow_aggregate_amounts',
-        'get_user_reserve_data',
-        'get_collateral_indexes',
-        'get_borrow_indexes',
-        'collateral_is_enabled_updated_at_block',
-        'collateral_is_enabled',
-        'price_in_nativeasset',
-        'collateral_health_factor',
-        'collateral_liquidity_index_verified',
-        'borrow_liquidity_index_verified',
-        'is_verified',
-        'is_emode_verified',
-        'is_collateral_enabled_verified',
-        'emode_category',
-        'get_emode_category'
+        "id",
+        "network",
+        "get_address_link",
+        "address",
+        "asset",
+        "last_updated_collateral_liquidity_index",
+        "last_updated_borrow_liquidity_index",
+        "collateral_amount",
+        "collateral_amount_live",
+        "collateral_is_enabled",
+        "borrow_amount",
+        "borrow_is_enabled",
+        "get_collateral_amount_contract",
+        "collateral_amount_live_is_verified",
+        "get_collateral_aggregate_amounts",
+        "borrow_amount_live",
+        "borrow_amount_live_is_verified",
+        "get_borrow_amount_contract",
+        "get_borrow_aggregate_amounts",
+        "get_user_reserve_data",
+        "get_collateral_indexes",
+        "get_borrow_indexes",
+        "collateral_is_enabled_updated_at_block",
+        "collateral_is_enabled",
+        "price_in_nativeasset",
+        "collateral_health_factor",
+        "collateral_liquidity_index_verified",
+        "borrow_liquidity_index_verified",
+        "is_verified",
+        "is_emode_verified",
+        "is_collateral_enabled_verified",
+        "emode_category",
+        "get_emode_category",
     )
 
     fieldsets = (
-        ('Account Information', {
-            'fields': (
-                'get_address_link',
-                'network',
-                'asset',
-                'emode_category',
-                ('get_collateral_indexes', 'get_borrow_indexes'),
-                ('collateral_is_enabled_updated_at_block', 'collateral_is_enabled'),
-            )
-        }),
-        ('Collateral Details', {
-            'fields': (
-                'collateral_amount',
-                'collateral_amount_live',
-                'get_collateral_amount_contract',
-            )
-        }),
-        ('Borrow Details', {
-            'fields': (
-                'borrow_amount',
-                'borrow_amount_live',
-                'get_borrow_amount_contract',
-            )
-        }),
-        ('Verification Status', {
-            'fields': (
-                'is_verified',
-                ('collateral_amount_live_is_verified', 'borrow_amount_live_is_verified'),
-                ('collateral_liquidity_index_verified', 'borrow_liquidity_index_verified'),
-                ('is_emode_verified', 'is_collateral_enabled_verified'),
-            )
-        }),
-        ('Aggregate Event Details', {
-            'fields': (
-                'get_collateral_aggregate_amounts',
-                'get_borrow_aggregate_amounts',
-            )
-        }),
-        ('Contract Data', {
-            'fields': (
-                'get_user_reserve_data',
-                'get_emode_category'
-            )
-        })
+        (
+            "Account Information",
+            {
+                "fields": (
+                    "get_address_link",
+                    "network",
+                    "asset",
+                    "emode_category",
+                    ("get_collateral_indexes", "get_borrow_indexes"),
+                    ("collateral_is_enabled_updated_at_block", "collateral_is_enabled"),
+                )
+            },
+        ),
+        (
+            "Collateral Details",
+            {
+                "fields": (
+                    "collateral_amount",
+                    "collateral_amount_live",
+                    "get_collateral_amount_contract",
+                )
+            },
+        ),
+        (
+            "Borrow Details",
+            {
+                "fields": (
+                    "borrow_amount",
+                    "borrow_amount_live",
+                    "get_borrow_amount_contract",
+                )
+            },
+        ),
+        (
+            "Verification Status",
+            {
+                "fields": (
+                    "is_verified",
+                    (
+                        "collateral_amount_live_is_verified",
+                        "borrow_amount_live_is_verified",
+                    ),
+                    (
+                        "collateral_liquidity_index_verified",
+                        "borrow_liquidity_index_verified",
+                    ),
+                    ("is_emode_verified", "is_collateral_enabled_verified"),
+                )
+            },
+        ),
+        (
+            "Aggregate Event Details",
+            {
+                "fields": (
+                    "get_collateral_aggregate_amounts",
+                    "get_borrow_aggregate_amounts",
+                )
+            },
+        ),
+        ("Contract Data", {"fields": ("get_user_reserve_data", "get_emode_category")}),
     )
 
     inlines = [
@@ -512,7 +579,8 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
 
     def get_address_link(self, obj):
         return get_explorer_address_url(obj.network, obj.address)
-    get_address_link.short_description = 'Address'
+
+    get_address_link.short_description = "Address"
 
     @action(label="Get Logs")
     def get_logs(self, request, obj):
@@ -544,14 +612,18 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
 
             self.message_user(request, "Successfully fetched all logs")
         except Exception as e:
-            self.message_user(request, f"Error fetching logs: {str(e)}", level='ERROR')
+            self.message_user(request, f"Error fetching logs: {str(e)}", level="ERROR")
 
-    change_actions = ('get_logs', )
+    change_actions = ("get_logs",)
 
     def get_collateral_amount_contract(self, obj):
         provider = AaveDataProvider(obj.network)
-        user_reserve = provider.getUserReserveData(obj.asset.asset, [obj.address])[0]['result']
-        collateral_amount_contract = Decimal(user_reserve.currentATokenBalance) / obj.asset.decimals
+        user_reserve = provider.getUserReserveData(obj.asset.asset, [obj.address])[0][
+            "result"
+        ]
+        collateral_amount_contract = (
+            Decimal(user_reserve.currentATokenBalance) / obj.asset.decimals
+        )
         collateral_amount_live = obj.get_scaled_balance("collateral")
 
         if collateral_amount_live:
@@ -559,36 +631,43 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         else:
             difference = 0
 
-        if difference and collateral_amount_contract != Decimal('0'):
-            pct_difference = (difference / collateral_amount_contract) * Decimal('10000.000000')
+        if difference and collateral_amount_contract != Decimal("0"):
+            pct_difference = (difference / collateral_amount_contract) * Decimal(
+                "10000.000000"
+            )
         else:
             pct_difference = 0
 
         # Determine color for the difference
-        color = 'green' if difference and difference >= 0 else 'red'
+        color = "green" if difference and difference >= 0 else "red"
         return mark_safe(
-            '''
+            """
             <div>
                 <div>Contract: <span style="color: blue">{}</span></div>
                 <div>Live: <span style="color: blue">{}</span></div>
                 <div>Difference: <span style="color: {}">{:+}</span></div>
                 <div>% Difference: <span style="color: {}">{:+.6f} bps</span></div>
             </div>
-            '''.format(
+            """.format(
                 collateral_amount_contract,
                 collateral_amount_live or 0,
                 color,
                 difference,
                 color,
-                pct_difference
+                pct_difference,
             )
         )
-    get_collateral_amount_contract.short_description = 'Collateral Amount Contract'
+
+    get_collateral_amount_contract.short_description = "Collateral Amount Contract"
 
     def get_borrow_amount_contract(self, obj):
         provider = AaveDataProvider(obj.network)
-        user_reserve = provider.getUserReserveData(obj.asset.asset, [obj.address])[0]['result']
-        borrow_amount_contract = Decimal(user_reserve.currentVariableDebt) / obj.asset.decimals
+        user_reserve = provider.getUserReserveData(obj.asset.asset, [obj.address])[0][
+            "result"
+        ]
+        borrow_amount_contract = (
+            Decimal(user_reserve.currentVariableDebt) / obj.asset.decimals
+        )
         borrow_amount_live = obj.get_scaled_balance("borrow")
 
         if borrow_amount_live:
@@ -596,75 +675,70 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
         else:
             difference = 0
 
-        if difference and borrow_amount_contract != Decimal('0'):
-            pct_difference = (difference / borrow_amount_contract) * Decimal('10000.000000')
+        if difference and borrow_amount_contract != Decimal("0"):
+            pct_difference = (difference / borrow_amount_contract) * Decimal(
+                "10000.000000"
+            )
         else:
             pct_difference = 0
 
         # Determine color for the difference
-        color = 'green' if difference and difference >= 0 else 'red'
+        color = "green" if difference and difference >= 0 else "red"
         return mark_safe(
-            '''
+            """
             <div>
                 <div>Contract: <span style="color: blue">{}</span></div>
                 <div>Live: <span style="color: blue">{}</span></div>
                 <div>Difference: <span style="color: {}">{:+}</span></div>
                 <div>% Difference: <span style="color: {}">{:+.6f} bps</span></div>
             </div>
-            '''.format(
+            """.format(
                 borrow_amount_contract,
                 borrow_amount_live or 0,
                 color,
                 difference,
                 color,
-                pct_difference
+                pct_difference,
             )
         )
-    get_borrow_amount_contract.short_description = 'Borrow Amount Contract'
+
+    get_borrow_amount_contract.short_description = "Borrow Amount Contract"
 
     def get_collateral_aggregate_amounts(self, obj):
-        total_mint = (
-            obj.aavemintevent_set.filter(type="collateral").aggregate(
-                models.Sum('value'))['value__sum'] or Decimal('0')
-        )
-        total_mint_interest = (
-            obj.aavemintevent_set.filter(type="collateral").aggregate(
-                models.Sum('balance_increase'))['balance_increase__sum'] or Decimal('0')
-        )
-        total_burn = (
-            obj.aaveburnevent_set.filter(type="collateral").aggregate(
-                models.Sum('value'))['value__sum'] or Decimal('0')
-        )
-        total_burn_interest = (
-            obj.aaveburnevent_set.filter(type="collateral").aggregate(
-                models.Sum('balance_increase'))['balance_increase__sum'] or Decimal('0')
-        )
-        total_transfer_in = (
-            obj.aavetransferevent_set.filter(
-                to_address__iexact=obj.address
-            ).aggregate(models.Sum('value'))['value__sum'] or Decimal('0')
-        )
-        total_transfer_out = (
-            obj.aavetransferevent_set.filter(
-                from_address__iexact=obj.address
-            ).aggregate(models.Sum('value'))['value__sum'] or Decimal('0')
-        )
-        total_supply = (
-            obj.aavesupplyevent_set.aggregate(
-                models.Sum('amount'))['amount__sum'] or Decimal('0')
-        )
-        total_withdraw = (
-            obj.aavewithdrawevent_set.aggregate(
-                models.Sum('amount'))['amount__sum'] or Decimal('0')
-        )
+        total_mint = obj.aavemintevent_set.filter(type="collateral").aggregate(
+            models.Sum("value")
+        )["value__sum"] or Decimal("0")
+        total_mint_interest = obj.aavemintevent_set.filter(type="collateral").aggregate(
+            models.Sum("balance_increase")
+        )["balance_increase__sum"] or Decimal("0")
+        total_burn = obj.aaveburnevent_set.filter(type="collateral").aggregate(
+            models.Sum("value")
+        )["value__sum"] or Decimal("0")
+        total_burn_interest = obj.aaveburnevent_set.filter(type="collateral").aggregate(
+            models.Sum("balance_increase")
+        )["balance_increase__sum"] or Decimal("0")
+        total_transfer_in = obj.aavetransferevent_set.filter(
+            to_address__iexact=obj.address
+        ).aggregate(models.Sum("value"))["value__sum"] or Decimal("0")
+        total_transfer_out = obj.aavetransferevent_set.filter(
+            from_address__iexact=obj.address
+        ).aggregate(models.Sum("value"))["value__sum"] or Decimal("0")
+        total_supply = obj.aavesupplyevent_set.aggregate(models.Sum("amount"))[
+            "amount__sum"
+        ] or Decimal("0")
+        total_withdraw = obj.aavewithdrawevent_set.aggregate(models.Sum("amount"))[
+            "amount__sum"
+        ] or Decimal("0")
 
-        mint_burn_diff = total_mint - total_burn + total_transfer_in - total_transfer_out
+        mint_burn_diff = (
+            total_mint - total_burn + total_transfer_in - total_transfer_out
+        )
         mint_burn_interest_diff = total_mint_interest - total_burn_interest
 
         event_diff = total_supply - total_withdraw
 
         return mark_safe(
-            '''
+            """
             <div>
                 <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
                 <div>Total Mint: <span style="color: green">{:+}</span>
@@ -684,57 +758,54 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
                 <div>Total Event Diff: <span style="color: {};">{:+}</span></div>
                 <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
             </div>
-            '''.format(
+            """.format(
                 total_mint,
                 total_mint_interest,
                 total_burn,
                 total_burn_interest,
                 total_transfer_in,
                 total_transfer_out,
-                'green' if mint_burn_diff >= 0 else 'red',
+                "green" if mint_burn_diff >= 0 else "red",
                 mint_burn_diff,
-                'green' if mint_burn_interest_diff >= 0 else 'red',
+                "green" if mint_burn_interest_diff >= 0 else "red",
                 mint_burn_interest_diff,
                 total_supply,
                 total_withdraw,
-                'green' if event_diff >= 0 else 'red',
-                event_diff
+                "green" if event_diff >= 0 else "red",
+                event_diff,
             )
         )
-    get_collateral_aggregate_amounts.short_description = 'Aggregate Collateral Event Amounts'
+
+    get_collateral_aggregate_amounts.short_description = (
+        "Aggregate Collateral Event Amounts"
+    )
 
     def get_borrow_aggregate_amounts(self, obj):
-        total_mint = (
-            obj.aavemintevent_set.filter(type="borrow").aggregate(
-                models.Sum('value'))['value__sum'] or Decimal('0')
-        )
-        total_mint_interest = (
-            obj.aavemintevent_set.filter(type="borrow").aggregate(
-                models.Sum('balance_increase'))['balance_increase__sum'] or Decimal('0')
-        )
-        total_burn = (
-            obj.aaveburnevent_set.filter(type="borrow").aggregate(
-                models.Sum('value'))['value__sum'] or Decimal('0')
-        )
-        total_burn_interest = (
-            obj.aaveburnevent_set.filter(type="borrow").aggregate(
-                models.Sum('balance_increase'))['balance_increase__sum'] or Decimal('0')
-        )
-        total_borrow = (
-            obj.aaveborrowevent_set.aggregate(
-                models.Sum('amount'))['amount__sum'] or Decimal('0')
-        )
-        total_repay = (
-            obj.aaverepayevent_set.aggregate(
-                models.Sum('amount'))['amount__sum'] or Decimal('0')
-        )
+        total_mint = obj.aavemintevent_set.filter(type="borrow").aggregate(
+            models.Sum("value")
+        )["value__sum"] or Decimal("0")
+        total_mint_interest = obj.aavemintevent_set.filter(type="borrow").aggregate(
+            models.Sum("balance_increase")
+        )["balance_increase__sum"] or Decimal("0")
+        total_burn = obj.aaveburnevent_set.filter(type="borrow").aggregate(
+            models.Sum("value")
+        )["value__sum"] or Decimal("0")
+        total_burn_interest = obj.aaveburnevent_set.filter(type="borrow").aggregate(
+            models.Sum("balance_increase")
+        )["balance_increase__sum"] or Decimal("0")
+        total_borrow = obj.aaveborrowevent_set.aggregate(models.Sum("amount"))[
+            "amount__sum"
+        ] or Decimal("0")
+        total_repay = obj.aaverepayevent_set.aggregate(models.Sum("amount"))[
+            "amount__sum"
+        ] or Decimal("0")
 
         mint_burn_diff = total_mint - total_burn
         mint_burn_interest_diff = total_mint_interest - total_burn_interest
         event_diff = total_borrow - total_repay
 
         return mark_safe(
-            '''
+            """
             <div>
                 <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
                 <div>Total Mint: <span style="color: green">{:+}</span>
@@ -752,45 +823,49 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
                 <div>Total Event Diff: <span style="color: {};">{:+}</span></div>
                 <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
             </div>
-            '''.format(
+            """.format(
                 total_mint,
                 total_mint_interest,
                 total_burn,
                 total_burn_interest,
-                'green' if mint_burn_diff >= 0 else 'red',
+                "green" if mint_burn_diff >= 0 else "red",
                 mint_burn_diff,
-                'green' if mint_burn_interest_diff >= 0 else 'red',
+                "green" if mint_burn_interest_diff >= 0 else "red",
                 mint_burn_interest_diff,
                 total_borrow,
                 total_repay,
-                'green' if event_diff >= 0 else 'red',
-                event_diff
+                "green" if event_diff >= 0 else "red",
+                event_diff,
             )
         )
-    get_borrow_aggregate_amounts.short_description = 'Aggregate Borrow Event Amounts'
+
+    get_borrow_aggregate_amounts.short_description = "Aggregate Borrow Event Amounts"
 
     def get_user_reserve_data(self, obj):
         provider = AaveDataProvider(network_name=obj.network.name)
-        user_reserve = provider.getUserReserveData(reserve=obj.asset.asset, users=[obj.address])[0]['result']
+        user_reserve = provider.getUserReserveData(
+            reserve=obj.asset.asset, users=[obj.address]
+        )[0]["result"]
         return format_pretty_json(json_data=dict(user_reserve))
-    get_user_reserve_data.short_description = 'User Reserve Data'
+
+    get_user_reserve_data.short_description = "User Reserve Data"
 
     def get_emode_category(self, obj):
         provider = AaveDataProvider(network_name=obj.network.name)
-        emode_category = provider.getUserEMode(users=[obj.address])[0]['result']
+        emode_category = provider.getUserEMode(users=[obj.address])[0]["result"]
         return format_pretty_json(json_data=dict(emode_category))
-    get_emode_category.short_description = 'E-Mode Category'
+
+    get_emode_category.short_description = "E-Mode Category"
 
     def get_collateral_indexes(self, obj):
         provider = AaveDataProvider(obj.network.name)
         previous_collateral_index = provider.getPreviousIndex(
-            obj.asset.atoken_address,
-            [obj.address]
-        )[0]['result'].index
+            obj.asset.atoken_address, [obj.address]
+        )[0]["result"].index
         db_index = obj.last_updated_collateral_liquidity_index
 
         return mark_safe(
-            '''
+            """
             <div>
                 <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
                 <div>Contract Value: <span>{}</span></div>
@@ -799,25 +874,25 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
                 <div>Diff: <span style="color: {};">{:+}</span></div>
                 <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
             </div>
-            '''.format(
+            """.format(
                 previous_collateral_index,
                 db_index,
-                'green' if previous_collateral_index >= db_index else 'red',
-                previous_collateral_index - db_index
+                "green" if previous_collateral_index >= db_index else "red",
+                previous_collateral_index - db_index,
             )
         )
-    get_collateral_indexes.short_description = 'Collateral Indexes'
+
+    get_collateral_indexes.short_description = "Collateral Indexes"
 
     def get_borrow_indexes(self, obj):
         provider = AaveDataProvider(obj.network.name)
         previous_borrow_index = provider.getPreviousIndex(
-            obj.asset.variable_debt_token_address,
-            [obj.address]
-        )[0]['result'].index
+            obj.asset.variable_debt_token_address, [obj.address]
+        )[0]["result"].index
         db_index = obj.last_updated_borrow_liquidity_index
 
         return mark_safe(
-            '''
+            """
             <div>
                 <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
                 <div>Contract Value: <span>{}</span></div>
@@ -826,135 +901,163 @@ class AaveBalanceLogAdmin(DjangoObjectActions, admin.ModelAdmin):
                 <div>Diff: <span style="color: {};">{:+}</span></div>
                 <div style="border-bottom: 1px solid #ccc; margin: 10px 0;"></div>
             </div>
-            '''.format(
+            """.format(
                 previous_borrow_index,
                 db_index,
-                'green' if previous_borrow_index >= db_index else 'red',
-                previous_borrow_index - db_index
+                "green" if previous_borrow_index >= db_index else "red",
+                previous_borrow_index - db_index,
             )
         )
-    get_borrow_indexes.short_description = 'Borrow Indexes'
+
+    get_borrow_indexes.short_description = "Borrow Indexes"
 
 
 @admin.register(AaveDataQualityAnalyticsReport)
 class AaveDataQualityAnalyticsReportAdmin(admin.ModelAdmin):
     list_display = (
-        'date',
-        'network',
-        'get_collateral_verification_rate',
-        'get_borrow_verification_rate',
-        'num_collateral_verified',
-        'num_collateral_unverified',
-        'num_collateral_deleted',
-        'num_borrow_verified',
-        'num_borrow_unverified',
-        'num_borrow_deleted',
-        'num_collateral_index_verified',
-        'num_borrow_index_verified',
-        'num_collateral_index_unverified',
-        'num_borrow_index_unverified',
-        'get_collateral_index_verification_rate',
-        'get_borrow_index_verification_rate',
-        'num_emode_verified',
-        'num_emode_unverified',
-        'num_collateral_enabled_verified',
-        'num_collateral_enabled_unverified',
-        'num_all_verified',
-        'num_all_unverified',
+        "date",
+        "network",
+        "get_collateral_verification_rate",
+        "get_borrow_verification_rate",
+        "num_collateral_verified",
+        "num_collateral_unverified",
+        "num_collateral_deleted",
+        "num_borrow_verified",
+        "num_borrow_unverified",
+        "num_borrow_deleted",
+        "num_collateral_index_verified",
+        "num_borrow_index_verified",
+        "num_collateral_index_unverified",
+        "num_borrow_index_unverified",
+        "get_collateral_index_verification_rate",
+        "get_borrow_index_verification_rate",
+        "num_emode_verified",
+        "num_emode_unverified",
+        "num_collateral_enabled_verified",
+        "num_collateral_enabled_unverified",
+        "num_all_verified",
+        "num_all_unverified",
     )
 
     list_filter = (
-        'network',
-        'date',
+        "network",
+        "date",
     )
 
     readonly_fields = (
-        'date',
-        'network',
-        'num_collateral_verified',
-        'num_collateral_unverified',
-        'num_collateral_deleted',
-        'num_borrow_verified',
-        'num_borrow_unverified',
-        'num_borrow_deleted',
-        'get_collateral_verification_rate',
-        'get_borrow_verification_rate',
-        'num_collateral_index_verified',
-        'num_borrow_index_verified',
-        'num_collateral_index_unverified',
-        'num_borrow_index_unverified',
-        'get_collateral_index_verification_rate',
-        'get_borrow_index_verification_rate',
-        'num_emode_verified',
-        'num_emode_unverified',
-        'num_collateral_enabled_verified',
-        'num_collateral_enabled_unverified',
-        'num_all_verified',
-        'num_all_unverified',
+        "date",
+        "network",
+        "num_collateral_verified",
+        "num_collateral_unverified",
+        "num_collateral_deleted",
+        "num_borrow_verified",
+        "num_borrow_unverified",
+        "num_borrow_deleted",
+        "get_collateral_verification_rate",
+        "get_borrow_verification_rate",
+        "num_collateral_index_verified",
+        "num_borrow_index_verified",
+        "num_collateral_index_unverified",
+        "num_borrow_index_unverified",
+        "get_collateral_index_verification_rate",
+        "get_borrow_index_verification_rate",
+        "num_emode_verified",
+        "num_emode_unverified",
+        "num_collateral_enabled_verified",
+        "num_collateral_enabled_unverified",
+        "num_all_verified",
+        "num_all_unverified",
     )
 
     fieldsets = (
-        ('Report Information', {
-            'fields': (
-                'date',
-                'network',
-            )
-        }),
-        ('Overall Metrics', {
-            'fields': (
-                ('num_all_verified', 'num_all_unverified'),
-            )
-        }),
-        ('Collateral Metrics', {
-            'fields': (
-                ('num_collateral_verified', 'num_collateral_unverified', 'num_collateral_deleted'),
-                'get_collateral_verification_rate',
-                ('num_collateral_index_verified', 'num_collateral_index_unverified'),
-                'get_collateral_index_verification_rate',
-                ('num_collateral_enabled_verified', 'num_collateral_enabled_unverified'),
-                ('num_emode_verified', 'num_emode_unverified'),
-            )
-        }),
-        ('Borrow Metrics', {
-            'fields': (
-                ('num_borrow_verified', 'num_borrow_unverified', 'num_borrow_deleted'),
-                'get_borrow_verification_rate',
-                ('num_borrow_index_verified', 'num_borrow_index_unverified'),
-                'get_borrow_index_verification_rate',
-            )
-        }),
+        (
+            "Report Information",
+            {
+                "fields": (
+                    "date",
+                    "network",
+                )
+            },
+        ),
+        ("Overall Metrics", {"fields": (("num_all_verified", "num_all_unverified"),)}),
+        (
+            "Collateral Metrics",
+            {
+                "fields": (
+                    (
+                        "num_collateral_verified",
+                        "num_collateral_unverified",
+                        "num_collateral_deleted",
+                    ),
+                    "get_collateral_verification_rate",
+                    (
+                        "num_collateral_index_verified",
+                        "num_collateral_index_unverified",
+                    ),
+                    "get_collateral_index_verification_rate",
+                    (
+                        "num_collateral_enabled_verified",
+                        "num_collateral_enabled_unverified",
+                    ),
+                    ("num_emode_verified", "num_emode_unverified"),
+                )
+            },
+        ),
+        (
+            "Borrow Metrics",
+            {
+                "fields": (
+                    (
+                        "num_borrow_verified",
+                        "num_borrow_unverified",
+                        "num_borrow_deleted",
+                    ),
+                    "get_borrow_verification_rate",
+                    ("num_borrow_index_verified", "num_borrow_index_unverified"),
+                    "get_borrow_index_verification_rate",
+                )
+            },
+        ),
     )
 
-    ordering = ('-date',)
+    ordering = ("-date",)
 
     def get_collateral_verification_rate(self, obj):
         total = obj.num_collateral_verified + obj.num_collateral_unverified
         if total == 0:
-            return '0%'
+            return "0%"
         rate = (obj.num_collateral_verified / total) * 100
-        return f'{rate:.2f}%'
-    get_collateral_verification_rate.short_description = 'Collateral Verification Rate'
+        return f"{rate:.2f}%"
+
+    get_collateral_verification_rate.short_description = "Collateral Verification Rate"
 
     def get_borrow_verification_rate(self, obj):
         total = obj.num_borrow_verified + obj.num_borrow_unverified
         if total == 0:
-            return '0%'
+            return "0%"
         rate = (obj.num_borrow_verified / total) * 100
-        return f'{rate:.2f}%'
-    get_borrow_verification_rate.short_description = 'Borrow Verification Rate'
+        return f"{rate:.2f}%"
+
+    get_borrow_verification_rate.short_description = "Borrow Verification Rate"
 
     def get_borrow_index_verification_rate(self, obj):
         total = obj.num_borrow_index_verified + obj.num_borrow_index_unverified
         if total == 0:
-            return '0%'
+            return "0%"
         rate = (obj.num_borrow_index_verified / total) * 100
-        return f'{rate:.2f}%'
-    get_borrow_index_verification_rate.short_description = 'Borrow Index Verification Rate'
+        return f"{rate:.2f}%"
+
+    get_borrow_index_verification_rate.short_description = (
+        "Borrow Index Verification Rate"
+    )
 
     def get_collateral_index_verification_rate(self, obj):
         total = obj.num_collateral_index_verified + obj.num_collateral_index_unverified
         if total == 0:
-            return '0%'
+            return "0%"
         rate = (obj.num_collateral_index_verified / total) * 100
-        return f'{rate:.2f}%'
-    get_collateral_index_verification_rate.short_description = 'Collateral Index Verification Rate'
+        return f"{rate:.2f}%"
+
+    get_collateral_index_verification_rate.short_description = (
+        "Collateral Index Verification Rate"
+    )

@@ -2,7 +2,6 @@ CREATE OR REPLACE VIEW aave_ethereum.view_LatestAssetConfiguration AS
 SELECT
     aave_ethereum.ReserveInitialized.asset AS asset,
     aave_ethereum.ReserveInitialized.aToken AS aToken,
-    aave_ethereum.ReserveInitialized.stableDebtToken AS stableDebtToken,
     aave_ethereum.ReserveInitialized.variableDebtToken AS variableDebtToken,
     aave_ethereum.ReserveInitialized.interestRateStrategyAddress AS interestRateStrategyAddress,
 
