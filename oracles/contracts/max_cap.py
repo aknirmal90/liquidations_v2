@@ -141,6 +141,36 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
             asset_source, "MAX_CAP", max_cap, CACHE_TTL_4_HOURS
         )
 
+    elif asset_source_type == AssetSourceType.TETHPriceCapAdapter:
+        max_cap_type = MaxCapType.MAX_MULTIPLIER_CAP
+        block_number = event.blockNumber
+        block_timestamp = (
+            get_evm_block_timestamps([block_number])[block_number] / 1_000_000
+        )
+
+        snapshot_ratio = RpcCacheStorage.get_cached_asset_source_function(
+            asset_source, "getSnapshotRatio", ttl=CACHE_TTL_4_HOURS
+        )
+        max_ratio_growth_per_second = RpcCacheStorage.get_cached_asset_source_function(
+            asset_source, "getMaxRatioGrowthPerSecond", ttl=CACHE_TTL_4_HOURS
+        )
+        snapshot_timestamp = RpcCacheStorage.get_cached_asset_source_function(
+            asset_source, "getSnapshotTimestamp", ttl=CACHE_TTL_4_HOURS
+        )
+        max_cap_1 = snapshot_ratio + max_ratio_growth_per_second * (
+            block_timestamp - snapshot_timestamp
+        )
+        underlying = RpcCacheStorage.get_cached_asset_source_function(
+            asset_source, "BASE_TO_USD_AGGREGATOR", ttl=CACHE_TTL_4_HOURS
+        )
+        max_cap_2 = RpcCacheStorage.get_cached_asset_source_function(
+            underlying, "MAX_CAP", ttl=CACHE_TTL_4_HOURS
+        )
+        max_cap = max_cap_1 * max_cap_2
+        RpcCacheStorage.set_cache_with_ttl(
+            asset_source, "MAX_CAP", max_cap, CACHE_TTL_4_HOURS
+        )
+
     # All other asset source types: No max cap (return 0)
     elif asset_source_type in [
         AssetSourceType.EACAggregatorProxy,
@@ -152,7 +182,6 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
         AssetSourceType.GhoOracle,
         AssetSourceType.WstETHSynchronicityPriceAdapter,
         AssetSourceType.sDAISynchronicityPriceAdapter,
-        AssetSourceType.TETHPriceCapAdapter,
     ]:
         max_cap = 0
         max_cap_type = MaxCapType.NO_CAP
