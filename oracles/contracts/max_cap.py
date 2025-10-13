@@ -116,7 +116,6 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
         AssetSourceType.EBTCPriceCapAdapter,
         AssetSourceType.EUSDePriceCapAdapter,
         AssetSourceType.sDAIMainnetPriceCapAdapter,
-        AssetSourceType.TETHPriceCapAdapter,
         AssetSourceType.EzETHPriceCapAdapter,
         AssetSourceType.LBTCPriceCapAdapter,
     ):
@@ -153,6 +152,7 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
         AssetSourceType.GhoOracle,
         AssetSourceType.WstETHSynchronicityPriceAdapter,
         AssetSourceType.sDAISynchronicityPriceAdapter,
+        AssetSourceType.TETHPriceCapAdapter,
     ]:
         max_cap = 0
         max_cap_type = MaxCapType.NO_CAP
