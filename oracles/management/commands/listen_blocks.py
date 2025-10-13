@@ -3,6 +3,7 @@ import logging
 from django.core.cache import cache
 from django.core.management.base import BaseCommand
 
+from balances.tasks import ParentBalancesSynchronizeTask
 from blockchains.tasks import ParentSynchronizeTask, UpdateNetworkBlockInfoTask
 from oracles.management.commands.listen_base import WebsocketCommand
 from oracles.tasks import PriceEventDynamicSynchronizeTask
@@ -77,6 +78,7 @@ class Command(WebsocketCommand, BaseCommand):
 
             ParentSynchronizeTask.delay()
             PriceEventDynamicSynchronizeTask.delay()
+            ParentBalancesSynchronizeTask.delay()
 
         except Exception as e:
             logger.error(f"Error processing block data: {e}")
