@@ -6,7 +6,7 @@ AS SELECT
     maxState(toUInt256(0)) as collateral_liquidityIndex,
     sumState(toInt256(0)) as collateral_balance,
     maxState(index) as variable_debt_liquidityIndex,
-    sumState(toInt256(value + balanceIncrease)) as variable_debt_balance
+    sumState(toInt256(value - balanceIncrease)) as variable_debt_balance
 FROM aave_ethereum.Mint
 WHERE type = 'VariableDebt'
 GROUP BY onBehalfOf, asset;

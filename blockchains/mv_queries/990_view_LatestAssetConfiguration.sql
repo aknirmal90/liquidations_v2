@@ -17,7 +17,10 @@ SELECT
     aave_ethereum.LatestTokenMetadata.name AS name,
     aave_ethereum.LatestTokenMetadata.symbol AS symbol,
     aave_ethereum.LatestTokenMetadata.decimals AS decimals,
-    aave_ethereum.LatestTokenMetadata.decimals_places AS decimals_places
+    aave_ethereum.LatestTokenMetadata.decimals_places AS decimals_places,
+
+    aave_ethereum.LatestPriceEvent.historical_price_usd AS historical_event_price,
+    aave_ethereum.LatestPriceTransaction.predicted_price AS predicted_transaction_price
 
 FROM aave_ethereum.ReserveInitialized
 LEFT JOIN aave_ethereum.LatestCollateralConfigurationChanged
@@ -27,4 +30,8 @@ LEFT JOIN aave_ethereum.LatestEModeAssetCategoryChanged
 LEFT JOIN aave_ethereum.LatestEModeCategoryAdded
     ON aave_ethereum.LatestEModeAssetCategoryChanged.newCategoryId = aave_ethereum.LatestEModeCategoryAdded.categoryId
 LEFT JOIN aave_ethereum.LatestTokenMetadata
-    ON aave_ethereum.ReserveInitialized.asset = aave_ethereum.LatestTokenMetadata.asset;
+    ON aave_ethereum.ReserveInitialized.asset = aave_ethereum.LatestTokenMetadata.asset
+LEFT JOIN aave_ethereum.LatestPriceEvent
+    ON aave_ethereum.ReserveInitialized.asset = aave_ethereum.LatestPriceEvent.asset
+LEFT JOIN aave_ethereum.LatestPriceTransaction
+    ON aave_ethereum.ReserveInitialized.asset = aave_ethereum.LatestPriceTransaction.asset;
