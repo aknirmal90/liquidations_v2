@@ -267,6 +267,10 @@
                     <i class="fas fa-users me-2"></i>
                     Users
                 </a>
+                <a class="nav-link" href="{% url 'dashboard:tests' %}">
+                    <i class="fas fa-vial me-2"></i>
+                    Tests
+                </a>
             </div>
         </div>
     </nav>
@@ -288,7 +292,7 @@
                         </div>
                         <div class="page-subtitle">
                             {% if transaction_hash %}
-                                Transaction: {{ transaction_hash|truncatechars:16 }}...
+                            Transaction: {{ transaction_hash|truncatechars:16 }}...
                             {% endif %}
                         </div>
                     </div>
@@ -296,672 +300,708 @@
             </div>
 
             {% if error %}
-                <div class="row">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-body error-message">
-                                <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
-                                <h4>Error</h4>
-                                <p>{{ error }}</p>
-                            </div>
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body error-message">
+                            <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                            <h4>Error</h4>
+                            <p>{{ error }}</p>
                         </div>
                     </div>
                 </div>
+            </div>
             {% else %}
-                <!-- Liquidation Summary -->
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <div class="card">
-                            <h5 class="section-header">
-                                <i class="fas fa-info-circle me-2"></i>
-                                Liquidation Summary
-                            </h5>
-                            <div class="card-body p-0">
-                                <div class="info-row">
-                                    <div class="info-label">Timestamp</div>
-                                    <div class="info-value">{{ liquidation.blockTimestamp|date:"Y-m-d H:i:s T" }}</div>
-                                </div>
-                                <div class="info-row">
-                                    <div class="info-label">Block Number</div>
-                                    <div class="info-value">{{ liquidation.blockNumber }}</div>
-                                </div>
-                                <div class="info-row">
-                                    <div class="info-label">Transaction Index</div>
-                                    <div class="info-value">{{ liquidation.transactionIndex }}</div>
-                                </div>
-                                <div class="info-row">
-                                    <div class="info-label">Log Index</div>
-                                    <div class="info-value">{{ liquidation.logIndex }}</div>
-                                </div>
+            <!-- Liquidation Summary -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <h5 class="section-header">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Liquidation Summary
+                        </h5>
+                        <div class="card-body p-0">
+                            <div class="info-row">
+                                <div class="info-label">Timestamp</div>
+                                <div class="info-value">{{ liquidation.blockTimestamp|date:"Y-m-d H:i:s T" }}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">Block Number</div>
+                                <div class="info-value">{{ liquidation.blockNumber }}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">Transaction Index</div>
+                                <div class="info-value">{{ liquidation.transactionIndex }}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">Log Index</div>
+                                <div class="info-value">{{ liquidation.logIndex }}</div>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Health Factor Analysis -->
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <div class="card">
-                            <h5 class="section-header">
-                                <i class="fas fa-heartbeat me-2"></i>
-                                Health Factor Analysis
-                            </h5>
-                            <div class="card-body p-0">
-                                <div class="table-responsive">
-                                    <table class="table table-hover mb-0">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th>Time Point</th>
-                                                <th>Block Details</th>
-                                                <th>Health Factor</th>
-                                                <th>Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for hf in health_factors %}
-                                                <tr>
-                                                    <td>
-                                                        <strong>{{ hf.name }}</strong>
-                                                    </td>
-                                                    <td>
-                                                        <small class="text-muted">{{ hf.description }}</small>
-                                                    </td>
-                                                    <td>
-                                                        {% if hf.health_factor %}
-                                                            <span class="info-value large-value">{{ hf.formatted_health_factor }}</span>
-                                                        {% else %}
-                                                            <span class="text-muted">{{ hf.formatted_health_factor }}</span>
-                                                        {% endif %}
-                                                    </td>
-                                                    <td>
-                                                        {% if hf.error %}
-                                                            <span class="badge bg-danger">
-                                                                <i class="fas fa-exclamation-triangle"></i> Error
+            <!-- Health Factor Analysis -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <h5 class="section-header">
+                            <i class="fas fa-heartbeat me-2"></i>
+                            Health Factor Analysis
+                        </h5>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Time Point</th>
+                                            <th>Block Details</th>
+                                            <th>Health Factor</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for hf in health_factors %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ hf.name }}</strong>
+                                            </td>
+                                            <td>
+                                                <small class="text-muted">{{ hf.description }}</small>
+                                            </td>
+                                            <td>
+                                                {% if hf.health_factor %}
+                                                <span class="info-value large-value">{{ hf.formatted_health_factor
+                                                    }}</span>
+                                                {% else %}
+                                                <span class="text-muted">{{ hf.formatted_health_factor }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if hf.error %}
+                                                <span class="badge bg-danger">
+                                                    <i class="fas fa-exclamation-triangle"></i> Error
+                                                </span>
+                                                <br><small class="text-danger">{{ hf.error|truncatechars:50 }}</small>
+                                                {% elif hf.health_factor %}
+                                                {% if hf.health_factor < 1.0 %} <span class="badge bg-danger">
+                                                    <i class="fas fa-skull-crossbones"></i> Liquidatable
+                                                    </span>
+                                                    {% elif hf.health_factor < 1.1 %} <span class="badge bg-warning">
+                                                        <i class="fas fa-exclamation-triangle"></i> High Risk
+                                                        </span>
+                                                        {% elif hf.health_factor < 1.5 %} <span
+                                                            class="badge bg-warning">
+                                                            <i class="fas fa-exclamation"></i> Medium Risk
                                                             </span>
-                                                            <br><small class="text-danger">{{ hf.error|truncatechars:50 }}</small>
-                                                        {% elif hf.health_factor %}
-                                                            {% if hf.health_factor < 1.0 %}
-                                                                <span class="badge bg-danger">
-                                                                    <i class="fas fa-skull-crossbones"></i> Liquidatable
-                                                                </span>
-                                                            {% elif hf.health_factor < 1.1 %}
-                                                                <span class="badge bg-warning">
-                                                                    <i class="fas fa-exclamation-triangle"></i> High Risk
-                                                                </span>
-                                                            {% elif hf.health_factor < 1.5 %}
-                                                                <span class="badge bg-warning">
-                                                                    <i class="fas fa-exclamation"></i> Medium Risk
-                                                                </span>
                                                             {% else %}
-                                                                <span class="badge bg-success">
-                                                                    <i class="fas fa-check-circle"></i> Healthy
-                                                                </span>
+                                                            <span class="badge bg-success">
+                                                                <i class="fas fa-check-circle"></i> Healthy
+                                                            </span>
                                                             {% endif %}
-                                                        {% else %}
+                                                            {% else %}
                                                             <span class="badge bg-secondary">
                                                                 <i class="fas fa-question"></i> Unknown
                                                             </span>
-                                                        {% endif %}
-                                                    </td>
-                                                </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div class="card-footer bg-light">
-                                    <small class="text-muted">
-                                        <i class="fas fa-info-circle me-1"></i>
-                                        Health Factor < 1.0 indicates the position is liquidatable.
-                                        Values are calculated using Tenderly simulation at specific block/transaction points.
-                                    </small>
-                                </div>
+                                                            {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="card-footer bg-light">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Health Factor < 1.0 indicates the position is liquidatable. Values are calculated
+                                        using Tenderly simulation at specific block/transaction points. </small>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Parties Involved -->
-                <div class="row mb-4">
-                    <div class="col-md-6 mb-3">
-                        <div class="card h-100">
-                            <h5 class="section-header">
-                                <i class="fas fa-user-ninja me-2"></i>
-                                Liquidator
-                            </h5>
-                            <div class="card-body">
-                                {% if liquidation.liquidator_url %}
-                                    <a href="{{ liquidation.liquidator_url }}" target="_blank" class="address-link">
-                                        {{ liquidation.liquidator }}
+            <!-- Parties Involved -->
+            <div class="row mb-4">
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <h5 class="section-header">
+                            <i class="fas fa-user-ninja me-2"></i>
+                            Liquidator
+                        </h5>
+                        <div class="card-body">
+                            {% if liquidation.liquidator_url %}
+                            <a href="{{ liquidation.liquidator_url }}" target="_blank" class="address-link">
+                                {{ liquidation.liquidator }}
+                            </a>
+                            {% else %}
+                            <span class="info-value">{{ liquidation.liquidator }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <h5 class="section-header">
+                            <i class="fas fa-user me-2"></i>
+                            Liquidated User
+                        </h5>
+                        <div class="card-body">
+                            {% if liquidation.user_url %}
+                            <a href="{{ liquidation.user_url }}" target="_blank" class="address-link">
+                                {{ liquidation.user }}
+                            </a>
+                            {% else %}
+                            <span class="info-value">{{ liquidation.user }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Assets and Amounts -->
+            <div class="row mb-4">
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <h5 class="section-header">
+                            <i class="fas fa-coins me-2"></i>
+                            Collateral Liquidated
+                        </h5>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <div class="info-label">Asset</div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge badge-asset">{{ liquidation.collateral_symbol }}</span>
+                                    {% if liquidation.collateral_asset_url %}
+                                    <a href="{{ liquidation.collateral_asset_url }}" target="_blank"
+                                        class="address-link">
+                                        {{ liquidation.collateralAsset|truncatechars:12 }}...
                                     </a>
-                                {% else %}
-                                    <span class="info-value">{{ liquidation.liquidator }}</span>
-                                {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="info-label">Name</div>
+                                <div class="info-value">{{ liquidation.collateral_name|default:"Unknown" }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="info-label">Amount</div>
+                                <div class="info-value large-value">{{
+                                    liquidation.liquidatedCollateralAmount|floatformat:6 }}</div>
+                            </div>
+                            <div>
+                                <div class="info-label">USD Value</div>
+                                <div class="info-value currency-value">${{
+                                    liquidation.collateral_usd_value|floatformat:2 }}</div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <div class="card h-100">
-                            <h5 class="section-header">
-                                <i class="fas fa-user me-2"></i>
-                                Liquidated User
-                            </h5>
-                            <div class="card-body">
-                                {% if liquidation.user_url %}
-                                    <a href="{{ liquidation.user_url }}" target="_blank" class="address-link">
-                                        {{ liquidation.user }}
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <h5 class="section-header">
+                            <i class="fas fa-credit-card me-2"></i>
+                            Debt Covered
+                        </h5>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <div class="info-label">Asset</div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge badge-asset">{{ liquidation.debt_symbol }}</span>
+                                    {% if liquidation.debt_asset_url %}
+                                    <a href="{{ liquidation.debt_asset_url }}" target="_blank" class="address-link">
+                                        {{ liquidation.debtAsset|truncatechars:12 }}...
                                     </a>
-                                {% else %}
-                                    <span class="info-value">{{ liquidation.user }}</span>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Assets and Amounts -->
-                <div class="row mb-4">
-                    <div class="col-md-6 mb-3">
-                        <div class="card h-100">
-                            <h5 class="section-header">
-                                <i class="fas fa-coins me-2"></i>
-                                Collateral Liquidated
-                            </h5>
-                            <div class="card-body">
-                                <div class="mb-3">
-                                    <div class="info-label">Asset</div>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <span class="badge badge-asset">{{ liquidation.collateral_symbol }}</span>
-                                        {% if liquidation.collateral_asset_url %}
-                                            <a href="{{ liquidation.collateral_asset_url }}" target="_blank" class="address-link">
-                                                {{ liquidation.collateralAsset|truncatechars:12 }}...
-                                            </a>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <div class="info-label">Name</div>
-                                    <div class="info-value">{{ liquidation.collateral_name|default:"Unknown" }}</div>
-                                </div>
-                                <div class="mb-3">
-                                    <div class="info-label">Amount</div>
-                                    <div class="info-value large-value">{{ liquidation.liquidatedCollateralAmount|floatformat:6 }}</div>
-                                </div>
-                                <div>
-                                    <div class="info-label">USD Value</div>
-                                    <div class="info-value currency-value">${{ liquidation.collateral_usd_value|floatformat:2 }}</div>
+                                    {% endif %}
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <div class="card h-100">
-                            <h5 class="section-header">
-                                <i class="fas fa-credit-card me-2"></i>
-                                Debt Covered
-                            </h5>
-                            <div class="card-body">
-                                <div class="mb-3">
-                                    <div class="info-label">Asset</div>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <span class="badge badge-asset">{{ liquidation.debt_symbol }}</span>
-                                        {% if liquidation.debt_asset_url %}
-                                            <a href="{{ liquidation.debt_asset_url }}" target="_blank" class="address-link">
-                                                {{ liquidation.debtAsset|truncatechars:12 }}...
-                                            </a>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <div class="info-label">Name</div>
-                                    <div class="info-value">{{ liquidation.debt_name|default:"Unknown" }}</div>
-                                </div>
-                                <div class="mb-3">
-                                    <div class="info-label">Amount</div>
-                                    <div class="info-value large-value">{{ liquidation.debtToCover|floatformat:6 }}</div>
-                                </div>
-                                <div>
-                                    <div class="info-label">USD Value</div>
-                                    <div class="info-value currency-value">${{ liquidation.debt_usd_value|floatformat:2 }}</div>
+                            <div class="mb-3">
+                                <div class="info-label">Name</div>
+                                <div class="info-value">{{ liquidation.debt_name|default:"Unknown" }}</div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="info-label">Amount</div>
+                                <div class="info-value large-value">{{ liquidation.debtToCover|floatformat:6 }}</div>
+                            </div>
+                            <div>
+                                <div class="info-label">USD Value</div>
+                                <div class="info-value currency-value">${{ liquidation.debt_usd_value|floatformat:2 }}
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Transaction Data Tabs -->
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <div class="card">
-                            <h5 class="section-header">
-                                <i class="fas fa-code me-2"></i>
-                                Transaction Data
-                            </h5>
-                            <!-- Tab Navigation -->
-                            <ul class="nav nav-tabs nav-justified" id="transactionTabs" role="tablist">
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link active" id="current-txn-tab" data-bs-toggle="tab" data-bs-target="#current-txn" type="button" role="tab" aria-controls="current-txn" aria-selected="true">
-                                        <i class="fas fa-bolt me-2"></i>
-                                        Current Transaction
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="previous-txn-tab" data-bs-toggle="tab" data-bs-target="#previous-txn" type="button" role="tab" aria-controls="previous-txn" aria-selected="false">
-                                        <i class="fas fa-history me-2"></i>
-                                        Previous Transaction
-                                        {% if prev_transaction.error %}
-                                            <span class="badge bg-secondary ms-1">N/A</span>
-                                        {% endif %}
-                                    </button>
-                                </li>
-                            </ul>
+            <!-- Transaction Data Tabs -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <h5 class="section-header">
+                            <i class="fas fa-code me-2"></i>
+                            Transaction Data
+                        </h5>
+                        <!-- Tab Navigation -->
+                        <ul class="nav nav-tabs nav-justified" id="transactionTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="current-txn-tab" data-bs-toggle="tab"
+                                    data-bs-target="#current-txn" type="button" role="tab" aria-controls="current-txn"
+                                    aria-selected="true">
+                                    <i class="fas fa-bolt me-2"></i>
+                                    Current Transaction
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="previous-txn-tab" data-bs-toggle="tab"
+                                    data-bs-target="#previous-txn" type="button" role="tab" aria-controls="previous-txn"
+                                    aria-selected="false">
+                                    <i class="fas fa-history me-2"></i>
+                                    Previous Transaction
+                                    {% if prev_transaction.error %}
+                                    <span class="badge bg-secondary ms-1">N/A</span>
+                                    {% endif %}
+                                </button>
+                            </li>
+                        </ul>
 
-                            <!-- Tab Content -->
-                            <div class="tab-content" id="transactionTabContent">
-                                <!-- Current Transaction Tab -->
-                                <div class="tab-pane fade show active" id="current-txn" role="tabpanel" aria-labelledby="current-txn-tab">
-                                    <div class="card-body">
-                                        {% if rpc.error %}
-                                            <div class="alert alert-warning">
-                                                <i class="fas fa-exclamation-triangle me-2"></i>
-                                                {{ rpc.error }}
-                                            </div>
-                                        {% else %}
-                                            <div class="row">
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">Transaction Hash</div>
-                                                    {% if liquidation.transaction_url %}
-                                                        <a href="{{ liquidation.transaction_url }}" target="_blank" class="address-link">
-                                                            {{ rpc.transaction.hash }}
-                                                        </a>
-                                                    {% else %}
-                                                        <div class="info-value">{{ rpc.transaction.hash }}</div>
-                                                    {% endif %}
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">Status</div>
-                                                    {% if rpc.receipt.status == 1 %}
-                                                        <span class="status-success">
-                                                            <i class="fas fa-check-circle me-1"></i>Success
-                                                        </span>
-                                                    {% else %}
-                                                        <span class="status-failed">
-                                                            <i class="fas fa-times-circle me-1"></i>Failed
-                                                        </span>
-                                                    {% endif %}
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">From</div>
-                                                    <div class="info-value">{{ rpc.transaction.from }}</div>
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">To</div>
-                                                    <div class="info-value">{{ rpc.transaction.to }}</div>
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">Gas Used</div>
-                                                    <div class="info-value">{{ rpc.receipt.gasUsed|floatformat:0 }}</div>
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">Gas Price</div>
-                                                    <div class="info-value">{{ rpc.transaction.gasPrice }} wei</div>
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">Value</div>
-                                                    <div class="info-value">{{ rpc.transaction.value }} wei</div>
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">Nonce</div>
-                                                    <div class="info-value">{{ rpc.transaction.nonce }}</div>
-                                                </div>
-                                            </div>
-
-                                            <div class="mt-4">
-                                                <div class="info-label">Transaction Input Data</div>
-                                                <div class="code-block">{{ rpc.transaction.input }}</div>
-                                            </div>
-                                        {% endif %}
+                        <!-- Tab Content -->
+                        <div class="tab-content" id="transactionTabContent">
+                            <!-- Current Transaction Tab -->
+                            <div class="tab-pane fade show active" id="current-txn" role="tabpanel"
+                                aria-labelledby="current-txn-tab">
+                                <div class="card-body">
+                                    {% if rpc.error %}
+                                    <div class="alert alert-warning">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        {{ rpc.error }}
                                     </div>
-                                </div>
+                                    {% else %}
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">Transaction Hash</div>
+                                            {% if liquidation.transaction_url %}
+                                            <a href="{{ liquidation.transaction_url }}" target="_blank"
+                                                class="address-link">
+                                                {{ rpc.transaction.hash }}
+                                            </a>
+                                            {% else %}
+                                            <div class="info-value">{{ rpc.transaction.hash }}</div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">Status</div>
+                                            {% if rpc.receipt.status == 1 %}
+                                            <span class="status-success">
+                                                <i class="fas fa-check-circle me-1"></i>Success
+                                            </span>
+                                            {% else %}
+                                            <span class="status-failed">
+                                                <i class="fas fa-times-circle me-1"></i>Failed
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">From</div>
+                                            <div class="info-value">{{ rpc.transaction.from }}</div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">To</div>
+                                            <div class="info-value">{{ rpc.transaction.to }}</div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">Gas Used</div>
+                                            <div class="info-value">{{ rpc.receipt.gasUsed|floatformat:0 }}</div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">Gas Price</div>
+                                            <div class="info-value">{{ rpc.transaction.gasPrice }} wei</div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">Value</div>
+                                            <div class="info-value">{{ rpc.transaction.value }} wei</div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">Nonce</div>
+                                            <div class="info-value">{{ rpc.transaction.nonce }}</div>
+                                        </div>
+                                    </div>
 
-                                <!-- Previous Transaction Tab -->
-                                <div class="tab-pane fade" id="previous-txn" role="tabpanel" aria-labelledby="previous-txn-tab">
-                                    <div class="card-body">
-                                        {% if prev_transaction.error %}
-                                            <div class="alert alert-info">
-                                                <i class="fas fa-info-circle me-2"></i>
-                                                {{ prev_transaction.error }}
+                                    <div class="mt-4">
+                                        <div class="info-label">Transaction Input Data</div>
+                                        <div class="code-block">{{ rpc.transaction.input }}</div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Previous Transaction Tab -->
+                            <div class="tab-pane fade" id="previous-txn" role="tabpanel"
+                                aria-labelledby="previous-txn-tab">
+                                <div class="card-body">
+                                    {% if prev_transaction.error %}
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        {{ prev_transaction.error }}
+                                    </div>
+                                    {% elif prev_transaction and not prev_transaction.error %}
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">Transaction Hash</div>
+                                            {% if prev_transaction.transaction.hash %}
+                                            {% if prev_transaction.transaction.hash|slice:":2" == "0x" %}
+                                            <a href="https://etherscan.io/tx/{{ prev_transaction.transaction.hash }}"
+                                                target="_blank" class="address-link">
+                                                {{ prev_transaction.transaction.hash }}
+                                            </a>
+                                            {% else %}
+                                            <a href="https://etherscan.io/tx/0x{{ prev_transaction.transaction.hash }}"
+                                                target="_blank" class="address-link">
+                                                0x{{ prev_transaction.transaction.hash }}
+                                            </a>
+                                            {% endif %}
+                                            {% else %}
+                                            <div class="info-value">N/A</div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">Receiver Address (To)</div>
+                                            <div class="info-value">{{ prev_transaction.transaction.to|default:"N/A" }}
                                             </div>
-                                        {% elif prev_transaction and not prev_transaction.error %}
-                                            <div class="row">
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">Transaction Hash</div>
-                                                    {% if prev_transaction.transaction.hash %}
-                                                        {% if prev_transaction.transaction.hash|slice:":2" == "0x" %}
-                                                            <a href="https://etherscan.io/tx/{{ prev_transaction.transaction.hash }}" target="_blank" class="address-link">
-                                                                {{ prev_transaction.transaction.hash }}
-                                                            </a>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">Block Number</div>
+                                            <div class="info-value">{{
+                                                prev_transaction.transaction.blockNumber|default:"N/A" }}</div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">Transaction Index</div>
+                                            <div class="info-value">{{
+                                                prev_transaction.transaction.transactionIndex|default:"N/A" }}</div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">Status</div>
+                                            {% if prev_transaction.receipt.status == 1 %}
+                                            <span class="status-success">
+                                                <i class="fas fa-check-circle me-1"></i>Success
+                                            </span>
+                                            {% else %}
+                                            <span class="status-failed">
+                                                <i class="fas fa-times-circle me-1"></i>Failed
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">Gas Used</div>
+                                            <div class="info-value">{{
+                                                prev_transaction.receipt.gasUsed|floatformat:0|default:"N/A" }}</div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">From</div>
+                                            <div class="info-value">{{ prev_transaction.transaction.from|default:"N/A"
+                                                }}</div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="info-label">Gas Price</div>
+                                            <div class="info-value">{{
+                                                prev_transaction.transaction.gasPrice|default:"N/A" }} wei</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4">
+                                        <div class="info-label">Transaction Input Data</div>
+                                        <div class="code-block">{{ prev_transaction.transaction.input|default:"N/A" }}
+                                        </div>
+                                    </div>
+
+                                    {% else %}
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        No previous transaction data available.
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Event Logs (Contextual based on active tab) -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <h5 class="section-header">
+                            <i class="fas fa-code me-2"></i>
+                            <span id="eventLogsTitle">Event Logs</span>
+                        </h5>
+                        <div class="card-body">
+                            <!-- Current Transaction Events -->
+                            <div id="currentTransactionEvents" class="event-logs-content">
+                                {% if rpc.parsed_logs and not rpc.error %}
+                                <!-- Show Parsed Events -->
+                                {% for event in rpc.parsed_logs %}
+                                <div
+                                    class="card mb-3 {% if event.event_name == 'LiquidationCall' %}border-danger{% elif event.event_name == 'Unknown Event' %}border-secondary{% else %}border-primary{% endif %}">
+                                    <div
+                                        class="card-header {% if event.event_name == 'LiquidationCall' %}bg-danger text-white{% elif event.event_name == 'Unknown Event' %}bg-secondary text-white{% else %}bg-primary text-white{% endif %}">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span>
+                                                <i
+                                                    class="fas fa-{% if event.event_name == 'LiquidationCall' %}exclamation-triangle{% elif event.event_name == 'Supply' %}plus-circle{% elif event.event_name == 'Withdraw' %}minus-circle{% elif event.event_name == 'Borrow' %}credit-card{% elif event.event_name == 'Repay' %}money-check{% else %}cog{% endif %} me-2"></i>
+                                                <strong>{{ event.event_name }}</strong>
+                                            </span>
+                                            {% if event.raw_log.logIndex is defined %}
+                                            <small>Log Index: {{ event.raw_log.logIndex }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        {% if event.error %}
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-exclamation-triangle me-2"></i>
+                                            Parse Error: {{ event.error }}
+                                        </div>
+                                        {% endif %}
+
+                                        {% if event.decoded_data %}
+                                        <div class="row">
+                                            {% for param_name, param_data in event.decoded_data.items %}
+                                            <div class="col-md-6 mb-3">
+                                                <div class="border rounded p-2">
+                                                    <div class="d-flex justify-content-between align-items-start">
+                                                        <div>
+                                                            <strong class="text-primary">{{ param_name }}</strong>
+                                                            {% if param_data.indexed %}
+                                                            <span class="badge bg-info ms-1">indexed</span>
+                                                            {% endif %}
+                                                            <br>
+                                                            <small class="text-muted">{{ param_data.type }}</small>
+                                                        </div>
+                                                    </div>
+                                                    <div class="mt-2">
+                                                        {% if param_data.type == 'address' %}
+                                                        <span class="address-link">
+                                                            {{ param_data.value }}
+                                                        </span>
+                                                        {% elif param_data.raw %}
+                                                        <div class="code-block small">{{ param_data.value }}</div>
+                                                        {% elif param_data.type == 'bool' %}
+                                                        <span
+                                                            class="badge {% if param_data.value %}bg-success{% else %}bg-secondary{% endif %}">
+                                                            {{ param_data.value|yesno:"True,False" }}
+                                                        </span>
+                                                        {% elif 'uint' in param_data.type %}
+                                                        <span class="info-value large-value">{{
+                                                            param_data.value|floatformat:0 }}</span>
                                                         {% else %}
-                                                            <a href="https://etherscan.io/tx/0x{{ prev_transaction.transaction.hash }}" target="_blank" class="address-link">
-                                                                0x{{ prev_transaction.transaction.hash }}
-                                                            </a>
+                                                        <span class="info-value">{{ param_data.value }}</span>
                                                         {% endif %}
-                                                    {% else %}
-                                                        <div class="info-value">N/A</div>
-                                                    {% endif %}
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">Receiver Address (To)</div>
-                                                    <div class="info-value">{{ prev_transaction.transaction.to|default:"N/A" }}</div>
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">Block Number</div>
-                                                    <div class="info-value">{{ prev_transaction.transaction.blockNumber|default:"N/A" }}</div>
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">Transaction Index</div>
-                                                    <div class="info-value">{{ prev_transaction.transaction.transactionIndex|default:"N/A" }}</div>
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">Status</div>
-                                                    {% if prev_transaction.receipt.status == 1 %}
-                                                        <span class="status-success">
-                                                            <i class="fas fa-check-circle me-1"></i>Success
-                                                        </span>
-                                                    {% else %}
-                                                        <span class="status-failed">
-                                                            <i class="fas fa-times-circle me-1"></i>Failed
-                                                        </span>
-                                                    {% endif %}
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">Gas Used</div>
-                                                    <div class="info-value">{{ prev_transaction.receipt.gasUsed|floatformat:0|default:"N/A" }}</div>
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">From</div>
-                                                    <div class="info-value">{{ prev_transaction.transaction.from|default:"N/A" }}</div>
-                                                </div>
-                                                <div class="col-md-6 mb-3">
-                                                    <div class="info-label">Gas Price</div>
-                                                    <div class="info-value">{{ prev_transaction.transaction.gasPrice|default:"N/A" }} wei</div>
+                                                    </div>
                                                 </div>
                                             </div>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
 
-                                            <div class="mt-4">
-                                                <div class="info-label">Transaction Input Data</div>
-                                                <div class="code-block">{{ prev_transaction.transaction.input|default:"N/A" }}</div>
+                                        {% if event.raw_log %}
+                                        <div class="mt-3">
+                                            <button class="btn btn-outline-secondary btn-sm" type="button"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#rawLogCurrent{{ forloop.counter }}"
+                                                aria-expanded="false">
+                                                <i class="fas fa-code me-1"></i> Show Raw Log
+                                            </button>
+                                            <div class="collapse mt-2" id="rawLogCurrent{{ forloop.counter }}">
+                                                <div class="card">
+                                                    <div class="card-body">
+                                                        <div class="row">
+                                                            <div class="col-md-6 mb-2">
+                                                                <div class="info-label">Contract Address</div>
+                                                                <div class="info-value">{{ event.raw_log.address }}
+                                                                </div>
+                                                            </div>
+                                                            <div class="col-md-6 mb-2">
+                                                                <div class="info-label">Log Index</div>
+                                                                <div class="info-value">{{ event.raw_log.logIndex }}
+                                                                </div>
+                                                            </div>
+                                                            <div class="col-12 mb-2">
+                                                                <div class="info-label">Topics</div>
+                                                                <div class="code-block">
+                                                                    {% for topic in event.raw_log.topics %}
+                                                                    {{ forloop.counter0 }}: {{ topic }}{% if not
+                                                                    forloop.last %}<br>{% endif %}
+                                                                    {% endfor %}
+                                                                </div>
+                                                            </div>
+                                                            <div class="col-12">
+                                                                <div class="info-label">Data</div>
+                                                                <div class="code-block">{{ event.raw_log.data }}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
-
-                                        {% else %}
-                                            <div class="alert alert-info">
-                                                <i class="fas fa-info-circle me-2"></i>
-                                                No previous transaction data available.
-                                            </div>
+                                        </div>
                                         {% endif %}
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Event Logs (Contextual based on active tab) -->
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <div class="card">
-                            <h5 class="section-header">
-                                <i class="fas fa-code me-2"></i>
-                                <span id="eventLogsTitle">Event Logs</span>
-                            </h5>
-                            <div class="card-body">
-                                <!-- Current Transaction Events -->
-                                <div id="currentTransactionEvents" class="event-logs-content">
-                                    {% if rpc.parsed_logs and not rpc.error %}
-                                        <!-- Show Parsed Events -->
-                                        {% for event in rpc.parsed_logs %}
-                                        <div class="card mb-3 {% if event.event_name == 'LiquidationCall' %}border-danger{% elif event.event_name == 'Unknown Event' %}border-secondary{% else %}border-primary{% endif %}">
-                                            <div class="card-header {% if event.event_name == 'LiquidationCall' %}bg-danger text-white{% elif event.event_name == 'Unknown Event' %}bg-secondary text-white{% else %}bg-primary text-white{% endif %}">
-                                                <div class="d-flex justify-content-between align-items-center">
-                                                    <span>
-                                                        <i class="fas fa-{% if event.event_name == 'LiquidationCall' %}exclamation-triangle{% elif event.event_name == 'Supply' %}plus-circle{% elif event.event_name == 'Withdraw' %}minus-circle{% elif event.event_name == 'Borrow' %}credit-card{% elif event.event_name == 'Repay' %}money-check{% else %}cog{% endif %} me-2"></i>
-                                                        <strong>{{ event.event_name }}</strong>
-                                                    </span>
-                                                    {% if event.raw_log.logIndex is defined %}
-                                                        <small>Log Index: {{ event.raw_log.logIndex }}</small>
-                                                    {% endif %}
+                                {% endfor %}
+                                {% elif rpc.logs and not rpc.error %}
+                                <!-- Show Raw Events as fallback -->
+                                {% for log in rpc.logs %}
+                                <div class="log-entry card mb-3">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-3 mb-2">
+                                                <div class="info-label">Log Index</div>
+                                                <div class="info-value">{{ log.logIndex }}</div>
+                                            </div>
+                                            <div class="col-md-9 mb-2">
+                                                <div class="info-label">Contract Address</div>
+                                                <div class="info-value">{{ log.address }}</div>
+                                            </div>
+                                            <div class="col-12 mb-2">
+                                                <div class="info-label">Topics</div>
+                                                <div class="code-block">
+                                                    {% for topic in log.topics %}
+                                                    {{ forloop.counter0 }}: {{ topic }}{% if not forloop.last %}<br>{%
+                                                    endif %}
+                                                    {% endfor %}
                                                 </div>
                                             </div>
-                                            <div class="card-body">
-                                                {% if event.error %}
-                                                    <div class="alert alert-warning">
-                                                        <i class="fas fa-exclamation-triangle me-2"></i>
-                                                        Parse Error: {{ event.error }}
-                                                    </div>
-                                                {% endif %}
-
-                                                {% if event.decoded_data %}
-                                                    <div class="row">
-                                                        {% for param_name, param_data in event.decoded_data.items %}
-                                                            <div class="col-md-6 mb-3">
-                                                                <div class="border rounded p-2">
-                                                                    <div class="d-flex justify-content-between align-items-start">
-                                                                        <div>
-                                                                            <strong class="text-primary">{{ param_name }}</strong>
-                                                                            {% if param_data.indexed %}
-                                                                                <span class="badge bg-info ms-1">indexed</span>
-                                                                            {% endif %}
-                                                                            <br>
-                                                                            <small class="text-muted">{{ param_data.type }}</small>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="mt-2">
-                                                                        {% if param_data.type == 'address' %}
-                                                                            <span class="address-link">
-                                                                                {{ param_data.value }}
-                                                                            </span>
-                                                                        {% elif param_data.raw %}
-                                                                            <div class="code-block small">{{ param_data.value }}</div>
-                                                                        {% elif param_data.type == 'bool' %}
-                                                                            <span class="badge {% if param_data.value %}bg-success{% else %}bg-secondary{% endif %}">
-                                                                                {{ param_data.value|yesno:"True,False" }}
-                                                                            </span>
-                                                                        {% elif 'uint' in param_data.type %}
-                                                                            <span class="info-value large-value">{{ param_data.value|floatformat:0 }}</span>
-                                                                        {% else %}
-                                                                            <span class="info-value">{{ param_data.value }}</span>
-                                                                        {% endif %}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        {% endfor %}
-                                                    </div>
-                                                {% endif %}
-
-                                                {% if event.raw_log %}
-                                                    <div class="mt-3">
-                                                        <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#rawLogCurrent{{ forloop.counter }}" aria-expanded="false">
-                                                            <i class="fas fa-code me-1"></i> Show Raw Log
-                                                        </button>
-                                                        <div class="collapse mt-2" id="rawLogCurrent{{ forloop.counter }}">
-                                                            <div class="card">
-                                                                <div class="card-body">
-                                                                    <div class="row">
-                                                                        <div class="col-md-6 mb-2">
-                                                                            <div class="info-label">Contract Address</div>
-                                                                            <div class="info-value">{{ event.raw_log.address }}</div>
-                                                                        </div>
-                                                                        <div class="col-md-6 mb-2">
-                                                                            <div class="info-label">Log Index</div>
-                                                                            <div class="info-value">{{ event.raw_log.logIndex }}</div>
-                                                                        </div>
-                                                                        <div class="col-12 mb-2">
-                                                                            <div class="info-label">Topics</div>
-                                                                            <div class="code-block">
-                                                                                {% for topic in event.raw_log.topics %}
-                                                                                    {{ forloop.counter0 }}: {{ topic }}{% if not forloop.last %}<br>{% endif %}
-                                                                                {% endfor %}
-                                                                            </div>
-                                                                        </div>
-                                                                        <div class="col-12">
-                                                                            <div class="info-label">Data</div>
-                                                                            <div class="code-block">{{ event.raw_log.data }}</div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                {% endif %}
+                                            <div class="col-12">
+                                                <div class="info-label">Data</div>
+                                                <div class="code-block">{{ log.data }}</div>
                                             </div>
                                         </div>
-                                        {% endfor %}
-                                    {% elif rpc.logs and not rpc.error %}
-                                        <!-- Show Raw Events as fallback -->
-                                        {% for log in rpc.logs %}
-                                            <div class="log-entry card mb-3">
-                                                <div class="card-body">
-                                                    <div class="row">
-                                                        <div class="col-md-3 mb-2">
-                                                            <div class="info-label">Log Index</div>
-                                                            <div class="info-value">{{ log.logIndex }}</div>
-                                                        </div>
-                                                        <div class="col-md-9 mb-2">
-                                                            <div class="info-label">Contract Address</div>
-                                                            <div class="info-value">{{ log.address }}</div>
-                                                        </div>
-                                                        <div class="col-12 mb-2">
-                                                            <div class="info-label">Topics</div>
-                                                            <div class="code-block">
-                                                                {% for topic in log.topics %}
-                                                                    {{ forloop.counter0 }}: {{ topic }}{% if not forloop.last %}<br>{% endif %}
-                                                                {% endfor %}
-                                                            </div>
-                                                        </div>
-                                                        <div class="col-12">
-                                                            <div class="info-label">Data</div>
-                                                            <div class="code-block">{{ log.data }}</div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        {% endfor %}
-                                    {% else %}
-                                        <div class="alert alert-info">
-                                            <i class="fas fa-info-circle me-2"></i>
-                                            No event logs available for the current transaction.
-                                        </div>
-                                    {% endif %}
+                                    </div>
                                 </div>
+                                {% endfor %}
+                                {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    No event logs available for the current transaction.
+                                </div>
+                                {% endif %}
+                            </div>
 
-                                <!-- Previous Transaction Events -->
-                                <div id="previousTransactionEvents" class="event-logs-content" style="display: none;">
-                                    {% if prev_transaction.parsed_logs %}
-                                        {% for event in prev_transaction.parsed_logs %}
-                                            <div class="card mb-3 {% if event.event_name == 'LiquidationCall' %}border-danger{% elif event.event_name == 'Unknown Event' %}border-secondary{% else %}border-primary{% endif %}">
-                                                <div class="card-header {% if event.event_name == 'LiquidationCall' %}bg-danger text-white{% elif event.event_name == 'Unknown Event' %}bg-secondary text-white{% else %}bg-primary text-white{% endif %}">
-                                                    <div class="d-flex justify-content-between align-items-center">
-                                                        <span>
-                                                            <i class="fas fa-{% if event.event_name == 'LiquidationCall' %}exclamation-triangle{% elif event.event_name == 'Supply' %}plus-circle{% elif event.event_name == 'Withdraw' %}minus-circle{% elif event.event_name == 'Borrow' %}credit-card{% elif event.event_name == 'Repay' %}money-check{% else %}cog{% endif %} me-2"></i>
-                                                            <strong>{{ event.event_name }}</strong>
+                            <!-- Previous Transaction Events -->
+                            <div id="previousTransactionEvents" class="event-logs-content" style="display: none;">
+                                {% if prev_transaction.parsed_logs %}
+                                {% for event in prev_transaction.parsed_logs %}
+                                <div
+                                    class="card mb-3 {% if event.event_name == 'LiquidationCall' %}border-danger{% elif event.event_name == 'Unknown Event' %}border-secondary{% else %}border-primary{% endif %}">
+                                    <div
+                                        class="card-header {% if event.event_name == 'LiquidationCall' %}bg-danger text-white{% elif event.event_name == 'Unknown Event' %}bg-secondary text-white{% else %}bg-primary text-white{% endif %}">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span>
+                                                <i
+                                                    class="fas fa-{% if event.event_name == 'LiquidationCall' %}exclamation-triangle{% elif event.event_name == 'Supply' %}plus-circle{% elif event.event_name == 'Withdraw' %}minus-circle{% elif event.event_name == 'Borrow' %}credit-card{% elif event.event_name == 'Repay' %}money-check{% else %}cog{% endif %} me-2"></i>
+                                                <strong>{{ event.event_name }}</strong>
+                                            </span>
+                                            {% if event.raw_log.logIndex is defined %}
+                                            <small>Log Index: {{ event.raw_log.logIndex }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        {% if event.error %}
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-exclamation-triangle me-2"></i>
+                                            Parse Error: {{ event.error }}
+                                        </div>
+                                        {% endif %}
+
+                                        {% if event.decoded_data %}
+                                        <div class="row">
+                                            {% for param_name, param_data in event.decoded_data.items %}
+                                            <div class="col-md-6 mb-3">
+                                                <div class="border rounded p-2">
+                                                    <div class="d-flex justify-content-between align-items-start">
+                                                        <div>
+                                                            <strong class="text-primary">{{ param_name }}</strong>
+                                                            {% if param_data.indexed %}
+                                                            <span class="badge bg-info ms-1">indexed</span>
+                                                            {% endif %}
+                                                            <br>
+                                                            <small class="text-muted">{{ param_data.type }}</small>
+                                                        </div>
+                                                    </div>
+                                                    <div class="mt-2">
+                                                        {% if param_data.type == 'address' %}
+                                                        <span class="address-link">
+                                                            {{ param_data.value }}
                                                         </span>
-                                                        {% if event.raw_log.logIndex is defined %}
-                                                            <small>Log Index: {{ event.raw_log.logIndex }}</small>
+                                                        {% elif param_data.raw %}
+                                                        <div class="code-block small">{{ param_data.value }}</div>
+                                                        {% elif param_data.type == 'bool' %}
+                                                        <span
+                                                            class="badge {% if param_data.value %}bg-success{% else %}bg-secondary{% endif %}">
+                                                            {{ param_data.value|yesno:"True,False" }}
+                                                        </span>
+                                                        {% elif 'uint' in param_data.type %}
+                                                        <span class="info-value large-value">{{
+                                                            param_data.value|floatformat:0 }}</span>
+                                                        {% else %}
+                                                        <span class="info-value">{{ param_data.value }}</span>
                                                         {% endif %}
                                                     </div>
                                                 </div>
-                                                <div class="card-body">
-                                                    {% if event.error %}
-                                                        <div class="alert alert-warning">
-                                                            <i class="fas fa-exclamation-triangle me-2"></i>
-                                                            Parse Error: {{ event.error }}
-                                                        </div>
-                                                    {% endif %}
-
-                                                    {% if event.decoded_data %}
-                                                        <div class="row">
-                                                            {% for param_name, param_data in event.decoded_data.items %}
-                                                                <div class="col-md-6 mb-3">
-                                                                    <div class="border rounded p-2">
-                                                                        <div class="d-flex justify-content-between align-items-start">
-                                                                            <div>
-                                                                                <strong class="text-primary">{{ param_name }}</strong>
-                                                                                {% if param_data.indexed %}
-                                                                                    <span class="badge bg-info ms-1">indexed</span>
-                                                                                {% endif %}
-                                                                                <br>
-                                                                                <small class="text-muted">{{ param_data.type }}</small>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div class="mt-2">
-                                                                            {% if param_data.type == 'address' %}
-                                                                                <span class="address-link">
-                                                                                    {{ param_data.value }}
-                                                                                </span>
-                                                                            {% elif param_data.raw %}
-                                                                                <div class="code-block small">{{ param_data.value }}</div>
-                                                                            {% elif param_data.type == 'bool' %}
-                                                                                <span class="badge {% if param_data.value %}bg-success{% else %}bg-secondary{% endif %}">
-                                                                                    {{ param_data.value|yesno:"True,False" }}
-                                                                                </span>
-                                                                            {% elif 'uint' in param_data.type %}
-                                                                                <span class="info-value large-value">{{ param_data.value|floatformat:0 }}</span>
-                                                                            {% else %}
-                                                                                <span class="info-value">{{ param_data.value }}</span>
-                                                                            {% endif %}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            {% endfor %}
-                                                        </div>
-                                                    {% endif %}
-                                                </div>
                                             </div>
-                                        {% endfor %}
-                                    {% elif prev_transaction.logs %}
-                                        {% for log in prev_transaction.logs %}
-                                            <div class="log-entry card mb-3">
-                                                <div class="card-body">
-                                                    <div class="row">
-                                                        <div class="col-md-3 mb-2">
-                                                            <div class="info-label">Log Index</div>
-                                                            <div class="info-value">{{ log.logIndex }}</div>
-                                                        </div>
-                                                        <div class="col-md-9 mb-2">
-                                                            <div class="info-label">Contract Address</div>
-                                                            <div class="info-value">{{ log.address }}</div>
-                                                        </div>
-                                                        <div class="col-12 mb-2">
-                                                            <div class="info-label">Topics</div>
-                                                            <div class="code-block">
-                                                                {% for topic in log.topics %}
-                                                                    {{ forloop.counter0 }}: {{ topic }}{% if not forloop.last %}<br>{% endif %}
-                                                                {% endfor %}
-                                                            </div>
-                                                        </div>
-                                                        <div class="col-12">
-                                                            <div class="info-label">Data</div>
-                                                            <div class="code-block">{{ log.data }}</div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        {% endfor %}
-                                    {% elif prev_transaction.error %}
-                                        <div class="alert alert-info">
-                                            <i class="fas fa-info-circle me-2"></i>
-                                            {{ prev_transaction.error }}
+                                            {% endfor %}
                                         </div>
-                                    {% else %}
-                                        <div class="alert alert-info">
-                                            <i class="fas fa-info-circle me-2"></i>
-                                            No event logs available for the previous transaction.
-                                        </div>
-                                    {% endif %}
+                                        {% endif %}
+                                    </div>
                                 </div>
+                                {% endfor %}
+                                {% elif prev_transaction.logs %}
+                                {% for log in prev_transaction.logs %}
+                                <div class="log-entry card mb-3">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-3 mb-2">
+                                                <div class="info-label">Log Index</div>
+                                                <div class="info-value">{{ log.logIndex }}</div>
+                                            </div>
+                                            <div class="col-md-9 mb-2">
+                                                <div class="info-label">Contract Address</div>
+                                                <div class="info-value">{{ log.address }}</div>
+                                            </div>
+                                            <div class="col-12 mb-2">
+                                                <div class="info-label">Topics</div>
+                                                <div class="code-block">
+                                                    {% for topic in log.topics %}
+                                                    {{ forloop.counter0 }}: {{ topic }}{% if not forloop.last %}<br>{%
+                                                    endif %}
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="info-label">Data</div>
+                                                <div class="code-block">{{ log.data }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                                {% elif prev_transaction.error %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    {{ prev_transaction.error }}
+                                </div>
+                                {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    No event logs available for the previous transaction.
+                                </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
             {% endif %}
         </div>
     </div>
@@ -970,7 +1010,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Event logs switching functionality
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const currentTxnTab = document.getElementById('current-txn-tab');
             const previousTxnTab = document.getElementById('previous-txn-tab');
             const currentEventsDiv = document.getElementById('currentTransactionEvents');
@@ -993,11 +1033,11 @@
             updateEventLogs(true);
 
             // Listen for tab changes
-            currentTxnTab.addEventListener('shown.bs.tab', function() {
+            currentTxnTab.addEventListener('shown.bs.tab', function () {
                 updateEventLogs(true);
             });
 
-            previousTxnTab.addEventListener('shown.bs.tab', function() {
+            previousTxnTab.addEventListener('shown.bs.tab', function () {
                 updateEventLogs(false);
             });
         });

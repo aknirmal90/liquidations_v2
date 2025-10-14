@@ -238,6 +238,10 @@
                     <i class="fas fa-users me-2"></i>
                     Users
                 </a>
+                <a class="nav-link" href="{% url 'dashboard:tests' %}">
+                    <i class="fas fa-vial me-2"></i>
+                    Tests
+                </a>
             </div>
         </div>
     </nav>
@@ -259,7 +263,7 @@
                         </div>
                         <div class="page-subtitle">
                             {% if liquidator_address %}
-                                Address: {{ liquidator_address|truncatechars:16 }}...
+                            Address: {{ liquidator_address|truncatechars:16 }}...
                             {% endif %}
                         </div>
                     </div>
@@ -267,258 +271,273 @@
             </div>
 
             {% if error %}
-                <div class="row">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-body error-message">
-                                <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
-                                <h4>Error</h4>
-                                <p>{{ error }}</p>
-                            </div>
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body error-message">
+                            <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                            <h4>Error</h4>
+                            <p>{{ error }}</p>
                         </div>
                     </div>
                 </div>
+            </div>
             {% else %}
-                <!-- Time Period Selector and Filters -->
-                <div class="row mb-4">
-                    <div class="col-md-4 mx-auto text-center">
-                        <label for="timeWindow" class="form-label text-white fw-bold">Time Period:</label>
-                        <select class="form-select time-selector" id="timeWindow" onchange="updateTimeFilter()">
-                            <option value="1_hour" {% if time_window == '1_hour' %}selected{% endif %}>Last 1 Hour</option>
-                            <option value="1_day" {% if time_window == '1_day' %}selected{% endif %}>Last 1 Day</option>
-                            <option value="1_week" {% if time_window == '1_week' %}selected{% endif %}>Last 1 Week</option>
-                            <option value="1_month" {% if time_window == '1_month' %}selected{% endif %}>Last 1 Month</option>
-                            <option value="1_year" {% if time_window == '1_year' %}selected{% endif %}>Last 1 Year</option>
-                        </select>
+            <!-- Time Period Selector and Filters -->
+            <div class="row mb-4">
+                <div class="col-md-4 mx-auto text-center">
+                    <label for="timeWindow" class="form-label text-white fw-bold">Time Period:</label>
+                    <select class="form-select time-selector" id="timeWindow" onchange="updateTimeFilter()">
+                        <option value="1_hour" {% if time_window=='1_hour' %}selected{% endif %}>Last 1 Hour</option>
+                        <option value="1_day" {% if time_window=='1_day' %}selected{% endif %}>Last 1 Day</option>
+                        <option value="1_week" {% if time_window=='1_week' %}selected{% endif %}>Last 1 Week</option>
+                        <option value="1_month" {% if time_window=='1_month' %}selected{% endif %}>Last 1 Month</option>
+                        <option value="1_year" {% if time_window=='1_year' %}selected{% endif %}>Last 1 Year</option>
+                    </select>
+                </div>
+                <div class="col-md-4 mx-auto text-center">
+                    <label class="form-label text-white fw-bold">Value Filter:</label>
+                    <div class="form-check form-switch d-flex justify-content-center">
+                        <input class="form-check-input" type="checkbox" id="minValueToggle" {% if
+                            request.GET.min_value=='' %}{% else %}checked{% endif %} onchange="updateTimeFilter()">
+                        <label class="form-check-label text-white ms-2" for="minValueToggle">
+                            Show only $1000+ liquidations
+                        </label>
                     </div>
-                    <div class="col-md-4 mx-auto text-center">
-                        <label class="form-label text-white fw-bold">Value Filter:</label>
-                        <div class="form-check form-switch d-flex justify-content-center">
-                            <input class="form-check-input" type="checkbox" id="minValueToggle" {% if request.GET.min_value == '' %}{% else %}checked{% endif %} onchange="updateTimeFilter()">
-                            <label class="form-check-label text-white ms-2" for="minValueToggle">
-                                Show only $1000+ liquidations
-                            </label>
+                </div>
+            </div>
+
+            <!-- Liquidator Summary -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <h5 class="section-header">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Liquidator Summary
+                        </h5>
+                        <div class="card-body p-0">
+                            <div class="info-row">
+                                <div class="info-label">Liquidator Address</div>
+                                <div class="info-value">
+                                    {% if summary.liquidator_url %}
+                                    <a href="{{ summary.liquidator_url }}" target="_blank" class="address-link">
+                                        {{ summary.liquidator_address }}
+                                    </a>
+                                    {% else %}
+                                    {{ summary.liquidator_address }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% if summary.first_liquidation %}
+                            <div class="info-row">
+                                <div class="info-label">First Liquidation</div>
+                                <div class="info-value">{{ summary.first_liquidation|date:"Y-m-d H:i:s T" }}</div>
+                            </div>
+                            {% endif %}
+                            {% if summary.last_liquidation %}
+                            <div class="info-row">
+                                <div class="info-label">Last Liquidation</div>
+                                <div class="info-value">{{ summary.last_liquidation|date:"Y-m-d H:i:s T" }}</div>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Liquidator Summary -->
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <div class="card">
-                            <h5 class="section-header">
-                                <i class="fas fa-info-circle me-2"></i>
-                                Liquidator Summary
+            <!-- Metrics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-6 mb-4">
+                    <div class="card liquidations-metric">
+                        <div class="card-body stats-card">
+                            <div class="metric-icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <div class="stats-value">{{ summary.total_liquidations|default:0|floatformat:0 }}</div>
+                            <div class="stats-label">Total Liquidations</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-4">
+                    <div class="card volume-metric">
+                        <div class="card-body stats-card">
+                            <div class="metric-icon">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                            <div class="stats-value">${{ summary.total_usd_volume|default:0|floatformat:2 }}</div>
+                            <div class="stats-label">USD Volume</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Liquidations List -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-list me-2"></i>
+                                Recent Liquidations by this Liquidator
                             </h5>
-                            <div class="card-body p-0">
-                                <div class="info-row">
-                                    <div class="info-label">Liquidator Address</div>
-                                    <div class="info-value">
-                                        {% if summary.liquidator_url %}
-                                            <a href="{{ summary.liquidator_url }}" target="_blank" class="address-link">
-                                                {{ summary.liquidator_address }}
-                                            </a>
-                                        {% else %}
-                                            {{ summary.liquidator_address }}
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                {% if summary.first_liquidation %}
-                                <div class="info-row">
-                                    <div class="info-label">First Liquidation</div>
-                                    <div class="info-value">{{ summary.first_liquidation|date:"Y-m-d H:i:s T" }}</div>
-                                </div>
-                                {% endif %}
-                                {% if summary.last_liquidation %}
-                                <div class="info-row">
-                                    <div class="info-label">Last Liquidation</div>
-                                    <div class="info-value">{{ summary.last_liquidation|date:"Y-m-d H:i:s T" }}</div>
-                                </div>
-                                {% endif %}
-                            </div>
+                            <span class="badge bg-primary">{{ pagination.total_items }} total</span>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Metrics Cards -->
-                <div class="row mb-4">
-                    <div class="col-md-6 mb-4">
-                        <div class="card liquidations-metric">
-                            <div class="card-body stats-card">
-                                <div class="metric-icon">
-                                    <i class="fas fa-exclamation-triangle"></i>
-                                </div>
-                                <div class="stats-value">{{ summary.total_liquidations|default:0|floatformat:0 }}</div>
-                                <div class="stats-label">Total Liquidations</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6 mb-4">
-                        <div class="card volume-metric">
-                            <div class="card-body stats-card">
-                                <div class="metric-icon">
-                                    <i class="fas fa-dollar-sign"></i>
-                                </div>
-                                <div class="stats-value">${{ summary.total_usd_volume|default:0|floatformat:2 }}</div>
-                                <div class="stats-label">USD Volume</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Liquidations List -->
-                <div class="row">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h5 class="mb-0">
-                                    <i class="fas fa-list me-2"></i>
-                                    Recent Liquidations by this Liquidator
-                                </h5>
-                                <span class="badge bg-primary">{{ pagination.total_items }} total</span>
-                            </div>
-                            <div class="card-body p-0">
-                                {% if liquidations %}
-                                    <div class="table-responsive">
-                                        <table class="table table-hover">
-                                            <thead class="table-dark">
-                                                <tr>
-                                                    <th>Time</th>
-                                                    <th>User</th>
-                                                    <th>Collateral Asset</th>
-                                                    <th>Debt Asset</th>
-                                                    <th>USD Volume</th>
-                                                    <th>HF at Transaction</th>
-                                                    <th>HF at Previous Tx</th>
-                                                    <th>HF at Block Start</th>
-                                                    <th>HF at Previous Block</th>
-                                                    <th>HF at 2 Blocks Prior</th>
-                                                    <th>Transaction</th>
-                                                    <th>Details</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {% for liquidation in liquidations %}
-                                                    <tr>
-                                                        <td>
-                                                            <small class="text-muted">
-                                                                {{ liquidation.blockTimestamp|date:"Y-m-d H:i:s" }}
-                                                            </small>
-                                                        </td>
-                                                        <td>
-                                                            {% if liquidation.user_url %}
-                                                                <a href="{{ liquidation.user_url }}" target="_blank" class="address-link">
-                                                                    {{ liquidation.user|truncatechars:12 }}
-                                                                </a>
-                                                            {% else %}
-                                                                <span class="address-link">{{ liquidation.user|truncatechars:12 }}</span>
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>
-                                                            <span class="badge bg-secondary">{{ liquidation.collateral_symbol }}</span>
-                                                        </td>
-                                                        <td>
-                                                            <span class="badge bg-warning">{{ liquidation.debt_symbol }}</span>
-                                                        </td>
-                                                        <td>
-                                                            <span class="currency-value">${{ liquidation.usd_volume|floatformat:2 }}</span>
-                                                        </td>
-                                                        <td>
-                                                            {% if liquidation.health_factor_at_transaction is not None %}
-                                                                <span class="badge {% if liquidation.health_factor_at_transaction < 1 %}bg-danger{% else %}bg-success{% endif %}">
-                                                                    {{ liquidation.health_factor_at_transaction|floatformat:4 }}
-                                                                </span>
-                                                            {% else %}
-                                                                <span class="text-muted">N/A</span>
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>
-                                                            {% if liquidation.health_factor_at_previous_tx is not None %}
-                                                                <span class="badge {% if liquidation.health_factor_at_previous_tx < 1 %}bg-danger{% else %}bg-success{% endif %}">
-                                                                    {{ liquidation.health_factor_at_previous_tx|floatformat:4 }}
-                                                                </span>
-                                                            {% else %}
-                                                                <span class="text-muted">N/A</span>
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>
-                                                            {% if liquidation.health_factor_at_block_start is not None %}
-                                                                <span class="badge {% if liquidation.health_factor_at_block_start < 1 %}bg-danger{% else %}bg-success{% endif %}">
-                                                                    {{ liquidation.health_factor_at_block_start|floatformat:4 }}
-                                                                </span>
-                                                            {% else %}
-                                                                <span class="text-muted">N/A</span>
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>
-                                                            {% if liquidation.health_factor_at_previous_block is not None %}
-                                                                <span class="badge {% if liquidation.health_factor_at_previous_block < 1 %}bg-danger{% else %}bg-success{% endif %}">
-                                                                    {{ liquidation.health_factor_at_previous_block|floatformat:4 }}
-                                                                </span>
-                                                            {% else %}
-                                                                <span class="text-muted">N/A</span>
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>
-                                                            {% if liquidation.health_factor_at_two_blocks_prior is not None %}
-                                                                <span class="badge {% if liquidation.health_factor_at_two_blocks_prior < 1 %}bg-danger{% else %}bg-success{% endif %}">
-                                                                    {{ liquidation.health_factor_at_two_blocks_prior|floatformat:4 }}
-                                                                </span>
-                                                            {% else %}
-                                                                <span class="text-muted">N/A</span>
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>
-                                                            {% if liquidation.transaction_url %}
-                                                                <a href="{{ liquidation.transaction_url }}" target="_blank" class="btn btn-outline-primary btn-sm">
-                                                                    <i class="fas fa-external-link-alt"></i>
-                                                                </a>
-                                                            {% else %}
-                                                                <span class="text-muted">N/A</span>
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>
-                                                            <a href="{% url 'dashboard:liquidation_detail' liquidation.transactionHash %}" class="btn btn-primary btn-sm">
-                                                                <i class="fas fa-search"></i> Details
-                                                            </a>
-                                                        </td>
-                                                    </tr>
-                                                {% endfor %}
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    <!-- Pagination -->
-                                    <div class="d-flex justify-content-between align-items-center p-3">
-                                        <div>
-                                            <span class="text-muted">
-                                                Showing {{ pagination.start_item }}-{{ pagination.end_item }} of {{ pagination.total_items }} liquidations
-                                            </span>
-                                        </div>
-                                        <div>
-                                            {% if pagination.has_previous %}
-                                                <a href="?page={{ pagination.current_page|add:'-1' }}&time_window={{ time_window }}" class="btn btn-outline-primary btn-sm me-2">
-                                                    <i class="fas fa-chevron-left"></i> Previous
+                        <div class="card-body p-0">
+                            {% if liquidations %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Time</th>
+                                            <th>User</th>
+                                            <th>Collateral Asset</th>
+                                            <th>Debt Asset</th>
+                                            <th>USD Volume</th>
+                                            <th>HF at Transaction</th>
+                                            <th>HF at Previous Tx</th>
+                                            <th>HF at Block Start</th>
+                                            <th>HF at Previous Block</th>
+                                            <th>HF at 2 Blocks Prior</th>
+                                            <th>Transaction</th>
+                                            <th>Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for liquidation in liquidations %}
+                                        <tr>
+                                            <td>
+                                                <small class="text-muted">
+                                                    {{ liquidation.blockTimestamp|date:"Y-m-d H:i:s" }}
+                                                </small>
+                                            </td>
+                                            <td>
+                                                {% if liquidation.user_url %}
+                                                <a href="{{ liquidation.user_url }}" target="_blank"
+                                                    class="address-link">
+                                                    {{ liquidation.user|truncatechars:12 }}
                                                 </a>
-                                            {% endif %}
-                                            {% if pagination.has_next %}
-                                                <a href="?page={{ pagination.current_page|add:'1' }}&time_window={{ time_window }}" class="btn btn-outline-primary btn-sm">
-                                                    Next <i class="fas fa-chevron-right"></i>
+                                                {% else %}
+                                                <span class="address-link">{{ liquidation.user|truncatechars:12
+                                                    }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary">{{ liquidation.collateral_symbol
+                                                    }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-warning">{{ liquidation.debt_symbol }}</span>
+                                            </td>
+                                            <td>
+                                                <span class="currency-value">${{ liquidation.usd_volume|floatformat:2
+                                                    }}</span>
+                                            </td>
+                                            <td>
+                                                {% if liquidation.health_factor_at_transaction is not None %}
+                                                <span
+                                                    class="badge {% if liquidation.health_factor_at_transaction < 1 %}bg-danger{% else %}bg-success{% endif %}">
+                                                    {{ liquidation.health_factor_at_transaction|floatformat:4 }}
+                                                </span>
+                                                {% else %}
+                                                <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if liquidation.health_factor_at_previous_tx is not None %}
+                                                <span
+                                                    class="badge {% if liquidation.health_factor_at_previous_tx < 1 %}bg-danger{% else %}bg-success{% endif %}">
+                                                    {{ liquidation.health_factor_at_previous_tx|floatformat:4 }}
+                                                </span>
+                                                {% else %}
+                                                <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if liquidation.health_factor_at_block_start is not None %}
+                                                <span
+                                                    class="badge {% if liquidation.health_factor_at_block_start < 1 %}bg-danger{% else %}bg-success{% endif %}">
+                                                    {{ liquidation.health_factor_at_block_start|floatformat:4 }}
+                                                </span>
+                                                {% else %}
+                                                <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if liquidation.health_factor_at_previous_block is not None %}
+                                                <span
+                                                    class="badge {% if liquidation.health_factor_at_previous_block < 1 %}bg-danger{% else %}bg-success{% endif %}">
+                                                    {{ liquidation.health_factor_at_previous_block|floatformat:4 }}
+                                                </span>
+                                                {% else %}
+                                                <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if liquidation.health_factor_at_two_blocks_prior is not None %}
+                                                <span
+                                                    class="badge {% if liquidation.health_factor_at_two_blocks_prior < 1 %}bg-danger{% else %}bg-success{% endif %}">
+                                                    {{ liquidation.health_factor_at_two_blocks_prior|floatformat:4 }}
+                                                </span>
+                                                {% else %}
+                                                <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if liquidation.transaction_url %}
+                                                <a href="{{ liquidation.transaction_url }}" target="_blank"
+                                                    class="btn btn-outline-primary btn-sm">
+                                                    <i class="fas fa-external-link-alt"></i>
                                                 </a>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                {% else %}
-                                    <div class="text-center py-5 text-muted">
-                                        <i class="fas fa-search fa-3x mb-3"></i>
-                                        <h5>No liquidations found</h5>
-                                        <p>This liquidator has not performed any liquidations in the selected time period.</p>
-                                    </div>
-                                {% endif %}
+                                                {% else %}
+                                                <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <a href="{% url 'dashboard:liquidation_detail' liquidation.transactionHash %}"
+                                                    class="btn btn-primary btn-sm">
+                                                    <i class="fas fa-search"></i> Details
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
                             </div>
+
+                            <!-- Pagination -->
+                            <div class="d-flex justify-content-between align-items-center p-3">
+                                <div>
+                                    <span class="text-muted">
+                                        Showing {{ pagination.start_item }}-{{ pagination.end_item }} of {{
+                                        pagination.total_items }} liquidations
+                                    </span>
+                                </div>
+                                <div>
+                                    {% if pagination.has_previous %}
+                                    <a href="?page={{ pagination.current_page|add:'-1' }}&time_window={{ time_window }}"
+                                        class="btn btn-outline-primary btn-sm me-2">
+                                        <i class="fas fa-chevron-left"></i> Previous
+                                    </a>
+                                    {% endif %}
+                                    {% if pagination.has_next %}
+                                    <a href="?page={{ pagination.current_page|add:'1' }}&time_window={{ time_window }}"
+                                        class="btn btn-outline-primary btn-sm">
+                                        Next <i class="fas fa-chevron-right"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-5 text-muted">
+                                <i class="fas fa-search fa-3x mb-3"></i>
+                                <h5>No liquidations found</h5>
+                                <p>This liquidator has not performed any liquidations in the selected time period.</p>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
+            </div>
             {% endif %}
         </div>
     </div>

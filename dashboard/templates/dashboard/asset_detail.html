@@ -249,6 +249,10 @@
                     <i class="fas fa-users me-2"></i>
                     Users
                 </a>
+                <a class="nav-link" href="{% url 'dashboard:tests' %}">
+                    <i class="fas fa-vial me-2"></i>
+                    Tests
+                </a>
             </div>
             <div class="navbar-nav">
                 <a href="{% url 'dashboard:asset_list' %}" class="back-button">
@@ -308,8 +312,7 @@
                 <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
                     <!-- Charts Row -->
                     <div class="row mb-4">
-                        {% if plots.history_chart %}
-                        <div class="col-lg-6 mb-4">
+                        {% if plots.history_chart %}<div class="col-lg-6 mb-4">
                             <div class="chart-container">
                                 <h5 class="mb-3">
                                     <i class="fas fa-chart-line me-2"></i>
@@ -318,8 +321,7 @@
                                 {{ plots.history_chart.0|safe }}
                                 {{ plots.history_chart.1|safe }}
                             </div>
-                        </div>
-                        {% endif %}
+                        </div>{% endif %}
                     </div>
 
                     <!-- Configuration Details -->
@@ -397,16 +399,14 @@
                                             {{ asset.decimals_places }}
                                         </div>
                                     </div>
-                                    {% if asset.price_event_name and asset.price_event_name != "Unknown" %}
-                                    <div class="row mt-3">
+                                    {% if asset.price_event_name and asset.price_event_name != "Unknown" %}<div class="row mt-3">
                                         <div class="col-12">
                                             <strong>Price Event Name:</strong><br>
                                             <span class="text-muted">
                                                 <i class="fas fa-tag me-1"></i>{{ asset.price_event_name }}
                                             </span>
                                         </div>
-                                    </div>
-                                    {% endif %}
+                                    </div>{% endif %}
                                 </div>
                             </div>
                         </div>
@@ -423,15 +423,7 @@
                                     <div class="row">
                                         <div class="col-12">
                                             <strong>Interest Rate Strategy:</strong><br>
-                                            {% if addresses.interest_rate_strategy %}
-                                            <a href="{{ addresses.interest_rate_strategy }}" target="_blank"
-                                                class="address-badge">
-                                                {{ asset.interest_rate_strategy|truncatechars:20 }}
-                                            </a>
-                                            {% else %}
-                                            <span class="address-badge">{{ asset.interest_rate_strategy|truncatechars:20
-                                                }}</span>
-                                            {% endif %}
+                                            {% if addresses.interest_rate_strategy %}<a href="{{ addresses.interest_rate_strategy }}" target="_blank" class="address-badge">{{ asset.interest_rate_strategy|truncatechars:20 }}</a>{% else %}<span class="address-badge">{{ asset.interest_rate_strategy|truncatechars:20 }}</span>{% endif %}
                                         </div>
                                     </div>
                                     <div class="row mt-3">
@@ -459,23 +451,11 @@
                                     <div class="row">
                                         <div class="col-md-6 mb-3">
                                             <strong>Asset Address:</strong><br>
-                                            {% if addresses.asset %}
-                                            <a href="{{ addresses.asset }}" target="_blank" class="address-badge">
-                                                {{ asset.address|truncatechars:20 }}
-                                            </a>
-                                            {% else %}
-                                            <span class="address-badge">{{ asset.address|truncatechars:20 }}</span>
-                                            {% endif %}
+                                            {% if addresses.asset %}<a href="{{ addresses.asset }}" target="_blank" class="address-badge">{{ asset.address|truncatechars:20 }}</a>{% else %}<span class="address-badge">{{ asset.address|truncatechars:20 }}</span>{% endif %}
                                         </div>
                                         <div class="col-md-6 mb-3">
                                             <strong>aToken Address:</strong><br>
-                                            {% if addresses.aToken %}
-                                            <a href="{{ addresses.aToken }}" target="_blank" class="address-badge">
-                                                {{ asset.aToken|truncatechars:20 }}
-                                            </a>
-                                            {% else %}
-                                            <span class="address-badge">{{ asset.aToken|truncatechars:20 }}</span>
-                                            {% endif %}
+                                            {% if addresses.aToken %}<a href="{{ addresses.aToken }}" target="_blank" class="address-badge">{{ asset.aToken|truncatechars:20 }}</a>{% else %}<span class="address-badge">{{ asset.aToken|truncatechars:20 }}</span>{% endif %}
                                         </div>
                                     </div>
                                     <div class="row">
@@ -483,15 +463,7 @@
                                         </div>
                                         <div class="col-md-6 mb-3">
                                             <strong>Variable Debt Token:</strong><br>
-                                            {% if addresses.variableDebtToken %}
-                                            <a href="{{ addresses.variableDebtToken }}" target="_blank"
-                                                class="address-badge">
-                                                {{ asset.variableDebtToken|truncatechars:20 }}
-                                            </a>
-                                            {% else %}
-                                            <span class="address-badge">{{ asset.variableDebtToken|truncatechars:20
-                                                }}</span>
-                                            {% endif %}
+                                            {% if addresses.variableDebtToken %}<a href="{{ addresses.variableDebtToken }}" target="_blank" class="address-badge">{{ asset.variableDebtToken|truncatechars:20 }}</a>{% else %}<span class="address-badge">{{ asset.variableDebtToken|truncatechars:20 }}</span>{% endif %}
                                         </div>
                                     </div>
                                 </div>
@@ -509,17 +481,11 @@
                                 style="background: linear-gradient(135deg, #10b981, #059669);">
                                 <div class="card-body metric-card">
                                     <div class="metric-value">
-                                        {% if prices.event_price.price %}
-                                        {{ prices.event_price.price }}
-                                        {% else %}
-                                        N/A
-                                        {% endif %}
+                                        {% if prices.event_price.price %}{{ prices.event_price.price }}{% else %}N/A{% endif %}
                                     </div>
                                     <div class="metric-label">Event Price</div>
                                     <small class="text-white-50">
-                                        {% if prices.event_price.timestamp %}
-                                        Last updated: {{ prices.event_price.timestamp|date:"M d, Y H:i" }}
-                                        {% endif %}
+                                        {% if prices.event_price.timestamp %}Last updated: {{ prices.event_price.timestamp|date:"M d, Y H:i" }}{% endif %}
                                     </small>
                                 </div>
                             </div>
@@ -529,17 +495,11 @@
                                 style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">
                                 <div class="card-body metric-card">
                                     <div class="metric-value">
-                                        {% if prices.transaction_price.price %}
-                                        {{ prices.transaction_price.price }}
-                                        {% else %}
-                                        N/A
-                                        {% endif %}
+                                        {% if prices.transaction_price.price %}{{ prices.transaction_price.price }}{% else %}N/A{% endif %}
                                     </div>
                                     <div class="metric-label">Transaction Price</div>
                                     <small class="text-white-50">
-                                        {% if prices.transaction_price.timestamp %}
-                                        Last updated: {{ prices.transaction_price.timestamp|date:"M d, Y H:i" }}
-                                        {% endif %}
+                                        {% if prices.transaction_price.timestamp %}Last updated: {{ prices.transaction_price.timestamp|date:"M d, Y H:i" }}{% endif %}
                                     </small>
                                 </div>
                             </div>
@@ -549,17 +509,11 @@
                                 style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
                                 <div class="card-body metric-card">
                                     <div class="metric-value">
-                                        {% if prices.predicted_price.price %}
-                                        {{ prices.predicted_price.price }}
-                                        {% else %}
-                                        N/A
-                                        {% endif %}
+                                        {% if prices.predicted_price.price %}{{ prices.predicted_price.price }}{% else %}N/A{% endif %}
                                     </div>
                                     <div class="metric-label">Predicted Price</div>
                                     <small class="text-white-50">
-                                        {% if prices.predicted_price.timestamp %}
-                                        Predicted at: {{ prices.predicted_price.timestamp|date:"M d, Y H:i" }}
-                                        {% endif %}
+                                        {% if prices.predicted_price.timestamp %}Predicted at: {{ prices.predicted_price.timestamp|date:"M d, Y H:i" }}{% endif %}
                                     </small>
                                 </div>
                             </div>
@@ -589,91 +543,42 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {% if prices.event_price %}
-                                                <tr>
+                                                {% if prices.event_price %}<tr>
                                                     <td>
                                                         <span class="badge" style="background: #10b981; color: white;">
                                                             <i class="fas fa-calendar-alt me-1"></i>
                                                             Event Price
                                                         </span>
                                                     </td>
-                                                    <td>
-                                                        {% if prices.event_price.price %}
-                                                        {{ prices.event_price.price }}
-                                                        {% else %}
-                                                        N/A
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>{% if prices.event_price.price %}{{ prices.event_price.price }}{% else %}N/A{% endif %}</td>
                                                     <td>{{ prices.event_price.timestamp|date:"M d, Y H:i:s" }}</td>
                                                     <td>{{ prices.event_price.block_number|default:"N/A" }}</td>
-                                                    <td>
-                                                        {% if prices.event_price.asset_source %}
-                                                        <span class="source-badge">
-                                                            {{ prices.event_price.asset_source|truncatechars:20 }}
-                                                        </span>
-                                                        {% else %}
-                                                        N/A
-                                                        {% endif %}
-                                                    </td>
-                                                </tr>
-                                                {% endif %}
-                                                {% if prices.transaction_price %}
-                                                <tr>
+                                                    <td>{% if prices.event_price.asset_source %}<span class="source-badge">{{ prices.event_price.asset_source|truncatechars:20 }}</span>{% else %}N/A{% endif %}</td>
+                                                </tr>{% endif %}
+                                                {% if prices.transaction_price %}<tr>
                                                     <td>
                                                         <span class="badge" style="background: #3b82f6; color: white;">
                                                             <i class="fas fa-exchange-alt me-1"></i>
                                                             Transaction Price
                                                         </span>
                                                     </td>
-                                                    <td>
-                                                        {% if prices.transaction_price.price %}
-                                                        {{ prices.transaction_price.price }}
-                                                        {% else %}
-                                                        N/A
-                                                        {% endif %}
-                                                    </td>
-                                                    <td>{{ prices.transaction_price.timestamp|date:"M d, Y H:i:s" }}
-                                                    </td>
+                                                    <td>{% if prices.transaction_price.price %}{{ prices.transaction_price.price }}{% else %}N/A{% endif %}</td>
+                                                    <td>{{ prices.transaction_price.timestamp|date:"M d, Y H:i:s" }}</td>
                                                     <td>{{ prices.transaction_price.block_number|default:"N/A" }}</td>
-                                                    <td>
-                                                        {% if prices.transaction_price.asset_source %}
-                                                        <span class="source-badge">
-                                                            {{ prices.transaction_price.asset_source|truncatechars:20 }}
-                                                        </span>
-                                                        {% else %}
-                                                        N/A
-                                                        {% endif %}
-                                                    </td>
-                                                </tr>
-                                                {% endif %}
-                                                {% if prices.predicted_price %}
-                                                <tr>
+                                                    <td>{% if prices.transaction_price.asset_source %}<span class="source-badge">{{ prices.transaction_price.asset_source|truncatechars:20 }}</span>{% else %}N/A{% endif %}</td>
+                                                </tr>{% endif %}
+                                                {% if prices.predicted_price %}<tr>
                                                     <td>
                                                         <span class="badge" style="background: #8b5cf6; color: white;">
                                                             <i class="fas fa-crystal-ball me-1"></i>
                                                             Predicted Price
                                                         </span>
                                                     </td>
-                                                    <td>
-                                                        {% if prices.predicted_price.price %}
-                                                        {{ prices.predicted_price.price }}
-                                                        {% else %}
-                                                        N/A
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>{% if prices.predicted_price.price %}{{ prices.predicted_price.price }}{% else %}N/A{% endif %}</td>
                                                     <td>{{ prices.predicted_price.timestamp|date:"M d, Y H:i:s" }}</td>
                                                     <td>{{ prices.predicted_price.block_number|default:"N/A" }}</td>
-                                                    <td>
-                                                        {% if prices.predicted_price.asset_source %}
-                                                        <span class="source-badge">
-                                                            {{ prices.predicted_price.asset_source|truncatechars:20 }}
-                                                        </span>
-                                                        {% else %}
-                                                        N/A
-                                                        {% endif %}
-                                                    </td>
-                                                </tr>
-                                                {% endif %}
+                                                    <td>{% if prices.predicted_price.asset_source %}<span class="source-badge">{{ prices.predicted_price.asset_source|truncatechars:20 }}</span>{% else %}N/A{% endif %}</td>
+                                                </tr>{% endif %}
                                             </tbody>
                                         </table>
                                     </div>
@@ -683,8 +588,7 @@
                     </div>
 
                     <!-- Latest Price Components Table -->
-                    {% if latest_components %}
-                    <div class="row mb-4">
+                    {% if latest_components %}<div class="row mb-4">
                         <div class="col-12">
                             <div class="card">
                                 <div class="card-header">
@@ -715,15 +619,9 @@
                                                     <td><small class="text-muted">Raw numerator value from
                                                             events</small></td>
                                                 </tr>
-                                                <tr>
+                                                                <tr>
                                                     <td><strong>Transaction Numerator</strong></td>
-                                                    <td>
-                                                        {% if latest_components.transaction_numerator > 0 %}
-                                                        {{ latest_components.transaction_numerator|floatformat:0 }}
-                                                        {% else %}
-                                                        <span class="text-muted">N/A</span>
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>{% if latest_components.transaction_numerator > 0 %}{{ latest_components.transaction_numerator|floatformat:0 }}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
                                                     <td><small class="text-muted">Raw numerator value from
                                                             transactions</small></td>
                                                 </tr>
@@ -741,13 +639,7 @@
                                                 </tr>
                                                 <tr>
                                                     <td><strong>Transaction Multiplier</strong></td>
-                                                    <td>
-                                                        {% if latest_components.transaction_multiplier > 0 %}
-                                                        {{ latest_components.transaction_multiplier|floatformat:0 }}
-                                                        {% else %}
-                                                        <span class="text-muted">N/A</span>
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>{% if latest_components.transaction_multiplier > 0 %}{{ latest_components.transaction_multiplier|floatformat:0 }}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
                                                     <td><small class="text-muted">Price adjustment multiplier from
                                                             transactions</small></td>
                                                 </tr>
@@ -760,58 +652,25 @@
                                                 </tr>
                                                 <tr>
                                                     <td><strong>Max Cap</strong></td>
-                                                    <td>
-                                                        {% if latest_components.max_cap > 0 %}
-                                                        {{ latest_components.max_cap|floatformat:0 }}
-                                                        <br><small class="text-muted">
-                                                            {% if latest_components.max_cap_type == 1 %}
-                                                            (Price Cap)
-                                                            {% elif latest_components.max_cap_type == 2 %}
-                                                            (Multiplier Cap)
-                                                            {% else %}
-                                                            (No Cap)
-                                                            {% endif %}
-                                                        </small>
-                                                        {% else %}
-                                                        <span class="text-muted">No cap</span>
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>{% if latest_components.max_cap > 0 %}{{ latest_components.max_cap|floatformat:0 }}<br><small class="text-muted">{% if latest_components.max_cap_type == 1 %}(Price Cap){% elif latest_components.max_cap_type == 2 %}(Multiplier Cap){% else %}(No Cap){% endif %}</small>{% else %}<span class="text-muted">No cap</span>{% endif %}</td>
                                                     <td><small class="text-muted">Maximum price ceiling limit</small>
                                                     </td>
                                                 </tr>
                                                 <tr>
                                                     <td><strong>Growth Rate per Second</strong></td>
-                                                    <td>
-                                                        {% if latest_components.std_growth_per_sec != 0 %}
-                                                        {{ latest_components.std_growth_per_sec|floatformat:6 }}
-                                                        {% else %}
-                                                        <span class="text-muted">0.0</span>
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>{% if latest_components.std_growth_per_sec != 0 %}{{ latest_components.std_growth_per_sec|floatformat:6 }}{% else %}<span class="text-muted">0.0</span>{% endif %}</td>
                                                     <td><small class="text-muted">Standard growth rate per second for
                                                             predictions</small></td>
                                                 </tr>
                                                 <tr>
                                                     <td><strong>Max Cap UInt256</strong></td>
-                                                    <td>
-                                                        {% if latest_components.max_cap_uint256 %}
-                                                        {{ latest_components.max_cap_uint256|floatformat:0 }}
-                                                        {% else %}
-                                                        <span class="text-muted">0</span>
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>{% if latest_components.max_cap_uint256 %}{{ latest_components.max_cap_uint256|floatformat:0 }}{% else %}<span class="text-muted">0</span>{% endif %}</td>
                                                     <td><small class="text-muted">Max cap value used in calculations
                                                             (UInt256 format)</small></td>
                                                 </tr>
                                                 <tr>
                                                     <td><strong>Multiplier Cap</strong></td>
-                                                    <td>
-                                                        {% if latest_components.multiplier_cap %}
-                                                        {{ latest_components.multiplier_cap|floatformat:0 }}
-                                                        {% else %}
-                                                        <span class="text-muted">1</span>
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>{% if latest_components.multiplier_cap %}{{ latest_components.multiplier_cap|floatformat:0 }}{% else %}<span class="text-muted">1</span>{% endif %}</td>
                                                     <td><small class="text-muted">Maximum multiplier cap for ratio-based
                                                             calculations</small></td>
                                                 </tr>
@@ -823,81 +682,31 @@
                                                 </tr>
                                                 <tr>
                                                     <td><strong>RPC Price</strong></td>
-                                                    <td>
-                                                        {% if latest_components.rpc_price %}
-                                                        {% if "Error" in latest_components.rpc_price|default:"" %}
-                                                        <span class="text-danger">{{ latest_components.rpc_price
-                                                            }}</span>
-                                                        {% else %}
-                                                        <span class="text-success">{{
-                                                            latest_components.rpc_price|floatformat:8 }}</span>
-                                                        {% endif %}
-                                                        {% else %}
-                                                        <span class="text-muted">RPC Unavailable</span>
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>{% if latest_components.rpc_price %}{% if "Error" in latest_components.rpc_price|default:"" %}<span class="text-danger">{{ latest_components.rpc_price }}</span>{% else %}<span class="text-success">{{ latest_components.rpc_price|floatformat:8 }}</span>{% endif %}{% else %}<span class="text-muted">RPC Unavailable</span>{% endif %}</td>
                                                     <td><small class="text-muted">Latest price directly from RPC
                                                             call</small></td>
                                                 </tr>
                                                 <tr>
                                                     <td><strong>Historical Event Price</strong></td>
-                                                    <td>
-                                                        {% if latest_components.calculated_event_price %}
-                                                        <span class="text-primary">{{
-                                                            latest_components.calculated_event_price|floatformat:8
-                                                            }}</span>
-                                                        {% else %}
-                                                        <span class="text-muted">N/A</span>
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>{% if latest_components.calculated_event_price %}<span class="text-primary">{{ latest_components.calculated_event_price|floatformat:8 }}</span>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
                                                     <td><small class="text-muted">Calculated price from event
                                                             data</small></td>
                                                 </tr>
                                                 <tr>
                                                     <td><strong>Historical Transaction Price</strong></td>
-                                                    <td>
-                                                        {% if latest_components.calculated_transaction_price %}
-                                                        <span class="text-warning">{{
-                                                            latest_components.calculated_transaction_price|floatformat:8
-                                                            }}</span>
-                                                        {% else %}
-                                                        <span class="text-muted">N/A</span>
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>{% if latest_components.calculated_transaction_price %}<span class="text-warning">{{ latest_components.calculated_transaction_price|floatformat:8 }}</span>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
                                                     <td><small class="text-muted">Calculated price from transaction
                                                             data</small></td>
                                                 </tr>
                                                 <tr>
                                                     <td><strong>Predicted Transaction Price</strong></td>
-                                                    <td>
-                                                        {% if latest_components.calculated_predicted_price %}
-                                                        <span class="text-info">{{
-                                                            latest_components.calculated_predicted_price|floatformat:8
-                                                            }}</span>
-                                                        {% else %}
-                                                        <span class="text-muted">N/A</span>
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>{% if latest_components.calculated_predicted_price %}<span class="text-info">{{ latest_components.calculated_predicted_price|floatformat:8 }}</span>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
                                                     <td><small class="text-muted">Predicted price based on growth
                                                             calculations</small></td>
                                                 </tr>
                                                 <tr>
                                                     <td><strong>RPC Cached Block Height</strong></td>
-                                                    <td>
-                                                        {% if latest_components.rpc_cached_block_height %}
-                                                        {% if "Error" in
-                                                        latest_components.rpc_cached_block_height|default:"" %}
-                                                        <span class="text-danger">{{
-                                                            latest_components.rpc_cached_block_height }}</span>
-                                                        {% else %}
-                                                        <span class="text-secondary">{{
-                                                            latest_components.rpc_cached_block_height|floatformat:0
-                                                            }}</span>
-                                                        {% endif %}
-                                                        {% else %}
-                                                        <span class="text-muted">Unavailable</span>
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>{% if latest_components.rpc_cached_block_height %}{% if "Error" in latest_components.rpc_cached_block_height|default:"" %}<span class="text-danger">{{ latest_components.rpc_cached_block_height }}</span>{% else %}<span class="text-secondary">{{ latest_components.rpc_cached_block_height|floatformat:0 }}</span>{% endif %}{% else %}<span class="text-muted">Unavailable</span>{% endif %}</td>
                                                     <td><small class="text-muted">Current cached block height from RPC
                                                             adapter</small></td>
                                                 </tr>
@@ -914,12 +723,10 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    {% endif %}
+                    </div>{% endif %}
 
                     <!-- Price Verification Chart -->
-                    {% if price_component_plots.verification_chart %}
-                    <div class="row mb-4">
+                    {% if price_component_plots.verification_chart %}<div class="row mb-4">
                         <div class="col-12">
                             <div class="chart-container">
                                 <h5 class="mb-3">
@@ -935,9 +742,7 @@
                                 {{ price_component_plots.verification_chart.1|safe }}
                             </div>
                         </div>
-                    </div>
-                    {% else %}
-                    <div class="row mb-4">
+                    </div>{% else %}<div class="row mb-4">
                         <div class="col-12">
                             <div class="chart-container">
                                 <div class="chart-placeholder">
@@ -947,12 +752,10 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    {% endif %}
+                    </div>{% endif %}
 
                     <!-- Numerator Charts -->
-                    {% if price_component_plots.numerator_chart %}
-                    <div class="row mb-4">
+                    {% if price_component_plots.numerator_chart %}<div class="row mb-4">
                         <div class="col-12">
                             <div class="chart-container">
                                 <h5 class="mb-3">
@@ -967,9 +770,7 @@
                                 {{ price_component_plots.numerator_chart.1|safe }}
                             </div>
                         </div>
-                    </div>
-                    {% else %}
-                    <div class="row mb-4">
+                    </div>{% else %}<div class="row mb-4">
                         <div class="col-12">
                             <div class="chart-container">
                                 <div class="chart-placeholder">
@@ -979,12 +780,10 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    {% endif %}
+                    </div>{% endif %}
 
                     <!-- Multiplier Charts -->
-                    {% if price_component_plots.multiplier_chart %}
-                    <div class="row mb-4">
+                    {% if price_component_plots.multiplier_chart %}<div class="row mb-4">
                         <div class="col-12">
                             <div class="chart-container">
                                 <h5 class="mb-3">
@@ -999,9 +798,7 @@
                                 {{ price_component_plots.multiplier_chart.1|safe }}
                             </div>
                         </div>
-                    </div>
-                    {% else %}
-                    <div class="row mb-4">
+                    </div>{% else %}<div class="row mb-4">
                         <div class="col-12">
                             <div class="chart-container">
                                 <div class="chart-placeholder">
@@ -1011,12 +808,10 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    {% endif %}
+                    </div>{% endif %}
 
                     <!-- Max Cap Charts -->
-                    {% if price_component_plots.max_cap_chart %}
-                    <div class="row mb-4">
+                    {% if price_component_plots.max_cap_chart %}<div class="row mb-4">
                         <div class="col-12">
                             <div class="chart-container">
                                 <h5 class="mb-3">
@@ -1031,9 +826,7 @@
                                 {{ price_component_plots.max_cap_chart.1|safe }}
                             </div>
                         </div>
-                    </div>
-                    {% else %}
-                    <div class="row mb-4">
+                    </div>{% else %}<div class="row mb-4">
                         <div class="col-12">
                             <div class="chart-container">
                                 <div class="chart-placeholder">
@@ -1043,12 +836,10 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    {% endif %}
+                    </div>{% endif %}
 
                     <!-- Denominator Charts -->
-                    {% if price_component_plots.denominator_chart %}
-                    <div class="row mb-4">
+                    {% if price_component_plots.denominator_chart %}<div class="row mb-4">
                         <div class="col-12">
                             <div class="chart-container">
                                 <h5 class="mb-3">
@@ -1063,9 +854,7 @@
                                 {{ price_component_plots.denominator_chart.1|safe }}
                             </div>
                         </div>
-                    </div>
-                    {% else %}
-                    <div class="row mb-4">
+                    </div>{% else %}<div class="row mb-4">
                         <div class="col-12">
                             <div class="chart-container">
                                 <div class="chart-placeholder">
@@ -1075,8 +864,7 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    {% endif %}
+                    </div>{% endif %}
                 </div>
             </div>
 
@@ -1093,8 +881,7 @@
                                 </h5>
                             </div>
                             <div class="card-body">
-                                {% if collateral_events %}
-                                <div class="table-responsive">
+                                {% if collateral_events %}<div class="table-responsive">
                                     <table class="table table-hover events-table">
                                         <thead>
                                             <tr>
@@ -1114,28 +901,14 @@
                                                 <td>{{ event.liquidation_threshold_pct }}%</td>
                                                 <td>{{ event.liquidation_bonus_pct }}%</td>
                                                 <td>{{ event.block_timestamp }}</td>
-                                                <td>
-                                                    {% if event.transaction_url %}
-                                                    <a href="{{ event.transaction_url }}" target="_blank"
-                                                        class="address-badge">
-                                                        {{ event.transaction_hash|truncatechars:15 }}
-                                                    </a>
-                                                    {% else %}
-                                                    <span class="address-badge">{{
-                                                        event.transaction_hash|truncatechars:15 }}</span>
-                                                    {% endif %}
-                                                </td>
-                                            </tr>
-                                            {% endfor %}
+                                                <td>{% if event.transaction_url %}<a href="{{ event.transaction_url }}" target="_blank" class="address-badge">{{ event.transaction_hash|truncatechars:15 }}</a>{% else %}<span class="address-badge">{{ event.transaction_hash|truncatechars:15 }}</span>{% endif %}</td>
+                                            </tr>{% endfor %}
                                         </tbody>
                                     </table>
-                                </div>
-                                {% else %}
-                                <div class="text-center text-muted">
+                                </div>{% else %}<div class="text-center text-muted">
                                     <i class="fas fa-info-circle fa-2x mb-3"></i>
                                     <p>No collateral configuration change events found for this asset.</p>
-                                </div>
-                                {% endif %}
+                                </div>{% endif %}
                             </div>
                         </div>
                     </div>
@@ -1152,8 +925,7 @@
                                 </h5>
                             </div>
                             <div class="card-body">
-                                {% if emode_asset_events %}
-                                <div class="table-responsive">
+                                {% if emode_asset_events %}<div class="table-responsive">
                                     <table class="table table-hover events-table">
                                         <thead>
                                             <tr>
@@ -1171,28 +943,14 @@
                                                 <td>{{ event.old_category_id|default:"None" }}</td>
                                                 <td>{{ event.new_category_id|default:"None" }}</td>
                                                 <td>{{ event.block_timestamp }}</td>
-                                                <td>
-                                                    {% if event.transaction_url %}
-                                                    <a href="{{ event.transaction_url }}" target="_blank"
-                                                        class="address-badge">
-                                                        {{ event.transaction_hash|truncatechars:15 }}
-                                                    </a>
-                                                    {% else %}
-                                                    <span class="address-badge">{{
-                                                        event.transaction_hash|truncatechars:15 }}</span>
-                                                    {% endif %}
-                                                </td>
-                                            </tr>
-                                            {% endfor %}
+                                                <td>{% if event.transaction_url %}<a href="{{ event.transaction_url }}" target="_blank" class="address-badge">{{ event.transaction_hash|truncatechars:15 }}</a>{% else %}<span class="address-badge">{{ event.transaction_hash|truncatechars:15 }}</span>{% endif %}</td>
+                                            </tr>{% endfor %}
                                         </tbody>
                                     </table>
-                                </div>
-                                {% else %}
-                                <div class="text-center text-muted">
+                                </div>{% else %}<div class="text-center text-muted">
                                     <i class="fas fa-info-circle fa-2x mb-3"></i>
                                     <p>No E-Mode asset category change events found for this asset.</p>
-                                </div>
-                                {% endif %}
+                                </div>{% endif %}
                             </div>
                         </div>
                     </div>
@@ -1209,8 +967,7 @@
                                 </h5>
                             </div>
                             <div class="card-body">
-                                {% if source_events %}
-                                <div class="table-responsive">
+                                {% if source_events %}<div class="table-responsive">
                                     <table class="table table-hover events-table">
                                         <thead>
                                             <tr>
@@ -1224,40 +981,16 @@
                                             {% for event in source_events %}
                                             <tr>
                                                 <td>{{ addresses.asset|safe }}</td>
-                                                <td>
-                                                    {% if event.asset_source_url %}
-                                                    <a href="{{ event.asset_source_url }}" target="_blank"
-                                                        class="address-badge">
-                                                        {{ event.asset_source|truncatechars:15 }}
-                                                    </a>
-                                                    {% else %}
-                                                    <span class="address-badge">{{ event.asset_source|truncatechars:15
-                                                        }}</span>
-                                                    {% endif %}
-                                                </td>
+                                                <td>{% if event.asset_source_url %}<a href="{{ event.asset_source_url }}" target="_blank" class="address-badge">{{ event.asset_source|truncatechars:15 }}</a>{% else %}<span class="address-badge">{{ event.asset_source|truncatechars:15 }}</span>{% endif %}</td>
                                                 <td>{{ event.block_timestamp }}</td>
-                                                <td>
-                                                    {% if event.transaction_url %}
-                                                    <a href="{{ event.transaction_url }}" target="_blank"
-                                                        class="address-badge">
-                                                        {{ event.transaction_hash|truncatechars:15 }}
-                                                    </a>
-                                                    {% else %}
-                                                    <span class="address-badge">{{
-                                                        event.transaction_hash|truncatechars:15 }}</span>
-                                                    {% endif %}
-                                                </td>
-                                            </tr>
-                                            {% endfor %}
+                                                <td>{% if event.transaction_url %}<a href="{{ event.transaction_url }}" target="_blank" class="address-badge">{{ event.transaction_hash|truncatechars:15 }}</a>{% else %}<span class="address-badge">{{ event.transaction_hash|truncatechars:15 }}</span>{% endif %}</td>
+                                            </tr>{% endfor %}
                                         </tbody>
                                     </table>
-                                </div>
-                                {% else %}
-                                <div class="text-center text-muted">
+                                </div>{% else %}<div class="text-center text-muted">
                                     <i class="fas fa-info-circle fa-2x mb-3"></i>
                                     <p>No asset source update events found for this asset.</p>
-                                </div>
-                                {% endif %}
+                                </div>{% endif %}
                             </div>
                         </div>
                     </div>
@@ -1308,5 +1041,7 @@
         });
     </script>
 </body>
+
+</html>
 
 </html>

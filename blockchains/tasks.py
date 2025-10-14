@@ -561,3 +561,407 @@ class CalculateLiquidationHealthFactorMetricsTask(Task):
 CalculateLiquidationHealthFactorMetricsTask = app.register_task(
     CalculateLiquidationHealthFactorMetricsTask()
 )
+
+
+class CompareReserveConfigurationTask(Task):
+    """
+    Task to compare reserve configuration data between ClickHouse and RPC.
+
+    This task retrieves reserve configuration from both ClickHouse (view_LatestAssetConfiguration)
+    and from the DataProvider contract via RPC, compares matching fields, and stores
+    aggregate statistics in the ReserveConfigurationTestResults table.
+    """
+
+    def run(self):
+        """
+        Execute the reserve configuration comparison test.
+
+        Returns:
+            Dict[str, Any]: Test results summary
+        """
+        import time
+
+        logger.info("Starting CompareReserveConfigurationTask")
+        start_time = time.time()
+
+        try:
+            # Get data from ClickHouse
+            clickhouse_data = self._get_clickhouse_reserves()
+            clickhouse_count = len(clickhouse_data)
+            logger.info(f"Retrieved {clickhouse_count} reserves from ClickHouse")
+
+            # Get all aTokens from RPC to compare counts
+            all_atokens = self._get_all_atokens_count()
+            logger.info(f"Retrieved {all_atokens} aTokens from getAllATokens()")
+
+            # Check if counts match
+            count_mismatch = clickhouse_count != all_atokens
+            if count_mismatch:
+                self._send_count_mismatch_notification(clickhouse_count, all_atokens)
+
+            # Get data from RPC
+            asset_addresses = list(clickhouse_data.keys())
+            rpc_data = self._get_rpc_reserves(asset_addresses)
+            logger.info(f"Retrieved {len(rpc_data)} reserves from RPC")
+
+            # Compare the data
+            comparison_results = self._compare_reserves(clickhouse_data, rpc_data)
+
+            # Calculate test duration
+            test_duration = time.time() - start_time
+
+            # Store results in ClickHouse
+            self._store_test_results(comparison_results, test_duration)
+
+            # Clean up old test records (older than 7 days)
+            self._cleanup_old_test_records()
+
+            logger.info(f"Comparison completed in {test_duration:.2f} seconds")
+            logger.info(
+                f"Match percentage: {comparison_results['match_percentage']:.2f}%"
+            )
+
+            # Send notification if mismatches found
+            if comparison_results["mismatched_records"] > 0:
+                self._send_mismatch_notification(comparison_results)
+
+            return {
+                "status": "completed",
+                "test_duration": test_duration,
+                "count_mismatch": count_mismatch,
+                "clickhouse_count": clickhouse_count,
+                "rpc_atokens_count": all_atokens,
+                **comparison_results,
+            }
+
+        except Exception as e:
+            error_msg = f"Error during reserve configuration comparison: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+
+            # Store error result
+            self._store_error_result(error_msg, time.time() - start_time)
+
+            return {"status": "error", "error": error_msg}
+
+    def _get_clickhouse_reserves(self) -> Dict[str, Dict]:
+        """
+        Get reserve configuration data from ClickHouse.
+
+        Returns:
+            Dict[str, Dict]: Reserve data keyed by asset address
+        """
+        query = """
+        SELECT
+            asset,
+            aToken,
+            variableDebtToken,
+            interestRateStrategyAddress,
+            collateralLTV,
+            collateralLiquidationThreshold,
+            collateralLiquidationBonus,
+            eModeCategoryId,
+            eModeLTV,
+            eModeLiquidationThreshold,
+            eModeLiquidationBonus
+        FROM aave_ethereum.view_LatestAssetConfiguration
+        ORDER BY asset
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        reserves = {}
+        for row in result.result_rows:
+            asset = row[0].lower()
+            reserves[asset] = {
+                "asset": asset,
+                "aToken": row[1].lower() if row[1] else "",
+                "variableDebtToken": row[2].lower() if row[2] else "",
+                "interestRateStrategyAddress": row[3].lower() if row[3] else "",
+                "ltv": float(row[4]) if row[4] is not None else 0,
+                "liquidationThreshold": float(row[5]) if row[5] is not None else 0,
+                "liquidationBonus": float(row[6]) if row[6] is not None else 0,
+                "eModeCategoryId": int(row[7]) if row[7] is not None else 0,
+                "eModeLtv": float(row[8]) if row[8] is not None else 0,
+                "eModeLiquidationThreshold": float(row[9]) if row[9] is not None else 0,
+                "eModeLiquidationBonus": float(row[10]) if row[10] is not None else 0,
+            }
+
+        return reserves
+
+    def _get_rpc_reserves(self, asset_addresses: List[str]) -> Dict[str, Dict]:
+        """
+        Get reserve configuration data from RPC via DataProvider interface.
+
+        Args:
+            asset_addresses: List of asset addresses to query
+
+        Returns:
+            Dict[str, Dict]: Reserve data keyed by asset address
+        """
+        from utils.interfaces.dataprovider import DataProviderInterface
+
+        data_provider = DataProviderInterface()
+        rpc_results = data_provider.get_reserves_configuration(asset_addresses)
+
+        reserves = {}
+        for asset, config in rpc_results.items():
+            asset_lower = asset.lower()
+
+            # The RPC returns a dict with field names as keys
+            # decimals, ltv, liquidationThreshold, liquidationBonus, reserveFactor,
+            # usageAsCollateralEnabled, borrowingEnabled, stableBorrowRateEnabled, isActive, isFrozen
+            reserves[asset_lower] = {
+                "asset": asset_lower,
+                "ltv": float(config.get("ltv", 0))
+                if config.get("ltv")
+                else 0,  # Convert basis points to percentage
+                "liquidationThreshold": float(config.get("liquidationThreshold", 0))
+                if config.get("liquidationThreshold")
+                else 0,
+                "liquidationBonus": float(config.get("liquidationBonus", 0))
+                if config.get("liquidationBonus")
+                else 0,
+                "decimals": int(config.get("decimals", 0))
+                if config.get("decimals")
+                else 0,
+                "usageAsCollateralEnabled": bool(
+                    config.get("usageAsCollateralEnabled", False)
+                ),
+                "borrowingEnabled": bool(config.get("borrowingEnabled", False)),
+                "isActive": bool(config.get("isActive", False)),
+                "isFrozen": bool(config.get("isFrozen", False)),
+            }
+
+        return reserves
+
+    def _compare_reserves(
+        self, clickhouse_data: Dict, rpc_data: Dict
+    ) -> Dict[str, Any]:
+        """
+        Compare reserve data from ClickHouse and RPC.
+
+        Args:
+            clickhouse_data: Reserve data from ClickHouse
+            rpc_data: Reserve data from RPC
+
+        Returns:
+            Dict containing comparison statistics
+        """
+        clickhouse_assets = set(clickhouse_data.keys())
+        rpc_assets = set(rpc_data.keys())
+
+        common_assets = clickhouse_assets & rpc_assets
+        clickhouse_only = clickhouse_assets - rpc_assets
+        rpc_only = rpc_assets - clickhouse_assets
+
+        matching_count = 0
+        mismatched_count = 0
+        mismatches = []
+
+        # Compare common assets
+        for asset in common_assets:
+            ch_reserve = clickhouse_data[asset]
+            rpc_reserve = rpc_data[asset]
+
+            # Compare the fields that exist in both datasets
+            fields_to_compare = ["ltv", "liquidationThreshold", "liquidationBonus"]
+
+            is_match = True
+            asset_mismatches = []
+
+            for field in fields_to_compare:
+                if field in ch_reserve and field in rpc_reserve:
+                    ch_value = ch_reserve[field]
+                    rpc_value = rpc_reserve[field]
+
+                    # Allow small floating point differences (within 0.01%)
+                    if ch_value != rpc_value:
+                        is_match = False
+                        asset_mismatches.append(
+                            f"{field}: CH={ch_value:.2f} RPC={rpc_value:.2f}"
+                        )
+
+            if is_match:
+                matching_count += 1
+            else:
+                mismatched_count += 1
+                mismatches.append(f"{asset}: {', '.join(asset_mismatches)}")
+
+        total_reserves = len(clickhouse_assets | rpc_assets)
+        match_percentage = (
+            (matching_count / len(common_assets) * 100) if common_assets else 0
+        )
+
+        return {
+            "total_reserves": total_reserves,
+            "matching_records": matching_count,
+            "mismatched_records": mismatched_count,
+            "clickhouse_only_records": len(clickhouse_only),
+            "rpc_only_records": len(rpc_only),
+            "match_percentage": match_percentage,
+            "mismatches_detail": "; ".join(
+                mismatches[:50]
+            ),  # Limit to first 50 mismatches
+        }
+
+    def _store_test_results(self, results: Dict[str, Any], duration: float):
+        """
+        Store test results in ClickHouse.
+
+        Args:
+            results: Comparison results
+            duration: Test duration in seconds
+        """
+        query = """
+        INSERT INTO aave_ethereum.ReserveConfigurationTestResults
+        (test_timestamp, total_reserves, matching_records, mismatched_records,
+         clickhouse_only_records, rpc_only_records, match_percentage,
+         test_duration_seconds, test_status, mismatches_detail)
+        VALUES
+        (now64(), %(total_reserves)s, %(matching_records)s, %(mismatched_records)s,
+         %(clickhouse_only_records)s, %(rpc_only_records)s, %(match_percentage)s,
+         %(test_duration_seconds)s, 'completed', %(mismatches_detail)s)
+        """
+
+        parameters = {
+            "total_reserves": results["total_reserves"],
+            "matching_records": results["matching_records"],
+            "mismatched_records": results["mismatched_records"],
+            "clickhouse_only_records": results["clickhouse_only_records"],
+            "rpc_only_records": results["rpc_only_records"],
+            "match_percentage": results["match_percentage"],
+            "test_duration_seconds": duration,
+            "mismatches_detail": results["mismatches_detail"],
+        }
+
+        clickhouse_client.execute_query(query, parameters=parameters)
+        logger.info("Test results stored successfully in ClickHouse")
+
+    def _store_error_result(self, error_message: str, duration: float):
+        """
+        Store error result in ClickHouse.
+
+        Args:
+            error_message: Error message
+            duration: Test duration before error
+        """
+        query = """
+        INSERT INTO aave_ethereum.ReserveConfigurationTestResults
+        (test_timestamp, total_reserves, matching_records, mismatched_records,
+         clickhouse_only_records, rpc_only_records, match_percentage,
+         test_duration_seconds, test_status, error_message)
+        VALUES
+        (now64(), 0, 0, 0, 0, 0, 0, %(test_duration_seconds)s, 'error', %(error_message)s)
+        """
+
+        parameters = {"test_duration_seconds": duration, "error_message": error_message}
+
+        try:
+            clickhouse_client.execute_query(query, parameters=parameters)
+        except Exception as e:
+            logger.error(f"Failed to store error result: {e}")
+
+    def _send_mismatch_notification(self, results: Dict[str, Any]):
+        """
+        Send a push notification when mismatches are found.
+
+        Args:
+            results: Comparison results containing mismatch information
+        """
+        try:
+            from utils.simplepush import send_simplepush_notification
+
+            mismatch_count = results["mismatched_records"]
+            total_count = results["total_reserves"]
+            match_percentage = results["match_percentage"]
+
+            title = "⚠️ Reserve Configuration Mismatch Detected"
+            message = (
+                f"Found {mismatch_count} mismatch{'es' if mismatch_count != 1 else ''} "
+                f"out of {total_count} reserves.\n"
+                f"Match rate: {match_percentage:.2f}%\n"
+                f"ClickHouse only: {results['clickhouse_only_records']}\n"
+                f"RPC only: {results['rpc_only_records']}"
+            )
+
+            send_simplepush_notification(
+                title=title, message=message, event="reserve_mismatch"
+            )
+
+            logger.info(
+                f"Sent mismatch notification: {mismatch_count} mismatches found"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to send mismatch notification: {e}")
+            # Don't raise - notification failure shouldn't fail the task
+
+    def _cleanup_old_test_records(self):
+        """
+        Delete test records older than 7 days from ClickHouse.
+        """
+        try:
+            query = """
+            ALTER TABLE aave_ethereum.ReserveConfigurationTestResults
+            DELETE WHERE test_timestamp < now() - INTERVAL 6 DAY
+            """
+
+            clickhouse_client.execute_query(query)
+            logger.info("Cleaned up test records older than 7 days")
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup old test records: {e}")
+            # Don't raise - cleanup failure shouldn't fail the task
+
+    def _get_all_atokens_count(self) -> int:
+        """
+        Get the count of all aTokens from the DataProvider contract.
+
+        Returns:
+            int: Number of aTokens returned by getAllATokens()
+        """
+        try:
+            from utils.interfaces.dataprovider import DataProviderInterface
+
+            data_provider = DataProviderInterface()
+            all_atokens = data_provider.get_all_atokens()
+            return len(all_atokens)
+
+        except Exception as e:
+            logger.error(f"Failed to get aTokens count from RPC: {e}")
+            return 0
+
+    def _send_count_mismatch_notification(self, clickhouse_count: int, rpc_count: int):
+        """
+        Send a push notification when reserve counts don't match.
+
+        Args:
+            clickhouse_count: Number of reserves in ClickHouse
+            rpc_count: Number of aTokens from getAllATokens()
+        """
+        try:
+            from utils.simplepush import send_simplepush_notification
+
+            difference = abs(clickhouse_count - rpc_count)
+            title = "🔢 Reserve Count Mismatch Detected"
+            message = (
+                f"Reserve count mismatch detected!\n"
+                f"ClickHouse: {clickhouse_count} reserves\n"
+                f"RPC getAllATokens: {rpc_count} aTokens\n"
+                f"Difference: {difference}"
+            )
+
+            send_simplepush_notification(
+                title=title, message=message, event="reserve_count_mismatch"
+            )
+
+            logger.info(
+                f"Sent count mismatch notification: {clickhouse_count} vs {rpc_count}"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to send count mismatch notification: {e}")
+            # Don't raise - notification failure shouldn't fail the task
+
+
+CompareReserveConfigurationTask = app.register_task(CompareReserveConfigurationTask())
