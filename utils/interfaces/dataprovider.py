@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict, List, Tuple
 
 from decouple import config
 from eth_abi import decode
@@ -76,3 +76,37 @@ class DataProviderInterface(BaseContractInterface):
             # The proper type string for eth_abi is "(string,address)[]"
             decoded = decode(["(string,address)[]"], data)
             return decoded[0]  # Return the array itself
+
+    def get_user_reserve_data(
+        self, user_asset_pairs: List[Tuple[str, str]]
+    ) -> Dict[Tuple[str, str], Dict]:
+        """
+        Issues a batch of getUserReserveData(address reserve, address user) calls.
+        Returns a dict mapping (user, asset) tuple to result containing collateral status.
+
+        Args:
+            user_asset_pairs: List of (user_address, asset_address) tuples
+
+        Returns:
+            Dictionary mapping (user, asset) to decoded result with usageAsCollateralEnabled field
+        """
+        call_targets = [
+            {
+                "method_signature": "getUserReserveData(address,address)",
+                "param_types": ["address", "address"],
+                "params": [asset, user],  # Note: reserve (asset) comes first, then user
+            }
+            for user, asset in user_asset_pairs
+        ]
+        raw_results = self.batch_eth_call(call_targets)
+
+        def decode_result(hex_result):
+            return self.decode_eth_call_result(hex_result, "getUserReserveData")
+
+        results_by_pair = {}
+        if isinstance(raw_results, list):
+            for (user, asset), rpc_result in zip(user_asset_pairs, raw_results):
+                result_value = rpc_result.get("result", "")
+                results_by_pair[(user, asset)] = decode_result(result_value)
+            return results_by_pair
+        return raw_results

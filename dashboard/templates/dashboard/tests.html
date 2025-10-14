@@ -297,30 +297,64 @@
         </div>
     </div>
 
-    <!-- Placeholder for future tests -->
+    <!-- User Collateral Test Card -->
     <div class="col-12 col-lg-6 mb-4">
-        <div class="card test-type-card" style="opacity: 0.6; cursor: not-allowed;">
+        <div class="card test-type-card" onclick="window.location.href='{% url 'dashboard:user_collateral_tests' %}'">
             <div class="card-body py-4">
                 <div class="d-flex align-items-center">
-                    <div class="test-icon" style="background: linear-gradient(135deg, #9ca3af, #6b7280);">
-                        <i class="fas fa-coins"></i>
+                    <div class="test-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+                        <i class="fas fa-shield-alt"></i>
                     </div>
                     <div class="test-info">
-                        <div class="test-name">Price Data Validation</div>
+                        <div class="test-name">User Collateral Status</div>
                         <div class="test-description">
-                            Compare price data across different oracle sources
+                            Validates user collateral enabled status between ClickHouse and DataProvider
                         </div>
+                        {% if collateral_test_summary %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Last Run</div>
+                                <div class="test-meta-value">{{ collateral_test_summary.test_timestamp|date:"M d, H:i" }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Match Rate</div>
+                                <div class="test-meta-value match-percentage {% if collateral_test_summary.match_percentage >= 95 %}match-high{% elif collateral_test_summary.match_percentage >= 80 %}match-medium{% else %}match-low{% endif %}">
+                                    {{ collateral_test_summary.match_percentage|floatformat:1 }}%
+                                </div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Total Pairs</div>
+                                <div class="test-meta-value">{{ collateral_test_summary.total_user_assets }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Mismatches</div>
+                                <div class="test-meta-value">{{ collateral_test_summary.mismatched_records }}</div>
+                            </div>
+                        </div>
+                        {% else %}
                         <div class="test-meta">
                             <div class="test-meta-item">
                                 <div class="test-meta-label">Status</div>
-                                <div class="test-meta-value text-muted">Coming Soon</div>
+                                <div class="test-meta-value text-muted">No tests run yet</div>
                             </div>
                         </div>
+                        {% endif %}
                     </div>
+                    {% if collateral_test_summary %}
+                    <span class="status-badge status-{{ collateral_test_summary.test_status }}">
+                        {% if collateral_test_summary.test_status == 'completed' %}
+                            <i class="fas fa-check-circle me-1"></i>
+                        {% else %}
+                            <i class="fas fa-exclamation-circle me-1"></i>
+                        {% endif %}
+                        {{ collateral_test_summary.test_status }}
+                    </span>
+                    {% else %}
                     <span class="status-badge status-pending">
                         <i class="fas fa-clock me-1"></i>
-                        Coming Soon
+                        Pending
                     </span>
+                    {% endif %}
                 </div>
             </div>
         </div>

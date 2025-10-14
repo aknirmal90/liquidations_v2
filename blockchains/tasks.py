@@ -1356,3 +1356,438 @@ class CompareUserEModeTask(Task):
 
 
 CompareUserEModeTask = app.register_task(CompareUserEModeTask())
+
+
+class CompareUserCollateralTask(Task):
+    """
+    Task to compare user collateral status between ClickHouse and RPC.
+
+    This task retrieves user-asset pairs that have modified collateral status since
+    the last test run (or all pairs if no previous run), queries the DataProvider
+    contract via RPC to get their current collateral enabled status, and compares
+    with the CollateralStatusDictionary in ClickHouse.
+    """
+
+    def run(self):
+        """
+        Execute the user collateral status comparison test.
+
+        Returns:
+            Dict[str, Any]: Test results summary
+        """
+        import time
+
+        logger.info("Starting CompareUserCollateralTask")
+        start_time = time.time()
+
+        try:
+            # Get the timestamp of the last test run
+            last_test_timestamp = self._get_last_test_timestamp()
+
+            # Get user-asset pairs to test
+            user_asset_pairs = self._get_user_asset_pairs_to_test(last_test_timestamp)
+            total_pairs = len(user_asset_pairs)
+            logger.info(
+                f"Retrieved {total_pairs} user-asset pairs to test "
+                f"(since {last_test_timestamp or 'beginning'})"
+            )
+
+            if total_pairs == 0:
+                logger.info("No user-asset pairs to test")
+                return {
+                    "status": "completed",
+                    "test_duration": time.time() - start_time,
+                    "total_user_assets": 0,
+                    "matching_records": 0,
+                    "mismatched_records": 0,
+                }
+
+            # Get ClickHouse collateral status for these pairs
+            clickhouse_data = self._get_clickhouse_collateral_status(user_asset_pairs)
+            logger.info(
+                f"Retrieved {len(clickhouse_data)} user-asset collateral statuses from ClickHouse"
+            )
+
+            # Get RPC collateral data in batches of 100
+            rpc_data = self._get_rpc_collateral_status_batched(
+                user_asset_pairs, batch_size=100
+            )
+            logger.info(
+                f"Retrieved {len(rpc_data)} user-asset collateral statuses from RPC"
+            )
+
+            # Compare the data
+            comparison_results = self._compare_collateral_status(
+                clickhouse_data, rpc_data
+            )
+
+            # Calculate test duration
+            test_duration = time.time() - start_time
+
+            # Store results in ClickHouse
+            self._store_test_results(comparison_results, test_duration)
+
+            # Clean up old test records (older than 7 days)
+            self._cleanup_old_test_records()
+
+            logger.info(f"Comparison completed in {test_duration:.2f} seconds")
+            logger.info(
+                f"Match percentage: {comparison_results['match_percentage']:.2f}%"
+            )
+
+            # Send notification if mismatches found
+            if comparison_results["mismatched_records"] > 0:
+                self._send_mismatch_notification(comparison_results)
+
+            return {
+                "status": "completed",
+                "test_duration": test_duration,
+                **comparison_results,
+            }
+
+        except Exception as e:
+            error_msg = f"Error during user collateral comparison: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+
+            # Store error result
+            self._store_error_result(error_msg, time.time() - start_time)
+
+            return {"status": "error", "error": error_msg}
+
+    def _get_last_test_timestamp(self):
+        """
+        Get the timestamp of the last successful test run.
+
+        Returns:
+            DateTime or None: Last test timestamp or None if no previous test
+        """
+        query = """
+        SELECT test_timestamp
+        FROM aave_ethereum.UserCollateralTestResults
+        WHERE test_status = 'completed'
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        if result.result_rows:
+            return result.result_rows[0][0]
+        return None
+
+    def _get_user_asset_pairs_to_test(self, since_timestamp) -> List[tuple]:
+        """
+        Get list of (user, asset) pairs that have modified collateral status
+        since the given timestamp. If no timestamp, returns all unique pairs.
+
+        Args:
+            since_timestamp: Timestamp to filter pairs, or None for all pairs
+
+        Returns:
+            List[tuple]: List of (user, asset) tuples
+        """
+        if since_timestamp:
+            query = """
+            SELECT DISTINCT user, reserve as asset
+            FROM aave_ethereum.ReserveUsedAsCollateralEnabled
+            WHERE blockTimestamp > %(since_timestamp)s
+            UNION DISTINCT
+            SELECT DISTINCT user, reserve as asset
+            FROM aave_ethereum.ReserveUsedAsCollateralDisabled
+            WHERE blockTimestamp > %(since_timestamp)s
+            ORDER BY user, asset
+            """
+            parameters = {"since_timestamp": since_timestamp}
+        else:
+            query = """
+            SELECT DISTINCT user, reserve as asset
+            FROM aave_ethereum.ReserveUsedAsCollateralEnabled
+            UNION DISTINCT
+            SELECT DISTINCT user, reserve as asset
+            FROM aave_ethereum.ReserveUsedAsCollateralDisabled
+            ORDER BY user, asset
+            """
+            parameters = {}
+
+        result = clickhouse_client.execute_query(query, parameters=parameters)
+
+        return [(row[0], row[1]) for row in result.result_rows]
+
+    def _get_clickhouse_collateral_status(
+        self, user_asset_pairs: List[tuple]
+    ) -> Dict[tuple, bool]:
+        """
+        Get collateral enabled status from ClickHouse for the given pairs.
+        Queries in small batches with argMax for efficiency.
+
+        Args:
+            user_asset_pairs: List of (user, asset) tuples
+
+        Returns:
+            Dict[tuple, bool]: Mapping of (user, asset) to collateral enabled status
+        """
+        if not user_asset_pairs:
+            return {}
+
+        logger.info(
+            f"Querying ClickHouse for collateral status of {len(user_asset_pairs)} pairs"
+        )
+
+        collateral_status = {}
+        batch_size = 500  # Process 500 pairs at a time
+
+        # Process in small batches to avoid timeouts
+        for i in range(0, len(user_asset_pairs), batch_size):
+            batch = user_asset_pairs[i : i + batch_size]
+            logger.info(
+                f"Querying ClickHouse batch {i // batch_size + 1}/{(len(user_asset_pairs) + batch_size - 1) // batch_size} "
+                f"({len(batch)} pairs)"
+            )
+
+            # Get unique users and assets for this batch
+            users_in_batch = list(set([user for user, _ in batch]))
+            assets_in_batch = list(set([asset for _, asset in batch]))
+
+            # Query with argMax instead of FINAL - much faster and less memory
+            # Filter by users/assets first, then group
+            query = """
+            SELECT
+                user,
+                asset,
+                argMax(is_enabled_as_collateral, version) as is_enabled_as_collateral
+            FROM aave_ethereum.CollateralStatusDictionary
+            WHERE user IN %(users)s AND asset IN %(assets)s
+            GROUP BY user, asset
+            """
+
+            parameters = {"users": users_in_batch, "assets": assets_in_batch}
+            result = clickhouse_client.execute_query(query, parameters=parameters)
+
+            # Filter to only include requested pairs
+            batch_set = set(batch)
+            for row in result.result_rows:
+                user = row[0].lower()
+                asset = row[1].lower()
+                pair = (user, asset)
+
+                # Only include if this pair was actually requested
+                if pair in batch_set or (row[0], row[1]) in batch_set:
+                    is_enabled = bool(row[2])
+                    collateral_status[pair] = is_enabled
+
+        logger.info(
+            f"Retrieved {len(collateral_status)} collateral statuses from ClickHouse"
+        )
+
+        return collateral_status
+
+    def _get_rpc_collateral_status_batched(
+        self, user_asset_pairs: List[tuple], batch_size: int = 100
+    ) -> Dict[tuple, bool]:
+        """
+        Get collateral enabled status from RPC in batches.
+
+        Args:
+            user_asset_pairs: List of (user, asset) tuples
+            batch_size: Number of pairs to query per batch
+
+        Returns:
+            Dict[tuple, bool]: Mapping of (user, asset) to collateral enabled status
+        """
+        from utils.interfaces.dataprovider import DataProviderInterface
+
+        data_provider = DataProviderInterface()
+        collateral_status = {}
+
+        # Process pairs in batches
+        for i in range(0, len(user_asset_pairs), batch_size):
+            batch = user_asset_pairs[i : i + batch_size]
+            logger.info(
+                f"Querying RPC for collateral status batch {i // batch_size + 1} "
+                f"({len(batch)} pairs)"
+            )
+
+            try:
+                batch_results = data_provider.get_user_reserve_data(batch)
+
+                # Extract usageAsCollateralEnabled from results
+                for (user, asset), result in batch_results.items():
+                    user_lower = user.lower()
+                    asset_lower = asset.lower()
+                    # The result dict has usageAsCollateralEnabled field
+                    is_enabled = result.get("usageAsCollateralEnabled", False)
+                    collateral_status[(user_lower, asset_lower)] = bool(is_enabled)
+
+            except Exception as e:
+                logger.error(f"Error querying batch starting at index {i}: {e}")
+                raise
+
+        return collateral_status
+
+    def _compare_collateral_status(
+        self, clickhouse_data: Dict[tuple, bool], rpc_data: Dict[tuple, bool]
+    ) -> Dict[str, Any]:
+        """
+        Compare collateral status from ClickHouse and RPC.
+
+        Args:
+            clickhouse_data: Collateral status from ClickHouse
+            rpc_data: Collateral status from RPC
+
+        Returns:
+            Dict containing comparison statistics
+        """
+        clickhouse_pairs = set(clickhouse_data.keys())
+        rpc_pairs = set(rpc_data.keys())
+
+        common_pairs = clickhouse_pairs & rpc_pairs
+        clickhouse_only = clickhouse_pairs - rpc_pairs
+        rpc_only = rpc_pairs - clickhouse_pairs
+
+        matching_count = 0
+        mismatched_count = 0
+        mismatches = []
+
+        # Compare common pairs
+        for pair in common_pairs:
+            ch_enabled = clickhouse_data[pair]
+            rpc_enabled = rpc_data[pair]
+
+            if ch_enabled == rpc_enabled:
+                matching_count += 1
+            else:
+                mismatched_count += 1
+                user, asset = pair
+                mismatches.append(
+                    f"({user},{asset}): CH={'enabled' if ch_enabled else 'disabled'} "
+                    f"RPC={'enabled' if rpc_enabled else 'disabled'}"
+                )
+
+        total_pairs = len(clickhouse_pairs | rpc_pairs)
+        match_percentage = (
+            (matching_count / len(common_pairs) * 100) if common_pairs else 0
+        )
+
+        return {
+            "total_user_assets": total_pairs,
+            "matching_records": matching_count,
+            "mismatched_records": mismatched_count,
+            "clickhouse_only_records": len(clickhouse_only),
+            "rpc_only_records": len(rpc_only),
+            "match_percentage": match_percentage,
+            "mismatches_detail": "; ".join(
+                mismatches[:50]
+            ),  # Limit to first 50 mismatches
+        }
+
+    def _store_test_results(self, results: Dict[str, Any], duration: float):
+        """
+        Store test results in ClickHouse.
+
+        Args:
+            results: Comparison results
+            duration: Test duration in seconds
+        """
+        query = """
+        INSERT INTO aave_ethereum.UserCollateralTestResults
+        (test_timestamp, total_user_assets, matching_records, mismatched_records,
+         clickhouse_only_records, rpc_only_records, match_percentage,
+         test_duration_seconds, test_status, mismatches_detail)
+        VALUES
+        (now64(), %(total_user_assets)s, %(matching_records)s, %(mismatched_records)s,
+         %(clickhouse_only_records)s, %(rpc_only_records)s, %(match_percentage)s,
+         %(test_duration_seconds)s, 'completed', %(mismatches_detail)s)
+        """
+
+        parameters = {
+            "total_user_assets": results["total_user_assets"],
+            "matching_records": results["matching_records"],
+            "mismatched_records": results["mismatched_records"],
+            "clickhouse_only_records": results["clickhouse_only_records"],
+            "rpc_only_records": results["rpc_only_records"],
+            "match_percentage": results["match_percentage"],
+            "test_duration_seconds": duration,
+            "mismatches_detail": results["mismatches_detail"],
+        }
+
+        clickhouse_client.execute_query(query, parameters=parameters)
+        logger.info("Test results stored successfully in ClickHouse")
+
+    def _store_error_result(self, error_message: str, duration: float):
+        """
+        Store error result in ClickHouse.
+
+        Args:
+            error_message: Error message
+            duration: Test duration before error
+        """
+        query = """
+        INSERT INTO aave_ethereum.UserCollateralTestResults
+        (test_timestamp, total_user_assets, matching_records, mismatched_records,
+         clickhouse_only_records, rpc_only_records, match_percentage,
+         test_duration_seconds, test_status, error_message)
+        VALUES
+        (now64(), 0, 0, 0, 0, 0, 0, %(test_duration_seconds)s, 'error', %(error_message)s)
+        """
+
+        parameters = {"test_duration_seconds": duration, "error_message": error_message}
+
+        try:
+            clickhouse_client.execute_query(query, parameters=parameters)
+        except Exception as e:
+            logger.error(f"Failed to store error result: {e}")
+
+    def _send_mismatch_notification(self, results: Dict[str, Any]):
+        """
+        Send a push notification when mismatches are found.
+
+        Args:
+            results: Comparison results containing mismatch information
+        """
+        try:
+            from utils.simplepush import send_simplepush_notification
+
+            mismatch_count = results["mismatched_records"]
+            total_count = results["total_user_assets"]
+            match_percentage = results["match_percentage"]
+
+            title = "⚠️ User Collateral Status Mismatch Detected"
+            message = (
+                f"Found {mismatch_count} mismatch{'es' if mismatch_count != 1 else ''} "
+                f"out of {total_count} user-asset pairs.\n"
+                f"Match rate: {match_percentage:.2f}%\n"
+                f"ClickHouse only: {results['clickhouse_only_records']}\n"
+                f"RPC only: {results['rpc_only_records']}"
+            )
+
+            send_simplepush_notification(
+                title=title, message=message, event="user_collateral_mismatch"
+            )
+
+            logger.info(
+                f"Sent mismatch notification: {mismatch_count} mismatches found"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to send mismatch notification: {e}")
+            # Don't raise - notification failure shouldn't fail the task
+
+    def _cleanup_old_test_records(self):
+        """
+        Delete test records older than 7 days from ClickHouse.
+        """
+        try:
+            query = """
+            ALTER TABLE aave_ethereum.UserCollateralTestResults
+            DELETE WHERE test_timestamp < now() - INTERVAL 6 DAY
+            """
+
+            clickhouse_client.execute_query(query)
+            logger.info("Cleaned up test records older than 7 days")
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup old test records: {e}")
+            # Don't raise - cleanup failure shouldn't fail the task
+
+
+CompareUserCollateralTask = app.register_task(CompareUserCollateralTask())
