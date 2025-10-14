@@ -199,14 +199,14 @@ class CompareCollateralBalanceTask(Task):
             users_in_batch = list(set([user for user, _ in batch]))
             assets_in_batch = list(set([asset for _, asset in batch]))
 
-            # Query with scaling logic - use subquery to avoid dictGet in GROUP BY
+            # Query with scaling logic - JOIN with MaxLiquidityIndex instead of dictGet
             query = """
             SELECT
                 balances.user,
                 balances.asset,
                 balances.raw_balance,
                 balances.user_index,
-                dictGet('aave_ethereum.dict_max_liquidity_index', 'max_collateral_liquidityIndex', balances.asset) as max_index
+                max_idx.max_collateral_liquidityIndex as max_index
             FROM (
                 SELECT
                     toString(lb.user) as user,
@@ -218,6 +218,8 @@ class CompareCollateralBalanceTask(Task):
                 GROUP BY toString(lb.user), toString(lb.asset)
                 HAVING sumMerge(lb.collateral_balance) > 0
             ) AS balances
+            LEFT JOIN aave_ethereum.MaxLiquidityIndex max_idx
+                ON balances.asset = max_idx.asset
             """
 
             parameters = {"users": users_in_batch, "assets": assets_in_batch}
@@ -636,14 +638,14 @@ class CompareDebtBalanceTask(Task):
             users_in_batch = list(set([user for user, _ in batch]))
             assets_in_batch = list(set([asset for _, asset in batch]))
 
-            # Query with scaling logic - use subquery to avoid dictGet in GROUP BY
+            # Query with scaling logic - JOIN with MaxLiquidityIndex instead of dictGet
             query = """
             SELECT
                 balances.user,
                 balances.asset,
                 balances.raw_balance,
                 balances.user_index,
-                dictGet('aave_ethereum.dict_max_liquidity_index', 'max_variable_debt_liquidityIndex', balances.asset) as max_index
+                max_idx.max_variable_debt_liquidityIndex as max_index
             FROM (
                 SELECT
                     toString(lb.user) as user,
@@ -655,6 +657,8 @@ class CompareDebtBalanceTask(Task):
                 GROUP BY toString(lb.user), toString(lb.asset)
                 HAVING sumMerge(lb.variable_debt_balance) > 0
             ) AS balances
+            LEFT JOIN aave_ethereum.MaxLiquidityIndex max_idx
+                ON balances.asset = max_idx.asset
             """
 
             parameters = {"users": users_in_batch, "assets": assets_in_batch}
