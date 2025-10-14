@@ -199,18 +199,25 @@ class CompareCollateralBalanceTask(Task):
             users_in_batch = list(set([user for user, _ in batch]))
             assets_in_batch = list(set([asset for _, asset in batch]))
 
-            # Query with scaling logic
+            # Query with scaling logic - use subquery to avoid dictGet in GROUP BY
             query = """
             SELECT
-                toString(lb.user) as user,
-                toString(lb.asset) as asset,
-                sumMerge(lb.collateral_balance) as raw_balance,
-                maxMerge(lb.collateral_liquidityIndex) as user_index,
-                dictGet('aave_ethereum.dict_max_liquidity_index', 'max_collateral_liquidityIndex', toString(lb.asset)) as max_index
-            FROM aave_ethereum.LatestBalances lb
-            WHERE lb.user IN %(users)s AND lb.asset IN %(assets)s
-            GROUP BY lb.user, lb.asset
-            HAVING sumMerge(lb.collateral_balance) > 0
+                balances.user,
+                balances.asset,
+                balances.raw_balance,
+                balances.user_index,
+                dictGet('aave_ethereum.dict_max_liquidity_index', 'max_collateral_liquidityIndex', balances.asset) as max_index
+            FROM (
+                SELECT
+                    toString(lb.user) as user,
+                    toString(lb.asset) as asset,
+                    sumMerge(lb.collateral_balance) as raw_balance,
+                    maxMerge(lb.collateral_liquidityIndex) as user_index
+                FROM aave_ethereum.LatestBalances lb
+                WHERE lb.user IN %(users)s AND lb.asset IN %(assets)s
+                GROUP BY toString(lb.user), toString(lb.asset)
+                HAVING sumMerge(lb.collateral_balance) > 0
+            ) AS balances
             """
 
             parameters = {"users": users_in_batch, "assets": assets_in_batch}
@@ -629,18 +636,25 @@ class CompareDebtBalanceTask(Task):
             users_in_batch = list(set([user for user, _ in batch]))
             assets_in_batch = list(set([asset for _, asset in batch]))
 
-            # Query with scaling logic
+            # Query with scaling logic - use subquery to avoid dictGet in GROUP BY
             query = """
             SELECT
-                toString(lb.user) as user,
-                toString(lb.asset) as asset,
-                sumMerge(lb.variable_debt_balance) as raw_balance,
-                maxMerge(lb.variable_debt_liquidityIndex) as user_index,
-                dictGet('aave_ethereum.dict_max_liquidity_index', 'max_variable_debt_liquidityIndex', toString(lb.asset)) as max_index
-            FROM aave_ethereum.LatestBalances lb
-            WHERE lb.user IN %(users)s AND lb.asset IN %(assets)s
-            GROUP BY lb.user, lb.asset
-            HAVING sumMerge(lb.variable_debt_balance) > 0
+                balances.user,
+                balances.asset,
+                balances.raw_balance,
+                balances.user_index,
+                dictGet('aave_ethereum.dict_max_liquidity_index', 'max_variable_debt_liquidityIndex', balances.asset) as max_index
+            FROM (
+                SELECT
+                    toString(lb.user) as user,
+                    toString(lb.asset) as asset,
+                    sumMerge(lb.variable_debt_balance) as raw_balance,
+                    maxMerge(lb.variable_debt_liquidityIndex) as user_index
+                FROM aave_ethereum.LatestBalances lb
+                WHERE lb.user IN %(users)s AND lb.asset IN %(assets)s
+                GROUP BY toString(lb.user), toString(lb.asset)
+                HAVING sumMerge(lb.variable_debt_balance) > 0
+            ) AS balances
             """
 
             parameters = {"users": users_in_batch, "assets": assets_in_batch}
