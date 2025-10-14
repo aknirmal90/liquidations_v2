@@ -234,6 +234,69 @@
         </div>
     </div>
 
+    <!-- User eMode Test Card -->
+    <div class="col-12 col-lg-6 mb-4">
+        <div class="card test-type-card" onclick="window.location.href='{% url 'dashboard:user_emode_tests' %}'">
+            <div class="card-body py-4">
+                <div class="d-flex align-items-center">
+                    <div class="test-icon" style="background: linear-gradient(135deg, #8b5cf6, #ec4899);">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <div class="test-info">
+                        <div class="test-name">User eMode Status</div>
+                        <div class="test-description">
+                            Validates user eMode status between ClickHouse and Pool contract
+                        </div>
+                        {% if emode_test_summary %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Last Run</div>
+                                <div class="test-meta-value">{{ emode_test_summary.test_timestamp|date:"M d, H:i" }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Match Rate</div>
+                                <div class="test-meta-value match-percentage {% if emode_test_summary.match_percentage >= 95 %}match-high{% elif emode_test_summary.match_percentage >= 80 %}match-medium{% else %}match-low{% endif %}">
+                                    {{ emode_test_summary.match_percentage|floatformat:1 }}%
+                                </div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Total Users</div>
+                                <div class="test-meta-value">{{ emode_test_summary.total_users }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Mismatches</div>
+                                <div class="test-meta-value">{{ emode_test_summary.mismatched_records }}</div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Status</div>
+                                <div class="test-meta-value text-muted">No tests run yet</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if emode_test_summary %}
+                    <span class="status-badge status-{{ emode_test_summary.test_status }}">
+                        {% if emode_test_summary.test_status == 'completed' %}
+                            <i class="fas fa-check-circle me-1"></i>
+                        {% else %}
+                            <i class="fas fa-exclamation-circle me-1"></i>
+                        {% endif %}
+                        {{ emode_test_summary.test_status }}
+                    </span>
+                    {% else %}
+                    <span class="status-badge status-pending">
+                        <i class="fas fa-clock me-1"></i>
+                        Pending
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Placeholder for future tests -->
     <div class="col-12 col-lg-6 mb-4">
         <div class="card test-type-card" style="opacity: 0.6; cursor: not-allowed;">
