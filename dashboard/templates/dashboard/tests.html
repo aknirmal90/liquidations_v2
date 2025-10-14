@@ -359,6 +359,132 @@
             </div>
         </div>
     </div>
+
+    <!-- Collateral Balance Test Card -->
+    <div class="col-12 col-lg-6 mb-4">
+        <div class="card test-type-card" onclick="window.location.href='{% url 'dashboard:collateral_balance_tests' %}'">
+            <div class="card-body py-4">
+                <div class="d-flex align-items-center">
+                    <div class="test-icon" style="background: linear-gradient(135deg, #3b82f6, #2563eb);">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div class="test-info">
+                        <div class="test-name">Collateral Balance</div>
+                        <div class="test-description">
+                            Validates scaled collateral balances between ClickHouse and DataProvider (1 bps tolerance)
+                        </div>
+                        {% if collateral_balance_summary %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Last Run</div>
+                                <div class="test-meta-value">{{ collateral_balance_summary.test_timestamp|date:"M d, H:i" }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Match Rate</div>
+                                <div class="test-meta-value match-percentage {% if collateral_balance_summary.match_percentage >= 99 %}match-high{% elif collateral_balance_summary.match_percentage >= 95 %}match-medium{% else %}match-low{% endif %}">
+                                    {{ collateral_balance_summary.match_percentage|floatformat:2 }}%
+                                </div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Total Pairs</div>
+                                <div class="test-meta-value">{{ collateral_balance_summary.total_user_assets }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Avg Diff (bps)</div>
+                                <div class="test-meta-value">{{ collateral_balance_summary.avg_difference_bps|floatformat:2 }}</div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Status</div>
+                                <div class="test-meta-value text-muted">No tests run yet</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if collateral_balance_summary %}
+                    <span class="status-badge status-{{ collateral_balance_summary.test_status }}">
+                        {% if collateral_balance_summary.test_status == 'completed' %}
+                            <i class="fas fa-check-circle me-1"></i>
+                        {% else %}
+                            <i class="fas fa-exclamation-circle me-1"></i>
+                        {% endif %}
+                        {{ collateral_balance_summary.test_status }}
+                    </span>
+                    {% else %}
+                    <span class="status-badge status-pending">
+                        <i class="fas fa-clock me-1"></i>
+                        Pending
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debt Balance Test Card -->
+    <div class="col-12 col-lg-6 mb-4">
+        <div class="card test-type-card" onclick="window.location.href='{% url 'dashboard:debt_balance_tests' %}'">
+            <div class="card-body py-4">
+                <div class="d-flex align-items-center">
+                    <div class="test-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                    </div>
+                    <div class="test-info">
+                        <div class="test-name">Debt Balance</div>
+                        <div class="test-description">
+                            Validates scaled debt balances between ClickHouse and DataProvider (1 bps tolerance)
+                        </div>
+                        {% if debt_balance_summary %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Last Run</div>
+                                <div class="test-meta-value">{{ debt_balance_summary.test_timestamp|date:"M d, H:i" }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Match Rate</div>
+                                <div class="test-meta-value match-percentage {% if debt_balance_summary.match_percentage >= 99 %}match-high{% elif debt_balance_summary.match_percentage >= 95 %}match-medium{% else %}match-low{% endif %}">
+                                    {{ debt_balance_summary.match_percentage|floatformat:2 }}%
+                                </div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Total Pairs</div>
+                                <div class="test-meta-value">{{ debt_balance_summary.total_user_assets }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Avg Diff (bps)</div>
+                                <div class="test-meta-value">{{ debt_balance_summary.avg_difference_bps|floatformat:2 }}</div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Status</div>
+                                <div class="test-meta-value text-muted">No tests run yet</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if debt_balance_summary %}
+                    <span class="status-badge status-{{ debt_balance_summary.test_status }}">
+                        {% if debt_balance_summary.test_status == 'completed' %}
+                            <i class="fas fa-check-circle me-1"></i>
+                        {% else %}
+                            <i class="fas fa-exclamation-circle me-1"></i>
+                        {% endif %}
+                        {{ debt_balance_summary.test_status }}
+                    </span>
+                    {% else %}
+                    <span class="status-badge status-pending">
+                        <i class="fas fa-clock me-1"></i>
+                        Pending
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

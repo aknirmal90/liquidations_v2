@@ -82,6 +82,16 @@ urlpatterns = [
         name="user_collateral_tests",
     ),
     path(
+        "tests/collateral-balance/",
+        views.collateral_balance_tests,
+        name="collateral_balance_tests",
+    ),
+    path(
+        "tests/debt-balance/",
+        views.debt_balance_tests,
+        name="debt_balance_tests",
+    ),
+    path(
         "api/user-balances/<str:user_address>/",
         views.user_balances_api,
         name="user_balances_api",
