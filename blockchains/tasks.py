@@ -1488,11 +1488,11 @@ class CompareUserCollateralTask(Task):
         """
         if since_timestamp:
             query = """
-            SELECT DISTINCT user, reserve as asset
+            SELECT DISTINCT toString(user) as user, toString(reserve) as asset
             FROM aave_ethereum.ReserveUsedAsCollateralEnabled
             WHERE blockTimestamp > %(since_timestamp)s
             UNION DISTINCT
-            SELECT DISTINCT user, reserve as asset
+            SELECT DISTINCT toString(user) as user, toString(reserve) as asset
             FROM aave_ethereum.ReserveUsedAsCollateralDisabled
             WHERE blockTimestamp > %(since_timestamp)s
             ORDER BY user, asset
@@ -1500,10 +1500,10 @@ class CompareUserCollateralTask(Task):
             parameters = {"since_timestamp": since_timestamp}
         else:
             query = """
-            SELECT DISTINCT user, reserve as asset
+            SELECT DISTINCT toString(user) as user, toString(reserve) as asset
             FROM aave_ethereum.ReserveUsedAsCollateralEnabled
             UNION DISTINCT
-            SELECT DISTINCT user, reserve as asset
+            SELECT DISTINCT toString(user) as user, toString(reserve) as asset
             FROM aave_ethereum.ReserveUsedAsCollateralDisabled
             ORDER BY user, asset
             """
@@ -1549,13 +1549,12 @@ class CompareUserCollateralTask(Task):
             assets_in_batch = list(set([asset for _, asset in batch]))
 
             # Query with argMax instead of FINAL - much faster and less memory
-            # Filter by users/assets first, then group
-            # Cast to ensure correct type interpretation
+            # Use toString() for addresses to avoid type interpretation issues
             query = """
             SELECT
-                user,
-                asset,
-                CAST(argMax(is_enabled_as_collateral, version) AS Int8) as is_enabled_as_collateral
+                toString(user) as user,
+                toString(asset) as asset,
+                argMax(is_enabled_as_collateral, version) as is_enabled_as_collateral
             FROM aave_ethereum.CollateralStatusDictionary
             WHERE user IN %(users)s AND asset IN %(assets)s
             GROUP BY user, asset
