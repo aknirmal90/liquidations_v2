@@ -1550,11 +1550,12 @@ class CompareUserCollateralTask(Task):
 
             # Query with argMax instead of FINAL - much faster and less memory
             # Filter by users/assets first, then group
+            # Cast to ensure correct type interpretation
             query = """
             SELECT
                 user,
                 asset,
-                argMax(is_enabled_as_collateral, version) as is_enabled_as_collateral
+                CAST(argMax(is_enabled_as_collateral, version) AS Int8) as is_enabled_as_collateral
             FROM aave_ethereum.CollateralStatusDictionary
             WHERE user IN %(users)s AND asset IN %(assets)s
             GROUP BY user, asset
