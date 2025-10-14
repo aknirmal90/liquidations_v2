@@ -1516,9 +1516,22 @@ class CompareUserCollateralTask(Task):
             """
             parameters = {}
 
-        result = clickhouse_client.execute_query(query, parameters=parameters)
+        try:
+            result = clickhouse_client.execute_query(query, parameters=parameters)
 
-        return [(row[0], row[1]) for row in result.result_rows]
+            if not result or not result.result_rows:
+                logger.warning(
+                    "No user-asset pairs found in ReserveUsedAsCollateral events"
+                )
+                return []
+
+            pairs = [(str(row[0]), str(row[1])) for row in result.result_rows]
+            logger.info(f"Found {len(pairs)} unique user-asset pairs")
+            return pairs
+
+        except Exception as e:
+            logger.error(f"Error fetching user-asset pairs: {e}", exc_info=True)
+            raise
 
     def _get_clickhouse_collateral_status(
         self, user_asset_pairs: List[tuple]
