@@ -1486,26 +1486,33 @@ class CompareUserCollateralTask(Task):
         Returns:
             List[tuple]: List of (user, asset) tuples
         """
+        # Use a simpler approach with subquery to ensure proper type handling
         if since_timestamp:
             query = """
-            SELECT DISTINCT toString(user) as user, toString(reserve) as asset
-            FROM aave_ethereum.ReserveUsedAsCollateralEnabled
-            WHERE blockTimestamp > %(since_timestamp)s
-            UNION DISTINCT
-            SELECT DISTINCT toString(user) as user, toString(reserve) as asset
-            FROM aave_ethereum.ReserveUsedAsCollateralDisabled
-            WHERE blockTimestamp > %(since_timestamp)s
-            ORDER BY user, asset
+            SELECT user, asset
+            FROM (
+                SELECT toString(user) as user, toString(reserve) as asset
+                FROM aave_ethereum.ReserveUsedAsCollateralEnabled
+                WHERE blockTimestamp > %(since_timestamp)s
+                UNION ALL
+                SELECT toString(user) as user, toString(reserve) as asset
+                FROM aave_ethereum.ReserveUsedAsCollateralDisabled
+                WHERE blockTimestamp > %(since_timestamp)s
+            ) AS combined
+            GROUP BY user, asset
             """
             parameters = {"since_timestamp": since_timestamp}
         else:
             query = """
-            SELECT DISTINCT toString(user) as user, toString(reserve) as asset
-            FROM aave_ethereum.ReserveUsedAsCollateralEnabled
-            UNION DISTINCT
-            SELECT DISTINCT toString(user) as user, toString(reserve) as asset
-            FROM aave_ethereum.ReserveUsedAsCollateralDisabled
-            ORDER BY user, asset
+            SELECT user, asset
+            FROM (
+                SELECT toString(user) as user, toString(reserve) as asset
+                FROM aave_ethereum.ReserveUsedAsCollateralEnabled
+                UNION ALL
+                SELECT toString(user) as user, toString(reserve) as asset
+                FROM aave_ethereum.ReserveUsedAsCollateralDisabled
+            ) AS combined
+            GROUP BY user, asset
             """
             parameters = {}
 
