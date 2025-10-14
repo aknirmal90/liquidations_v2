@@ -71,6 +71,10 @@ urlpatterns = [
         name="liquidator_detail",
     ),
     path("users/", views.users, name="users"),
+    path("tests/", views.tests, name="tests"),
+    path(
+        "tests/reserve-config/", views.reserve_config_tests, name="reserve_config_tests"
+    ),
     path(
         "api/user-balances/<str:user_address>/",
         views.user_balances_api,

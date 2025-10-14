@@ -1,0 +1,283 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Data Quality Tests - Aave Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .tests-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .tests-title {
+        color: white;
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .tests-subtitle {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 1.1rem;
+    }
+
+    .test-type-card {
+        margin-bottom: 1.5rem;
+        transition: all 0.3s ease;
+        background: rgba(255, 255, 255, 0.95) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 16px !important;
+        cursor: pointer;
+    }
+
+    .test-type-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2) !important;
+        border-color: #6366f1 !important;
+    }
+
+    .test-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        color: white;
+        margin-right: 1.5rem;
+    }
+
+    .test-info {
+        flex: 1;
+    }
+
+    .test-name {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 0.25rem;
+    }
+
+    .test-description {
+        font-size: 0.9rem;
+        color: #6b7280;
+        margin-bottom: 0.75rem;
+    }
+
+    .test-meta {
+        display: flex;
+        gap: 2rem;
+        flex-wrap: wrap;
+    }
+
+    .test-meta-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .test-meta-label {
+        font-size: 0.7rem;
+        color: #9ca3af;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.25rem;
+    }
+
+    .test-meta-value {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .match-percentage {
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .match-high {
+        color: #10b981;
+    }
+
+    .match-medium {
+        color: #f59e0b;
+    }
+
+    .match-low {
+        color: #ef4444;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-left: auto;
+    }
+
+    .status-completed {
+        background: #10b981;
+        color: white;
+    }
+
+    .status-error {
+        background: #ef4444;
+        color: white;
+    }
+
+    .status-pending {
+        background: #9ca3af;
+        color: white;
+    }
+
+    .no-tests {
+        text-align: center;
+        padding: 3rem;
+        color: #6b7280;
+    }
+
+    .no-tests i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="tests-header">
+    <h1 class="tests-title">
+        <i class="fas fa-vial me-3"></i>
+        Data Quality Tests
+    </h1>
+    <p class="tests-subtitle">
+        Monitor data integrity across different sources
+    </p>
+</div>
+
+<!-- Test Types List -->
+<div class="row">
+    <div class="col-12">
+        <h3 class="text-white mb-3">
+            <i class="fas fa-list me-2"></i>
+            Available Tests
+        </h3>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Reserve Configuration Test Card -->
+    <div class="col-12 col-lg-6 mb-4">
+        <div class="card test-type-card" onclick="window.location.href='{% url 'dashboard:reserve_config_tests' %}'">
+            <div class="card-body py-4">
+                <div class="d-flex align-items-center">
+                    <div class="test-icon">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    <div class="test-info">
+                        <div class="test-name">Reserve Configuration</div>
+                        <div class="test-description">
+                            Validates reserve configuration data between ClickHouse and RPC
+                        </div>
+                        {% if reserve_test_summary %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Last Run</div>
+                                <div class="test-meta-value">{{ reserve_test_summary.test_timestamp|date:"M d, H:i" }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Match Rate</div>
+                                <div class="test-meta-value match-percentage {% if reserve_test_summary.match_percentage >= 95 %}match-high{% elif reserve_test_summary.match_percentage >= 80 %}match-medium{% else %}match-low{% endif %}">
+                                    {{ reserve_test_summary.match_percentage|floatformat:1 }}%
+                                </div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Total Items</div>
+                                <div class="test-meta-value">{{ reserve_test_summary.total_reserves }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Mismatches</div>
+                                <div class="test-meta-value">{{ reserve_test_summary.mismatched_records }}</div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Status</div>
+                                <div class="test-meta-value text-muted">No tests run yet</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if reserve_test_summary %}
+                    <span class="status-badge status-{{ reserve_test_summary.test_status }}">
+                        {% if reserve_test_summary.test_status == 'completed' %}
+                            <i class="fas fa-check-circle me-1"></i>
+                        {% else %}
+                            <i class="fas fa-exclamation-circle me-1"></i>
+                        {% endif %}
+                        {{ reserve_test_summary.test_status }}
+                    </span>
+                    {% else %}
+                    <span class="status-badge status-pending">
+                        <i class="fas fa-clock me-1"></i>
+                        Pending
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Placeholder for future tests -->
+    <div class="col-12 col-lg-6 mb-4">
+        <div class="card test-type-card" style="opacity: 0.6; cursor: not-allowed;">
+            <div class="card-body py-4">
+                <div class="d-flex align-items-center">
+                    <div class="test-icon" style="background: linear-gradient(135deg, #9ca3af, #6b7280);">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div class="test-info">
+                        <div class="test-name">Price Data Validation</div>
+                        <div class="test-description">
+                            Compare price data across different oracle sources
+                        </div>
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Status</div>
+                                <div class="test-meta-value text-muted">Coming Soon</div>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="status-badge status-pending">
+                        <i class="fas fa-clock me-1"></i>
+                        Coming Soon
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+// Card animation on load
+const testCards = document.querySelectorAll('.test-type-card');
+testCards.forEach((card, index) => {
+    if (!card.style.opacity || card.style.opacity === '1') {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+
+        setTimeout(() => {
+            card.style.transition = 'all 0.5s ease';
+            card.style.opacity = card.style.cursor === 'not-allowed' ? '0.6' : '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 150);
+    }
+});
+{% endblock %}

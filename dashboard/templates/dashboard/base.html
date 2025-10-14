@@ -64,13 +64,7 @@
             text-decoration: none;
         }
 
-            {
-            % block extra_css %
-        }
-
-            {
-            % endblock %
-        }
+        {% block extra_css %}{% endblock %}
     </style>
 </head>
 
@@ -98,6 +92,10 @@
                 <a class="nav-link" href="{% url 'dashboard:users' %}">
                     <i class="fas fa-users me-2"></i>
                     Users
+                </a>
+                <a class="nav-link" href="{% url 'dashboard:tests' %}">
+                    <i class="fas fa-vial me-2"></i>
+                    Tests
                 </a>
             </div>
             {% block navbar_extra %}{% endblock %}

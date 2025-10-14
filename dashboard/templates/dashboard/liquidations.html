@@ -244,6 +244,10 @@
                     <i class="fas fa-users me-2"></i>
                     Users
                 </a>
+                <a class="nav-link" href="{% url 'dashboard:tests' %}">
+                    <i class="fas fa-vial me-2"></i>
+                    Tests
+                </a>
             </div>
         </div>
     </nav>
@@ -271,17 +275,23 @@
                 <div class="col-12">
                     <ul class="nav nav-pills nav-fill" id="liquidationTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active text-white fw-bold" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button" role="tab" aria-controls="overview" aria-selected="true">
+                            <button class="nav-link active text-white fw-bold" id="overview-tab" data-bs-toggle="pill"
+                                data-bs-target="#overview" type="button" role="tab" aria-controls="overview"
+                                aria-selected="true">
                                 <i class="fas fa-chart-pie me-2"></i>Overview & Analytics
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link text-white fw-bold" id="recent-tab" data-bs-toggle="pill" data-bs-target="#recent" type="button" role="tab" aria-controls="recent" aria-selected="false">
+                            <button class="nav-link text-white fw-bold" id="recent-tab" data-bs-toggle="pill"
+                                data-bs-target="#recent" type="button" role="tab" aria-controls="recent"
+                                aria-selected="false">
                                 <i class="fas fa-list me-2"></i>Recent Liquidations
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link text-white fw-bold" id="health-factor-tab" data-bs-toggle="pill" data-bs-target="#health-factor" type="button" role="tab" aria-controls="health-factor" aria-selected="false">
+                            <button class="nav-link text-white fw-bold" id="health-factor-tab" data-bs-toggle="pill"
+                                data-bs-target="#health-factor" type="button" role="tab" aria-controls="health-factor"
+                                aria-selected="false">
                                 <i class="fas fa-heartbeat me-2"></i>Health Factor Analytics
                             </button>
                         </li>
@@ -308,7 +318,8 @@
                         <div class="col-md-4 mx-auto text-center">
                             <label class="form-label text-white fw-bold">Value Filter:</label>
                             <div class="form-check form-switch d-flex justify-content-center">
-                                <input class="form-check-input" type="checkbox" id="overviewMinValueToggle" checked onchange="updateDashboard()">
+                                <input class="form-check-input" type="checkbox" id="overviewMinValueToggle" checked
+                                    onchange="updateDashboard()">
                                 <label class="form-check-label text-white ms-2" for="overviewMinValueToggle">
                                     Show only $1000+ liquidations
                                 </label>
@@ -318,118 +329,118 @@
 
                     <!-- Metrics Cards -->
                     <div class="row mb-4" id="metricsContainer">
-                <div class="col-md-4 mb-4">
-                    <div class="card liquidations-metric">
-                        <div class="card-body stats-card">
-                            <div class="metric-icon">
-                                <i class="fas fa-exclamation-triangle"></i>
-                            </div>
-                            <div class="stats-value" id="totalLiquidations">-</div>
-                            <div class="stats-label">Total Liquidations</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-4">
-                    <div class="card liquidators-metric">
-                        <div class="card-body stats-card">
-                            <div class="metric-icon">
-                                <i class="fas fa-users"></i>
-                            </div>
-                            <div class="stats-value" id="uniqueLiquidators">-</div>
-                            <div class="stats-label">Unique Liquidators</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-4">
-                    <div class="card volume-metric">
-                        <div class="card-body stats-card">
-                            <div class="metric-icon">
-                                <i class="fas fa-dollar-sign"></i>
-                            </div>
-                            <div class="stats-value" id="totalVolume">-</div>
-                            <div class="stats-label">USD Volume</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Charts Row -->
-            <div class="row mb-4">
-                <!-- Liquidation Count Chart -->
-                <div class="col-lg-6 mb-4">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="fas fa-chart-line me-2"></i>
-                                Liquidation Count Over Time
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="chart-wrapper">
-                                <canvas id="liquidationCountChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Volume Chart -->
-                <div class="col-lg-6 mb-4">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="fas fa-chart-bar me-2"></i>
-                                Volume Liquidated Over Time
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="chart-wrapper">
-                                <canvas id="volumeChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Top Liquidators Table -->
-            <div class="row">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="fas fa-trophy me-2"></i>
-                                Top Liquidators
-                            </h5>
-                        </div>
-                        <div class="card-body p-0">
-                            <div id="topLiquidatorsLoading" class="loading-spinner">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
+                        <div class="col-md-4 mb-4">
+                            <div class="card liquidations-metric">
+                                <div class="card-body stats-card">
+                                    <div class="metric-icon">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                    </div>
+                                    <div class="stats-value" id="totalLiquidations">-</div>
+                                    <div class="stats-label">Total Liquidations</div>
                                 </div>
                             </div>
-                            <div id="topLiquidatorsTable" class="table-responsive" style="display: none;">
-                                <table class="table table-hover top-liquidators-table">
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>Liquidator Address</th>
-                                            <th>Transaction Count</th>
-                                            <th>USD Volume Liquidated</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="topLiquidatorsTableBody">
-                                        <!-- Data will be populated by JavaScript -->
-                                    </tbody>
-                                </table>
+                        </div>
+                        <div class="col-md-4 mb-4">
+                            <div class="card liquidators-metric">
+                                <div class="card-body stats-card">
+                                    <div class="metric-icon">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                    <div class="stats-value" id="uniqueLiquidators">-</div>
+                                    <div class="stats-label">Unique Liquidators</div>
+                                </div>
                             </div>
-                            <div id="topLiquidatorsError" class="error-message" style="display: none;">
-                                <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
-                                <h5>Error Loading Data</h5>
-                                <p id="topLiquidatorsErrorMessage">Failed to load top liquidators data.</p>
+                        </div>
+                        <div class="col-md-4 mb-4">
+                            <div class="card volume-metric">
+                                <div class="card-body stats-card">
+                                    <div class="metric-icon">
+                                        <i class="fas fa-dollar-sign"></i>
+                                    </div>
+                                    <div class="stats-value" id="totalVolume">-</div>
+                                    <div class="stats-label">USD Volume</div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
+
+                    <!-- Charts Row -->
+                    <div class="row mb-4">
+                        <!-- Liquidation Count Chart -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-chart-line me-2"></i>
+                                        Liquidation Count Over Time
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-wrapper">
+                                        <canvas id="liquidationCountChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Volume Chart -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-chart-bar me-2"></i>
+                                        Volume Liquidated Over Time
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-wrapper">
+                                        <canvas id="volumeChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Top Liquidators Table -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-trophy me-2"></i>
+                                        Top Liquidators
+                                    </h5>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div id="topLiquidatorsLoading" class="loading-spinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <div id="topLiquidatorsTable" class="table-responsive" style="display: none;">
+                                        <table class="table table-hover top-liquidators-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>#</th>
+                                                    <th>Liquidator Address</th>
+                                                    <th>Transaction Count</th>
+                                                    <th>USD Volume Liquidated</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="topLiquidatorsTableBody">
+                                                <!-- Data will be populated by JavaScript -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div id="topLiquidatorsError" class="error-message" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                        <h5>Error Loading Data</h5>
+                                        <p id="topLiquidatorsErrorMessage">Failed to load top liquidators data.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Recent Liquidations Tab -->
@@ -446,8 +457,10 @@
                                     </div>
                                     <div class="row align-items-center">
                                         <div class="col-md-6">
-                                            <label for="recentTimeWindow" class="form-label text-muted me-2">Time Period:</label>
-                                            <select class="form-select form-select-sm d-inline-block w-auto" id="recentTimeWindow" onchange="loadRecentLiquidations()">
+                                            <label for="recentTimeWindow" class="form-label text-muted me-2">Time
+                                                Period:</label>
+                                            <select class="form-select form-select-sm d-inline-block w-auto"
+                                                id="recentTimeWindow" onchange="loadRecentLiquidations()">
                                                 <option value="1_hour">Last 1 Hour</option>
                                                 <option value="1_day">Last 1 Day</option>
                                                 <option value="1_week">Last 1 Week</option>
@@ -457,7 +470,9 @@
                                         </div>
                                         <div class="col-md-6">
                                             <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" id="recentMinValueToggle" checked onchange="loadRecentLiquidations()">
+                                                <input class="form-check-input" type="checkbox"
+                                                    id="recentMinValueToggle" checked
+                                                    onchange="loadRecentLiquidations()">
                                                 <label class="form-check-label text-muted" for="recentMinValueToggle">
                                                     Show only $1000+ liquidations
                                                 </label>
@@ -498,18 +513,23 @@
                                     <div id="recentLiquidationsError" class="error-message" style="display: none;">
                                         <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
                                         <h5>Error Loading Data</h5>
-                                        <p id="recentLiquidationsErrorMessage">Failed to load recent liquidations data.</p>
+                                        <p id="recentLiquidationsErrorMessage">Failed to load recent liquidations data.
+                                        </p>
                                     </div>
                                     <!-- Pagination -->
-                                    <div id="recentLiquidationsPagination" class="d-flex justify-content-between align-items-center p-3" style="display: none;">
+                                    <div id="recentLiquidationsPagination"
+                                        class="d-flex justify-content-between align-items-center p-3"
+                                        style="display: none;">
                                         <div>
                                             <span id="paginationInfo" class="text-muted"></span>
                                         </div>
                                         <div>
-                                            <button class="btn btn-outline-primary btn-sm me-2" id="prevPageBtn" onclick="changePage(-1)">
+                                            <button class="btn btn-outline-primary btn-sm me-2" id="prevPageBtn"
+                                                onclick="changePage(-1)">
                                                 <i class="fas fa-chevron-left"></i> Previous
                                             </button>
-                                            <button class="btn btn-outline-primary btn-sm" id="nextPageBtn" onclick="changePage(1)">
+                                            <button class="btn btn-outline-primary btn-sm" id="nextPageBtn"
+                                                onclick="changePage(1)">
                                                 Next <i class="fas fa-chevron-right"></i>
                                             </button>
                                         </div>
@@ -525,8 +545,10 @@
                     <!-- Time Period Selector -->
                     <div class="row mb-4">
                         <div class="col-md-4 mx-auto text-center">
-                            <label for="healthFactorTimeWindow" class="form-label text-white fw-bold">Time Period:</label>
-                            <select class="form-select time-selector" id="healthFactorTimeWindow" onchange="updateHealthFactorAnalytics()">
+                            <label for="healthFactorTimeWindow" class="form-label text-white fw-bold">Time
+                                Period:</label>
+                            <select class="form-select time-selector" id="healthFactorTimeWindow"
+                                onchange="updateHealthFactorAnalytics()">
                                 <option value="1_hour">Last 1 Hour</option>
                                 <option value="1_day">Last 1 Day</option>
                                 <option value="1_week">Last 1 Week</option>
@@ -622,7 +644,8 @@
                                     <div id="liquidationCategoryError" class="error-message" style="display: none;">
                                         <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
                                         <h5>Error Loading Chart</h5>
-                                        <p id="liquidationCategoryErrorMessage">Failed to load category distribution data.</p>
+                                        <p id="liquidationCategoryErrorMessage">Failed to load category distribution
+                                            data.</p>
                                     </div>
                                 </div>
                             </div>
@@ -792,7 +815,7 @@
                                 text: 'USD Volume'
                             },
                             ticks: {
-                                callback: function(value) {
+                                callback: function (value) {
                                     return '$' + formatNumber(value);
                                 }
                             }
@@ -812,7 +835,7 @@
                             mode: 'index',
                             intersect: false,
                             callbacks: {
-                                label: function(context) {
+                                label: function (context) {
                                     return 'Volume: $' + formatNumber(context.parsed.y);
                                 }
                             }
@@ -944,11 +967,11 @@
                     <td>${index + 1}</td>
                     <td>
                         ${liquidator.liquidator_url ?
-                            `<a href="${liquidator.liquidator_url}" target="_blank" class="liquidator-link">
+                        `<a href="${liquidator.liquidator_url}" target="_blank" class="liquidator-link">
                                 ${truncateAddress(liquidator.liquidator)}
                             </a>` :
-                            `<span class="liquidator-link">${truncateAddress(liquidator.liquidator)}</span>`
-                        }
+                        `<span class="liquidator-link">${truncateAddress(liquidator.liquidator)}</span>`
+                    }
                     </td>
                     <td>
                         <span class="badge bg-primary">${liquidator.txn_count.toLocaleString()}</span>
@@ -959,7 +982,7 @@
                 `;
 
                 // Add click event to show liquidator details
-                tr.addEventListener('click', function(e) {
+                tr.addEventListener('click', function (e) {
                     // Prevent navigation if clicking on external link
                     if (e.target.closest('a[target="_blank"]')) {
                         return;
@@ -1008,7 +1031,7 @@
         const pageSize = 20;
 
         // Load recent liquidations when tab is activated
-        document.getElementById('recent-tab').addEventListener('shown.bs.tab', function() {
+        document.getElementById('recent-tab').addEventListener('shown.bs.tab', function () {
             loadRecentLiquidations();
         });
 
@@ -1079,19 +1102,19 @@
                     </td>
                     <td>
                         ${liquidation.liquidator_url ?
-                            `<a href="${liquidation.liquidator_url}" target="_blank" class="liquidator-link">
+                        `<a href="${liquidation.liquidator_url}" target="_blank" class="liquidator-link">
                                 ${truncateAddress(liquidation.liquidator)}
                             </a>` :
-                            `<span class="liquidator-link">${truncateAddress(liquidation.liquidator)}</span>`
-                        }
+                        `<span class="liquidator-link">${truncateAddress(liquidation.liquidator)}</span>`
+                    }
                     </td>
                     <td>
                         ${liquidation.user_url ?
-                            `<a href="${liquidation.user_url}" target="_blank" class="liquidator-link">
+                        `<a href="${liquidation.user_url}" target="_blank" class="liquidator-link">
                                 ${truncateAddress(liquidation.user)}
                             </a>` :
-                            `<span class="liquidator-link">${truncateAddress(liquidation.user)}</span>`
-                        }
+                        `<span class="liquidator-link">${truncateAddress(liquidation.user)}</span>`
+                    }
                     </td>
                     <td>
                         <span class="badge bg-secondary">${liquidation.collateral_symbol || 'Unknown'}</span>
@@ -1104,41 +1127,41 @@
                     </td>
                     <td>
                         ${liquidation.health_factor_at_transaction !== null ?
-                            `<span class="badge ${liquidation.health_factor_at_transaction < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_transaction.toFixed(4)}</span>` :
-                            '<span class="text-muted">N/A</span>'
-                        }
+                        `<span class="badge ${liquidation.health_factor_at_transaction < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_transaction.toFixed(4)}</span>` :
+                        '<span class="text-muted">N/A</span>'
+                    }
                     </td>
                     <td>
                         ${liquidation.health_factor_at_previous_tx !== null ?
-                            `<span class="badge ${liquidation.health_factor_at_previous_tx < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_previous_tx.toFixed(4)}</span>` :
-                            '<span class="text-muted">N/A</span>'
-                        }
+                        `<span class="badge ${liquidation.health_factor_at_previous_tx < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_previous_tx.toFixed(4)}</span>` :
+                        '<span class="text-muted">N/A</span>'
+                    }
                     </td>
                     <td>
                         ${liquidation.health_factor_at_block_start !== null ?
-                            `<span class="badge ${liquidation.health_factor_at_block_start < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_block_start.toFixed(4)}</span>` :
-                            '<span class="text-muted">N/A</span>'
-                        }
+                        `<span class="badge ${liquidation.health_factor_at_block_start < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_block_start.toFixed(4)}</span>` :
+                        '<span class="text-muted">N/A</span>'
+                    }
                     </td>
                     <td>
                         ${liquidation.health_factor_at_previous_block !== null ?
-                            `<span class="badge ${liquidation.health_factor_at_previous_block < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_previous_block.toFixed(4)}</span>` :
-                            '<span class="text-muted">N/A</span>'
-                        }
+                        `<span class="badge ${liquidation.health_factor_at_previous_block < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_previous_block.toFixed(4)}</span>` :
+                        '<span class="text-muted">N/A</span>'
+                    }
                     </td>
                     <td>
                         ${liquidation.health_factor_at_two_blocks_prior !== null ?
-                            `<span class="badge ${liquidation.health_factor_at_two_blocks_prior < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_two_blocks_prior.toFixed(4)}</span>` :
-                            '<span class="text-muted">N/A</span>'
-                        }
+                        `<span class="badge ${liquidation.health_factor_at_two_blocks_prior < 1 ? 'bg-danger' : 'bg-success'}">${liquidation.health_factor_at_two_blocks_prior.toFixed(4)}</span>` :
+                        '<span class="text-muted">N/A</span>'
+                    }
                     </td>
                     <td>
                         ${liquidation.transaction_url ?
-                            `<a href="${liquidation.transaction_url}" target="_blank" class="btn btn-outline-primary btn-sm">
+                        `<a href="${liquidation.transaction_url}" target="_blank" class="btn btn-outline-primary btn-sm">
                                 <i class="fas fa-external-link-alt"></i>
                             </a>` :
-                            '<span class="text-muted">N/A</span>'
-                        }
+                        '<span class="text-muted">N/A</span>'
+                    }
                     </td>
                     <td>
                         <a href="/liquidations/detail/${liquidation.transactionHash}/" class="btn btn-primary btn-sm">
@@ -1485,7 +1508,7 @@
                             },
                             tooltip: {
                                 callbacks: {
-                                    label: function(context) {
+                                    label: function (context) {
                                         return context.label + ': $' + formatNumber(context.raw);
                                     }
                                 }
@@ -1582,7 +1605,7 @@
                                 stacked: true,
                                 ticks: {
                                     color: '#e0e0e0',
-                                    callback: function(value) {
+                                    callback: function (value) {
                                         return '$' + formatNumber(value);
                                     }
                                 },
@@ -1602,7 +1625,7 @@
                             },
                             tooltip: {
                                 callbacks: {
-                                    label: function(context) {
+                                    label: function (context) {
                                         return context.dataset.label + ': $' + formatNumber(context.raw);
                                     }
                                 }
@@ -1658,7 +1681,7 @@
         }
 
         // Update DOMContentLoaded to initialize health factor analytics when the tab is first opened
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             console.log('DOMContentLoaded - Health Factor Analytics initializing...');
 
             // Original initialization code
@@ -1669,7 +1692,7 @@
             const healthFactorTab = document.getElementById('health-factor-tab');
             if (healthFactorTab) {
                 console.log('Health factor tab found, adding click listener...');
-                healthFactorTab.addEventListener('click', function() {
+                healthFactorTab.addEventListener('click', function () {
                     console.log('Health factor tab clicked, loading analytics...');
                     // Load health factor analytics data if not already loaded
                     if (!liquidationCategoryChart && !collateralSizeChart && !volumeCategoryChart && !volumeSizeChart) {

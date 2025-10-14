@@ -1,0 +1,456 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Data Quality Tests - Aave Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .tests-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .tests-title {
+        color: white;
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .tests-subtitle {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 1.1rem;
+    }
+
+    .summary-card {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+        color: white;
+        border: none !important;
+        margin-bottom: 2rem;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1.5rem;
+        padding: 1rem 0;
+    }
+
+    .summary-item {
+        text-align: center;
+    }
+
+    .summary-value {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+
+    .summary-label {
+        font-size: 0.85rem;
+        opacity: 0.9;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .status-completed {
+        background: #10b981;
+        color: white;
+    }
+
+    .status-error {
+        background: #ef4444;
+        color: white;
+    }
+
+    .test-result-card {
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+        background: rgba(255, 255, 255, 0.95) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 16px !important;
+        cursor: pointer;
+    }
+
+    .test-result-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    .test-result-card.expanded {
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2) !important;
+    }
+
+    .test-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #f3f4f6;
+    }
+
+    .test-id {
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        color: #6b7280;
+    }
+
+    .test-timestamp {
+        font-size: 0.9rem;
+        color: #4b5563;
+        font-weight: 600;
+    }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .metric-box {
+        text-align: center;
+        padding: 0.75rem;
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(139, 92, 246, 0.05));
+        border-radius: 10px;
+        border: 1px solid rgba(99, 102, 241, 0.1);
+    }
+
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 0.25rem;
+    }
+
+    .metric-label {
+        font-size: 0.7rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .match-percentage {
+        font-size: 2.5rem;
+        font-weight: 700;
+        text-align: center;
+        margin: 1rem 0;
+    }
+
+    .match-high {
+        color: #10b981;
+    }
+
+    .match-medium {
+        color: #f59e0b;
+    }
+
+    .match-low {
+        color: #ef4444;
+    }
+
+    .mismatches-section {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #fef3c7;
+        border-radius: 8px;
+        border-left: 4px solid #f59e0b;
+        display: none;
+        animation: slideDown 0.3s ease;
+    }
+
+    .mismatches-section.visible {
+        display: block;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .mismatches-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #92400e;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .mismatches-detail {
+        font-family: 'Courier New', monospace;
+        font-size: 0.8rem;
+        color: #78350f;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+
+    .expand-indicator {
+        font-size: 0.75rem;
+        color: #6b7280;
+        margin-top: 0.5rem;
+        text-align: center;
+        font-style: italic;
+    }
+
+    .expand-indicator i {
+        margin-left: 0.25rem;
+        transition: transform 0.3s ease;
+    }
+
+    .test-result-card.expanded .expand-indicator i {
+        transform: rotate(180deg);
+    }
+
+    .error-section {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #fee2e2;
+        border-radius: 8px;
+        border-left: 4px solid #ef4444;
+        display: none;
+        animation: slideDown 0.3s ease;
+    }
+
+    .error-section.visible {
+        display: block;
+    }
+
+    .error-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #991b1b;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .error-message {
+        font-family: 'Courier New', monospace;
+        font-size: 0.8rem;
+        color: #7f1d1d;
+        white-space: pre-wrap;
+    }
+
+    .no-tests {
+        text-align: center;
+        padding: 3rem;
+        color: #6b7280;
+    }
+
+    .no-tests i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="tests-header">
+    <h1 class="tests-title">
+        <i class="fas fa-vial me-3"></i>
+        Data Quality Tests
+    </h1>
+    <p class="tests-subtitle">
+        Reserve Configuration Validation: ClickHouse vs RPC
+    </p>
+</div>
+
+{% if latest_test %}
+<!-- Latest Test Summary -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card summary-card">
+            <div class="card-body py-4">
+                <h4 class="text-center mb-4">Latest Test Summary</h4>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <div class="summary-value">{{ latest_test.total_reserves }}</div>
+                        <div class="summary-label">Total Reserves</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">{{ latest_test.matching_records }}</div>
+                        <div class="summary-label">Matching</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">{{ latest_test.mismatched_records }}</div>
+                        <div class="summary-label">Mismatched</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">{{ latest_test.match_percentage|floatformat:1 }}%</div>
+                        <div class="summary-label">Match Rate</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">{{ latest_test.test_duration_seconds|floatformat:2 }}s</div>
+                        <div class="summary-label">Duration</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Test Results List -->
+<div class="row">
+    <div class="col-12">
+        <h3 class="text-white mb-3">
+            <i class="fas fa-history me-2"></i>
+            Test History
+        </h3>
+    </div>
+</div>
+
+<div class="row">
+    {% for test in test_results %}
+    <div class="col-12 mb-3">
+        <div class="card test-result-card">
+            <div class="card-body">
+                <!-- Test Header -->
+                <div class="test-header">
+                    <div>
+                        <div class="test-timestamp">
+                            <i class="fas fa-clock me-2"></i>
+                            {{ test.test_timestamp|date:"Y-m-d H:i:s" }}
+                        </div>
+                        <div class="test-id mt-1">
+                            Test ID: {{ test.test_run_id }}
+                        </div>
+                    </div>
+                    <div>
+                        <span class="status-badge status-{{ test.test_status }}">
+                            {% if test.test_status == 'completed' %}
+                                <i class="fas fa-check-circle me-1"></i>
+                            {% else %}
+                                <i class="fas fa-exclamation-circle me-1"></i>
+                            {% endif %}
+                            {{ test.test_status }}
+                        </span>
+                    </div>
+                </div>
+
+                {% if test.test_status == 'completed' %}
+                <!-- Match Percentage -->
+                <div class="match-percentage {% if test.match_percentage >= 95 %}match-high{% elif test.match_percentage >= 80 %}match-medium{% else %}match-low{% endif %}">
+                    {{ test.match_percentage|floatformat:2 }}% Match
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="metric-value">{{ test.total_reserves }}</div>
+                        <div class="metric-label">Total</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ test.matching_records }}</div>
+                        <div class="metric-label">Matching</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ test.mismatched_records }}</div>
+                        <div class="metric-label">Mismatched</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ test.clickhouse_only_records }}</div>
+                        <div class="metric-label">CH Only</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ test.rpc_only_records }}</div>
+                        <div class="metric-label">RPC Only</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ test.test_duration_seconds|floatformat:2 }}s</div>
+                        <div class="metric-label">Duration</div>
+                    </div>
+                </div>
+
+                <!-- Mismatches Detail (Hidden by default) -->
+                {% if test.mismatches_detail %}
+                <div class="mismatches-section" data-test-id="{{ test.test_run_id }}">
+                    <div class="mismatches-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Mismatches Detail
+                    </div>
+                    <div class="mismatches-detail">{{ test.mismatches_detail }}</div>
+                </div>
+                <div class="expand-indicator">
+                    {% if test.mismatched_records > 0 %}
+                    Click to view {{ test.mismatched_records }} mismatch{{ test.mismatched_records|pluralize:"es" }} <i class="fas fa-chevron-down"></i>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endif %}
+
+                {% if test.test_status == 'error' %}
+                <!-- Error Section (Hidden by default) -->
+                <div class="error-section" data-test-id="{{ test.test_run_id }}">
+                    <div class="error-title">
+                        <i class="fas fa-times-circle me-2"></i>
+                        Error Details
+                    </div>
+                    <div class="error-message">{{ test.error_message }}</div>
+                </div>
+                <div class="expand-indicator">
+                    Click to view error details <i class="fas fa-chevron-down"></i>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body no-tests">
+                <i class="fas fa-vial"></i>
+                <h4>No test results available</h4>
+                <p>Run your first test to see results here</p>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+// Card click handlers for tests page
+const testCards = document.querySelectorAll('.test-result-card');
+
+testCards.forEach((card) => {
+    // Click handler to toggle mismatches or error details
+    card.addEventListener('click', function(e) {
+        // Find the mismatches section or error section within this card
+        const mismatchesSection = this.querySelector('.mismatches-section');
+        const errorSection = this.querySelector('.error-section');
+
+        // Toggle expanded class on card
+        this.classList.toggle('expanded');
+
+        // Toggle visibility of mismatches section if exists
+        if (mismatchesSection) {
+            mismatchesSection.classList.toggle('visible');
+        }
+
+        // Toggle visibility of error section if exists
+        if (errorSection) {
+            errorSection.classList.toggle('visible');
+        }
+    });
+});
+{% endblock %}
