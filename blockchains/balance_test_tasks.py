@@ -206,7 +206,7 @@ class CompareCollateralBalanceTask(Task):
                 toString(lb.asset) as asset,
                 sumMerge(lb.collateral_balance) as raw_balance,
                 maxMerge(lb.collateral_liquidityIndex) as user_index,
-                dictGet('aave_ethereum.dict_max_liquidity_index', 'max_collateral_liquidityIndex', lb.asset) as max_index
+                dictGet('aave_ethereum.dict_max_liquidity_index', 'max_collateral_liquidityIndex', toString(lb.asset)) as max_index
             FROM aave_ethereum.LatestBalances lb
             WHERE lb.user IN %(users)s AND lb.asset IN %(assets)s
             GROUP BY lb.user, lb.asset
@@ -636,7 +636,7 @@ class CompareDebtBalanceTask(Task):
                 toString(lb.asset) as asset,
                 sumMerge(lb.variable_debt_balance) as raw_balance,
                 maxMerge(lb.variable_debt_liquidityIndex) as user_index,
-                dictGet('aave_ethereum.dict_max_liquidity_index', 'max_variable_debt_liquidityIndex', lb.asset) as max_index
+                dictGet('aave_ethereum.dict_max_liquidity_index', 'max_variable_debt_liquidityIndex', toString(lb.asset)) as max_index
             FROM aave_ethereum.LatestBalances lb
             WHERE lb.user IN %(users)s AND lb.asset IN %(assets)s
             GROUP BY lb.user, lb.asset
