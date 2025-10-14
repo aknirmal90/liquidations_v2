@@ -1,0 +1,402 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}User eMode Tests - Aave Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .tests-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .tests-title {
+        color: white;
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .tests-subtitle {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 1.1rem;
+    }
+
+    .summary-card {
+        background: linear-gradient(135deg, #8b5cf6, #ec4899) !important;
+        color: white;
+        border: none !important;
+        margin-bottom: 2rem;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1.5rem;
+        padding: 1rem 0;
+    }
+
+    .summary-item {
+        text-align: center;
+    }
+
+    .summary-value {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+
+    .summary-label {
+        font-size: 0.85rem;
+        opacity: 0.9;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .status-completed {
+        background: #10b981;
+        color: white;
+    }
+
+    .status-error {
+        background: #ef4444;
+        color: white;
+    }
+
+    .test-result-card {
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+        background: rgba(255, 255, 255, 0.95) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 16px !important;
+        cursor: pointer;
+    }
+
+    .test-result-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    .test-result-card.expanded {
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2) !important;
+    }
+
+    .test-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #f3f4f6;
+    }
+
+    .test-id {
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        color: #6b7280;
+    }
+
+    .test-timestamp {
+        font-size: 0.9rem;
+        color: #4b5563;
+        font-weight: 600;
+    }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .metric-box {
+        text-align: center;
+        padding: 0.75rem;
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(236, 72, 153, 0.05));
+        border-radius: 10px;
+        border: 1px solid rgba(139, 92, 246, 0.1);
+    }
+
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 0.25rem;
+    }
+
+    .metric-label {
+        font-size: 0.7rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .match-percentage {
+        font-size: 2.5rem;
+        font-weight: 700;
+        text-align: center;
+        margin: 1rem 0;
+    }
+
+    .match-high {
+        color: #10b981;
+    }
+
+    .match-medium {
+        color: #f59e0b;
+    }
+
+    .match-low {
+        color: #ef4444;
+    }
+
+    .mismatches-section {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #fef3c7;
+        border-radius: 8px;
+        border-left: 4px solid #f59e0b;
+        display: none;
+        animation: slideDown 0.3s ease;
+    }
+
+    .mismatches-section.visible {
+        display: block;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .mismatches-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #92400e;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .mismatches-detail {
+        font-family: 'Courier New', monospace;
+        font-size: 0.8rem;
+        color: #78350f;
+        white-space: pre-wrap;
+        word-break: break-all;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="tests-header">
+    <h1 class="tests-title">
+        <i class="fas fa-user-shield me-3"></i>
+        User eMode Status Tests
+    </h1>
+    <p class="tests-subtitle">
+        Validates user eMode status between ClickHouse and Pool contract
+    </p>
+</div>
+
+<!-- Latest Test Summary -->
+{% if latest_test %}
+<div class="card summary-card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 class="mb-0">
+                <i class="fas fa-chart-bar me-2"></i>
+                Latest Test Summary
+            </h3>
+            <span class="status-badge status-{{ latest_test.test_status }}">
+                {% if latest_test.test_status == 'completed' %}
+                    <i class="fas fa-check-circle me-1"></i>
+                {% else %}
+                    <i class="fas fa-exclamation-circle me-1"></i>
+                {% endif %}
+                {{ latest_test.test_status }}
+            </span>
+        </div>
+
+        <div class="summary-grid">
+            <div class="summary-item">
+                <div class="summary-value">{{ latest_test.total_users }}</div>
+                <div class="summary-label">Total Users</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">{{ latest_test.matching_records }}</div>
+                <div class="summary-label">Matches</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">{{ latest_test.mismatched_records }}</div>
+                <div class="summary-label">Mismatches</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value match-percentage {% if latest_test.match_percentage >= 95 %}match-high{% elif latest_test.match_percentage >= 80 %}match-medium{% else %}match-low{% endif %}">
+                    {{ latest_test.match_percentage|floatformat:1 }}%
+                </div>
+                <div class="summary-label">Match Rate</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">{{ latest_test.test_duration_seconds|floatformat:2 }}s</div>
+                <div class="summary-label">Duration</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">{{ latest_test.test_timestamp|date:"M d, H:i" }}</div>
+                <div class="summary-label">Last Run</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="fas fa-info-circle me-2"></i>
+    No tests have been run yet. Run the CompareUserEModeTask to generate test results.
+</div>
+{% endif %}
+
+<!-- Test History -->
+<div class="row">
+    <div class="col-12">
+        <h3 class="text-white mb-3">
+            <i class="fas fa-history me-2"></i>
+            Test History
+        </h3>
+    </div>
+</div>
+
+{% if test_results %}
+<div class="row">
+    <div class="col-12">
+        {% for test in test_results %}
+        <div class="card test-result-card" onclick="toggleDetails('{{ test.test_run_id }}')">
+            <div class="card-body">
+                <!-- Test Header -->
+                <div class="test-header">
+                    <div>
+                        <div class="test-timestamp">
+                            <i class="far fa-clock me-2"></i>
+                            {{ test.test_timestamp|date:"F d, Y H:i:s" }}
+                        </div>
+                        <div class="test-id">ID: {{ test.test_run_id }}</div>
+                    </div>
+                    <span class="status-badge status-{{ test.test_status }}">
+                        {% if test.test_status == 'completed' %}
+                            <i class="fas fa-check-circle me-1"></i>
+                        {% else %}
+                            <i class="fas fa-exclamation-circle me-1"></i>
+                        {% endif %}
+                        {{ test.test_status }}
+                    </span>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="metric-value">{{ test.total_users }}</div>
+                        <div class="metric-label">Total Users</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ test.matching_records }}</div>
+                        <div class="metric-label">Matches</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ test.mismatched_records }}</div>
+                        <div class="metric-label">Mismatches</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ test.clickhouse_only_records }}</div>
+                        <div class="metric-label">CH Only</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ test.rpc_only_records }}</div>
+                        <div class="metric-label">RPC Only</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-value">{{ test.test_duration_seconds|floatformat:2 }}s</div>
+                        <div class="metric-label">Duration</div>
+                    </div>
+                </div>
+
+                <!-- Match Percentage -->
+                <div class="match-percentage {% if test.match_percentage >= 95 %}match-high{% elif test.match_percentage >= 80 %}match-medium{% else %}match-low{% endif %}">
+                    <i class="fas fa-percentage me-2"></i>
+                    {{ test.match_percentage|floatformat:2 }}% Match
+                </div>
+
+                <!-- Mismatches Detail (collapsible) -->
+                {% if test.mismatches_detail %}
+                <div id="mismatches-{{ test.test_run_id }}" class="mismatches-section">
+                    <div class="mismatches-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Mismatch Details
+                    </div>
+                    <div class="mismatches-detail">{{ test.mismatches_detail }}</div>
+                </div>
+                {% endif %}
+
+                <!-- Error Message -->
+                {% if test.error_message %}
+                <div class="alert alert-danger mb-0 mt-2">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <strong>Error:</strong> {{ test.error_message }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="fas fa-info-circle me-2"></i>
+    No test results available yet.
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+function toggleDetails(testId) {
+    const element = document.getElementById('mismatches-' + testId);
+    if (element) {
+        element.classList.toggle('visible');
+
+        // Toggle card expanded state
+        const card = element.closest('.test-result-card');
+        card.classList.toggle('expanded');
+    }
+}
+
+// Card animation on load
+document.addEventListener('DOMContentLoaded', function() {
+    const cards = document.querySelectorAll('.test-result-card');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+
+        setTimeout(() => {
+            card.style.transition = 'all 0.5s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+});
+{% endblock %}

@@ -965,3 +965,382 @@ class CompareReserveConfigurationTask(Task):
 
 
 CompareReserveConfigurationTask = app.register_task(CompareReserveConfigurationTask())
+
+
+class CompareUserEModeTask(Task):
+    """
+    Task to compare user eMode status between ClickHouse and RPC.
+
+    This task retrieves users who have modified their eMode status since the last test run
+    (or all users if no previous run), queries the Pool contract via RPC to get their
+    current eMode status, and compares with the EModeStatusDictionary in ClickHouse.
+    """
+
+    def run(self):
+        """
+        Execute the user eMode comparison test.
+
+        Returns:
+            Dict[str, Any]: Test results summary
+        """
+        import time
+
+        logger.info("Starting CompareUserEModeTask")
+        start_time = time.time()
+
+        try:
+            # Get the timestamp of the last test run
+            last_test_timestamp = self._get_last_test_timestamp()
+
+            # Get users to test
+            users_to_test = self._get_users_to_test(last_test_timestamp)
+            total_users = len(users_to_test)
+            logger.info(
+                f"Retrieved {total_users} users to test "
+                f"(since {last_test_timestamp or 'beginning'})"
+            )
+
+            if total_users == 0:
+                logger.info("No users to test")
+                return {
+                    "status": "completed",
+                    "test_duration": time.time() - start_time,
+                    "total_users": 0,
+                    "matching_records": 0,
+                    "mismatched_records": 0,
+                }
+
+            # Get ClickHouse eMode status for these users
+            clickhouse_data = self._get_clickhouse_emode_status(users_to_test)
+            logger.info(
+                f"Retrieved {len(clickhouse_data)} user eMode statuses from ClickHouse"
+            )
+
+            # Get RPC eMode data in batches of 100
+            rpc_data = self._get_rpc_emode_status_batched(users_to_test, batch_size=100)
+            logger.info(f"Retrieved {len(rpc_data)} user eMode statuses from RPC")
+
+            # Compare the data
+            comparison_results = self._compare_emode_status(clickhouse_data, rpc_data)
+
+            # Calculate test duration
+            test_duration = time.time() - start_time
+
+            # Store results in ClickHouse
+            self._store_test_results(comparison_results, test_duration)
+
+            # Clean up old test records (older than 7 days)
+            self._cleanup_old_test_records()
+
+            logger.info(f"Comparison completed in {test_duration:.2f} seconds")
+            logger.info(
+                f"Match percentage: {comparison_results['match_percentage']:.2f}%"
+            )
+
+            # Send notification if mismatches found
+            if comparison_results["mismatched_records"] > 0:
+                self._send_mismatch_notification(comparison_results)
+
+            return {
+                "status": "completed",
+                "test_duration": test_duration,
+                **comparison_results,
+            }
+
+        except Exception as e:
+            error_msg = f"Error during user eMode comparison: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+
+            # Store error result
+            self._store_error_result(error_msg, time.time() - start_time)
+
+            return {"status": "error", "error": error_msg}
+
+    def _get_last_test_timestamp(self):
+        """
+        Get the timestamp of the last successful test run.
+
+        Returns:
+            str or None: Last test timestamp or None if no previous test
+        """
+        query = """
+        SELECT test_timestamp
+        FROM aave_ethereum.UserEModeTestResults
+        WHERE test_status = 'completed'
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        if result.result_rows:
+            return result.result_rows[0][0]
+        return None
+
+    def _get_users_to_test(self, since_timestamp) -> List[str]:
+        """
+        Get list of users who have modified their eMode status since the given timestamp.
+        If no timestamp is provided, returns all unique users.
+
+        Args:
+            since_timestamp: Timestamp to filter users, or None for all users
+
+        Returns:
+            List[str]: List of user addresses
+        """
+        if since_timestamp:
+            query = """
+            SELECT DISTINCT user
+            FROM aave_ethereum.UserEModeSet
+            WHERE blockTimestamp > %(since_timestamp)s
+            ORDER BY user
+            """
+            parameters = {"since_timestamp": since_timestamp}
+        else:
+            query = """
+            SELECT DISTINCT user
+            FROM aave_ethereum.UserEModeSet
+            ORDER BY user
+            """
+            parameters = {}
+
+        result = clickhouse_client.execute_query(query, parameters=parameters)
+
+        return [row[0] for row in result.result_rows]
+
+    def _get_clickhouse_emode_status(self, users: List[str]) -> Dict[str, bool]:
+        """
+        Get eMode enabled status from ClickHouse for the given users.
+
+        Args:
+            users: List of user addresses
+
+        Returns:
+            Dict[str, bool]: Mapping of user address to eMode enabled status
+        """
+        if not users:
+            return {}
+
+        # Use EModeStatusDictionaryView for the latest status
+        query = """
+        SELECT user, is_enabled_in_emode
+        FROM aave_ethereum.view_EModeStatusDictionary
+        WHERE user IN %(users)s
+        """
+
+        parameters = {"users": users}
+        result = clickhouse_client.execute_query(query, parameters=parameters)
+
+        emode_status = {}
+        for row in result.result_rows:
+            user = row[0].lower()
+            is_enabled = bool(row[1])
+            emode_status[user] = is_enabled
+
+        return emode_status
+
+    def _get_rpc_emode_status_batched(
+        self, users: List[str], batch_size: int = 100
+    ) -> Dict[str, bool]:
+        """
+        Get eMode enabled status from RPC in batches.
+
+        Args:
+            users: List of user addresses
+            batch_size: Number of users to query per batch
+
+        Returns:
+            Dict[str, bool]: Mapping of user address to eMode enabled status
+        """
+        from utils.interfaces.pool import PoolInterface
+
+        pool = PoolInterface()
+        emode_status = {}
+
+        # Process users in batches
+        for i in range(0, len(users), batch_size):
+            batch = users[i : i + batch_size]
+            logger.info(
+                f"Querying eMode for batch {i // batch_size + 1} ({len(batch)} users)"
+            )
+
+            try:
+                batch_results = pool.get_user_emode(batch)
+
+                # Convert category ID to boolean (0 = disabled, >0 = enabled)
+                for user, category_id in batch_results.items():
+                    user_lower = user.lower()
+                    emode_status[user_lower] = category_id > 0
+
+            except Exception as e:
+                logger.error(f"Error querying batch starting at index {i}: {e}")
+                raise
+
+        return emode_status
+
+    def _compare_emode_status(
+        self, clickhouse_data: Dict[str, bool], rpc_data: Dict[str, bool]
+    ) -> Dict[str, Any]:
+        """
+        Compare eMode status from ClickHouse and RPC.
+
+        Args:
+            clickhouse_data: eMode status from ClickHouse
+            rpc_data: eMode status from RPC
+
+        Returns:
+            Dict containing comparison statistics
+        """
+        clickhouse_users = set(clickhouse_data.keys())
+        rpc_users = set(rpc_data.keys())
+
+        common_users = clickhouse_users & rpc_users
+        clickhouse_only = clickhouse_users - rpc_users
+        rpc_only = rpc_users - clickhouse_users
+
+        matching_count = 0
+        mismatched_count = 0
+        mismatches = []
+
+        # Compare common users
+        for user in common_users:
+            ch_enabled = clickhouse_data[user]
+            rpc_enabled = rpc_data[user]
+
+            if ch_enabled == rpc_enabled:
+                matching_count += 1
+            else:
+                mismatched_count += 1
+                mismatches.append(
+                    f"{user}: CH={'enabled' if ch_enabled else 'disabled'} "
+                    f"RPC={'enabled' if rpc_enabled else 'disabled'}"
+                )
+
+        total_users = len(clickhouse_users | rpc_users)
+        match_percentage = (
+            (matching_count / len(common_users) * 100) if common_users else 0
+        )
+
+        return {
+            "total_users": total_users,
+            "matching_records": matching_count,
+            "mismatched_records": mismatched_count,
+            "clickhouse_only_records": len(clickhouse_only),
+            "rpc_only_records": len(rpc_only),
+            "match_percentage": match_percentage,
+            "mismatches_detail": "; ".join(
+                mismatches[:50]
+            ),  # Limit to first 50 mismatches
+        }
+
+    def _store_test_results(self, results: Dict[str, Any], duration: float):
+        """
+        Store test results in ClickHouse.
+
+        Args:
+            results: Comparison results
+            duration: Test duration in seconds
+        """
+        query = """
+        INSERT INTO aave_ethereum.UserEModeTestResults
+        (test_timestamp, total_users, matching_records, mismatched_records,
+         clickhouse_only_records, rpc_only_records, match_percentage,
+         test_duration_seconds, test_status, mismatches_detail)
+        VALUES
+        (now64(), %(total_users)s, %(matching_records)s, %(mismatched_records)s,
+         %(clickhouse_only_records)s, %(rpc_only_records)s, %(match_percentage)s,
+         %(test_duration_seconds)s, 'completed', %(mismatches_detail)s)
+        """
+
+        parameters = {
+            "total_users": results["total_users"],
+            "matching_records": results["matching_records"],
+            "mismatched_records": results["mismatched_records"],
+            "clickhouse_only_records": results["clickhouse_only_records"],
+            "rpc_only_records": results["rpc_only_records"],
+            "match_percentage": results["match_percentage"],
+            "test_duration_seconds": duration,
+            "mismatches_detail": results["mismatches_detail"],
+        }
+
+        clickhouse_client.execute_query(query, parameters=parameters)
+        logger.info("Test results stored successfully in ClickHouse")
+
+    def _store_error_result(self, error_message: str, duration: float):
+        """
+        Store error result in ClickHouse.
+
+        Args:
+            error_message: Error message
+            duration: Test duration before error
+        """
+        query = """
+        INSERT INTO aave_ethereum.UserEModeTestResults
+        (test_timestamp, total_users, matching_records, mismatched_records,
+         clickhouse_only_records, rpc_only_records, match_percentage,
+         test_duration_seconds, test_status, error_message)
+        VALUES
+        (now64(), 0, 0, 0, 0, 0, 0, %(test_duration_seconds)s, 'error', %(error_message)s)
+        """
+
+        parameters = {"test_duration_seconds": duration, "error_message": error_message}
+
+        try:
+            clickhouse_client.execute_query(query, parameters=parameters)
+        except Exception as e:
+            logger.error(f"Failed to store error result: {e}")
+
+    def _send_mismatch_notification(self, results: Dict[str, Any]):
+        """
+        Send a push notification when mismatches are found.
+
+        Args:
+            results: Comparison results containing mismatch information
+        """
+        try:
+            from utils.simplepush import send_simplepush_notification
+
+            mismatch_count = results["mismatched_records"]
+            total_count = results["total_users"]
+            match_percentage = results["match_percentage"]
+
+            title = "⚠️ User eMode Status Mismatch Detected"
+            message = (
+                f"Found {mismatch_count} mismatch{'es' if mismatch_count != 1 else ''} "
+                f"out of {total_count} users.\n"
+                f"Match rate: {match_percentage:.2f}%\n"
+                f"ClickHouse only: {results['clickhouse_only_records']}\n"
+                f"RPC only: {results['rpc_only_records']}"
+            )
+
+            send_simplepush_notification(
+                title=title, message=message, event="user_emode_mismatch"
+            )
+
+            logger.info(
+                f"Sent mismatch notification: {mismatch_count} mismatches found"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to send mismatch notification: {e}")
+            # Don't raise - notification failure shouldn't fail the task
+
+    def _cleanup_old_test_records(self):
+        """
+        Delete test records older than 7 days from ClickHouse.
+        """
+        try:
+            query = """
+            ALTER TABLE aave_ethereum.UserEModeTestResults
+            DELETE WHERE test_timestamp < now() - INTERVAL 6 DAY
+            """
+
+            clickhouse_client.execute_query(query)
+            logger.info("Cleaned up test records older than 7 days")
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup old test records: {e}")
+            # Don't raise - cleanup failure shouldn't fail the task
+
+
+CompareUserEModeTask = app.register_task(CompareUserEModeTask())

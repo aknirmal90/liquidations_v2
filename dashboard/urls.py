@@ -75,6 +75,7 @@ urlpatterns = [
     path(
         "tests/reserve-config/", views.reserve_config_tests, name="reserve_config_tests"
     ),
+    path("tests/user-emode/", views.user_emode_tests, name="user_emode_tests"),
     path(
         "api/user-balances/<str:user_address>/",
         views.user_balances_api,
