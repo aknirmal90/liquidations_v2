@@ -1111,6 +1111,7 @@ class CompareUserEModeTask(Task):
     def _get_clickhouse_emode_status(self, users: List[str]) -> Dict[str, bool]:
         """
         Get eMode enabled status from ClickHouse for the given users.
+        Processes users in batches to avoid exceeding max_query_size.
 
         Args:
             users: List of user addresses
@@ -1121,21 +1122,32 @@ class CompareUserEModeTask(Task):
         if not users:
             return {}
 
-        # Use EModeStatusDictionaryView for the latest status
-        query = """
-        SELECT user, is_enabled_in_emode
-        FROM aave_ethereum.view_EModeStatusDictionary
-        WHERE user IN %(users)s
-        """
-
-        parameters = {"users": users}
-        result = clickhouse_client.execute_query(query, parameters=parameters)
-
         emode_status = {}
-        for row in result.result_rows:
-            user = row[0].lower()
-            is_enabled = bool(row[1])
-            emode_status[user] = is_enabled
+        batch_size = 1000  # Process 1000 users at a time to avoid query size limits
+
+        # Process users in batches
+        for i in range(0, len(users), batch_size):
+            batch = users[i : i + batch_size]
+            logger.info(
+                f"Querying ClickHouse for eMode status batch {i // batch_size + 1} "
+                f"({len(batch)} users)"
+            )
+
+            # Use EModeStatusDictionary with FINAL to get latest status
+            # ReplacingMergeTree requires FINAL to get the most recent version
+            query = """
+            SELECT user, is_enabled_in_emode
+            FROM aave_ethereum.EModeStatusDictionary FINAL
+            WHERE user IN %(users)s
+            """
+
+            parameters = {"users": batch}
+            result = clickhouse_client.execute_query(query, parameters=parameters)
+
+            for row in result.result_rows:
+                user = row[0].lower()
+                is_enabled = bool(row[1])
+                emode_status[user] = is_enabled
 
         return emode_status
 
