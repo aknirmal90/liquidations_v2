@@ -3468,9 +3468,48 @@ def tests(request):
                 "error_message": row[10],
             }
 
+        # Get the latest user collateral test summary
+        collateral_query = """
+        SELECT
+            test_run_id,
+            test_timestamp,
+            total_user_assets,
+            matching_records,
+            mismatched_records,
+            clickhouse_only_records,
+            rpc_only_records,
+            match_percentage,
+            test_duration_seconds,
+            test_status,
+            error_message
+        FROM aave_ethereum.UserCollateralTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        collateral_result = clickhouse_client.execute_query(collateral_query)
+
+        collateral_test_summary = None
+        if collateral_result.result_rows:
+            row = collateral_result.result_rows[0]
+            collateral_test_summary = {
+                "test_run_id": row[0],
+                "test_timestamp": row[1],
+                "total_user_assets": row[2],
+                "matching_records": row[3],
+                "mismatched_records": row[4],
+                "clickhouse_only_records": row[5],
+                "rpc_only_records": row[6],
+                "match_percentage": row[7],
+                "test_duration_seconds": row[8],
+                "test_status": row[9],
+                "error_message": row[10],
+            }
+
         context = {
             "reserve_test_summary": reserve_test_summary,
             "emode_test_summary": emode_test_summary,
+            "collateral_test_summary": collateral_test_summary,
         }
 
         return render(request, "dashboard/tests.html", context)
@@ -3588,6 +3627,63 @@ def user_emode_tests(request):
         }
 
         return render(request, "dashboard/user_emode_tests.html", context)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+def user_collateral_tests(request):
+    """User collateral test detail page with history"""
+    try:
+        # Get the latest test results
+        query = """
+        SELECT
+            test_run_id,
+            test_timestamp,
+            total_user_assets,
+            matching_records,
+            mismatched_records,
+            clickhouse_only_records,
+            rpc_only_records,
+            match_percentage,
+            test_duration_seconds,
+            test_status,
+            error_message,
+            mismatches_detail
+        FROM aave_ethereum.UserCollateralTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 50
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        test_results = []
+        for row in result.result_rows:
+            test = {
+                "test_run_id": row[0],
+                "test_timestamp": row[1],
+                "total_user_assets": row[2],
+                "matching_records": row[3],
+                "mismatched_records": row[4],
+                "clickhouse_only_records": row[5],
+                "rpc_only_records": row[6],
+                "match_percentage": row[7],
+                "test_duration_seconds": row[8],
+                "test_status": row[9],
+                "error_message": row[10],
+                "mismatches_detail": row[11],
+            }
+            test_results.append(test)
+
+        # Get latest test summary
+        latest_test = test_results[0] if test_results else None
+
+        context = {
+            "test_results": test_results,
+            "latest_test": latest_test,
+        }
+
+        return render(request, "dashboard/user_collateral_tests.html", context)
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

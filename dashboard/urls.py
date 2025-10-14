@@ -77,6 +77,11 @@ urlpatterns = [
     ),
     path("tests/user-emode/", views.user_emode_tests, name="user_emode_tests"),
     path(
+        "tests/user-collateral/",
+        views.user_collateral_tests,
+        name="user_collateral_tests",
+    ),
+    path(
         "api/user-balances/<str:user_address>/",
         views.user_balances_api,
         name="user_balances_api",
