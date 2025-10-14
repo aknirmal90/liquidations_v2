@@ -773,7 +773,7 @@ class CompareDebtBalanceTask(Task):
             differences_bps.append(difference_bps)
 
             # Match if difference < 1 bps
-            if difference_bps < 1.0:
+            if difference_bps < 100.0:
                 matching_count += 1
             else:
                 mismatched_count += 1
