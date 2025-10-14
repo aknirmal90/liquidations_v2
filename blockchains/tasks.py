@@ -9,6 +9,10 @@ from django.core.cache import cache
 from eth_utils import get_all_event_abis
 
 from balances.models import BalanceEvent
+from blockchains.balance_test_tasks import (
+    CompareCollateralBalanceTask,
+    CompareDebtBalanceTask,
+)
 from blockchains.models import Event
 from liquidations_v2.celery_app import app
 from oracles.models import PriceEvent
@@ -1811,3 +1815,7 @@ class CompareUserCollateralTask(Task):
 
 
 CompareUserCollateralTask = app.register_task(CompareUserCollateralTask())
+
+# Register balance test tasks
+compare_collateral_balance_task = app.register_task(CompareCollateralBalanceTask())
+compare_debt_balance_task = app.register_task(CompareDebtBalanceTask())

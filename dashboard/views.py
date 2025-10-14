@@ -3506,10 +3506,90 @@ def tests(request):
                 "error_message": row[10],
             }
 
+        # Get the latest collateral balance test summary
+        collateral_balance_query = """
+        SELECT
+            test_timestamp,
+            batch_offset,
+            total_user_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message
+        FROM aave_ethereum.CollateralBalanceTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        collateral_balance_result = clickhouse_client.execute_query(
+            collateral_balance_query
+        )
+
+        collateral_balance_summary = None
+        if collateral_balance_result.result_rows:
+            row = collateral_balance_result.result_rows[0]
+            collateral_balance_summary = {
+                "test_timestamp": row[0],
+                "batch_offset": row[1],
+                "total_user_assets": row[2],
+                "matching_records": row[3],
+                "mismatched_records": row[4],
+                "match_percentage": row[5],
+                "avg_difference_bps": row[6],
+                "max_difference_bps": row[7],
+                "test_duration_seconds": row[8],
+                "test_status": row[9],
+                "error_message": row[10],
+            }
+
+        # Get the latest debt balance test summary
+        debt_balance_query = """
+        SELECT
+            test_timestamp,
+            batch_offset,
+            total_user_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message
+        FROM aave_ethereum.DebtBalanceTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        debt_balance_result = clickhouse_client.execute_query(debt_balance_query)
+
+        debt_balance_summary = None
+        if debt_balance_result.result_rows:
+            row = debt_balance_result.result_rows[0]
+            debt_balance_summary = {
+                "test_timestamp": row[0],
+                "batch_offset": row[1],
+                "total_user_assets": row[2],
+                "matching_records": row[3],
+                "mismatched_records": row[4],
+                "match_percentage": row[5],
+                "avg_difference_bps": row[6],
+                "max_difference_bps": row[7],
+                "test_duration_seconds": row[8],
+                "test_status": row[9],
+                "error_message": row[10],
+            }
+
         context = {
             "reserve_test_summary": reserve_test_summary,
             "emode_test_summary": emode_test_summary,
             "collateral_test_summary": collateral_test_summary,
+            "collateral_balance_summary": collateral_balance_summary,
+            "debt_balance_summary": debt_balance_summary,
         }
 
         return render(request, "dashboard/tests.html", context)
@@ -3684,6 +3764,122 @@ def user_collateral_tests(request):
         }
 
         return render(request, "dashboard/user_collateral_tests.html", context)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET"])
+def collateral_balance_tests(request):
+    """Collateral balance test detail page with history"""
+    try:
+        # Get the latest test results
+        query = """
+        SELECT
+            test_timestamp,
+            total_user_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message,
+            mismatches_detail
+        FROM aave_ethereum.CollateralBalanceTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 50
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        test_results = []
+        for row in result.result_rows:
+            test = {
+                "test_timestamp": row[0],
+                "total_user_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+                "mismatches_detail": row[10],
+            }
+            test_results.append(test)
+
+        # Get latest test summary
+        latest_test = test_results[0] if test_results else None
+
+        context = {
+            "test_results": test_results,
+            "latest_test": latest_test,
+        }
+
+        return render(request, "dashboard/collateral_balance_tests.html", context)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET"])
+def debt_balance_tests(request):
+    """Debt balance test detail page with history"""
+    try:
+        # Get the latest test results
+        query = """
+        SELECT
+            test_timestamp,
+            total_user_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message,
+            mismatches_detail
+        FROM aave_ethereum.DebtBalanceTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 50
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        test_results = []
+        for row in result.result_rows:
+            test = {
+                "test_timestamp": row[0],
+                "total_user_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+                "mismatches_detail": row[10],
+            }
+            test_results.append(test)
+
+        # Get latest test summary
+        latest_test = test_results[0] if test_results else None
+
+        context = {
+            "test_results": test_results,
+            "latest_test": latest_test,
+        }
+
+        return render(request, "dashboard/debt_balance_tests.html", context)
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
