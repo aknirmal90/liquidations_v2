@@ -3414,7 +3414,9 @@ def users(request):
                 user,
                 asset,
                 collateral_scaled_balance,
-                variable_debt_scaled_balance
+                variable_debt_scaled_balance,
+                dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', (user, asset), 0) as collateral_enabled,
+                dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', user, 0) as is_in_emode
             FROM aave_ethereum.LatestBalances_v2 FINAL
             WHERE user = %(user_address)s
               AND (collateral_scaled_balance > 0 OR variable_debt_scaled_balance > 0)
@@ -3432,6 +3434,8 @@ def users(request):
                     "asset": row[1],
                     "collateral_scaled_balance": float(row[2]) if row[2] else 0,
                     "variable_debt_scaled_balance": float(row[3]) if row[3] else 0,
+                    "collateral_enabled": bool(row[4]) if len(row) > 4 else False,
+                    "is_in_emode": bool(row[5]) if len(row) > 5 else False,
                 }
                 balances.append(balance)
 
