@@ -343,7 +343,7 @@ class CompareCollateralBalanceTask(Task):
 
             # Calculate difference in basis points
             difference = abs(ch_balance - rpc_balance)
-            difference_bps = (difference / rpc_balance) * 10000
+            difference_bps = (difference / ch_balance) * 10000
 
             differences_bps.append(difference_bps)
 
