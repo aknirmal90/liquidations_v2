@@ -3896,30 +3896,46 @@ def user_balances_api(request, user_address):
             lb.user,
             lb.asset,
             COALESCE(csd.is_enabled_as_collateral, 0) as is_enabled_as_collateral_total,
-            sumMerge(lb.collateral_balance) as collateral_balance_total,
-            maxMerge(lb.collateral_liquidityIndex) as collateral_liquidityIndex_total,
-            sumMerge(lb.variable_debt_balance) as variable_debt_balance_total,
-            maxMerge(lb.variable_debt_liquidityIndex) as variable_debt_liquidityIndex
-        FROM aave_ethereum.LatestBalances lb
+            sumMerge(lb.collateral_scaled_balance) as collateral_scaled_balance,
+            max_idx.max_collateral_liquidityIndex as collateral_liquidityIndex_total,
+            sumMerge(lb.variable_debt_scaled_balance) as variable_debt_scaled_balance,
+            max_idx.max_variable_debt_liquidityIndex as variable_debt_liquidityIndex
+        FROM aave_ethereum.LatestBalances_v2 lb
+        LEFT JOIN aave_ethereum.MaxLiquidityIndex max_idx ON lb.asset = max_idx.asset
         LEFT JOIN aave_ethereum.CollateralStatusDictionary csd
             ON lb.user = csd.user AND lb.asset = csd.asset
         WHERE lb.user = %(user_address)s
-        GROUP BY lb.user, lb.asset, csd.is_enabled_as_collateral
+        GROUP BY lb.user, lb.asset, csd.is_enabled_as_collateral, max_idx.max_collateral_liquidityIndex, max_idx.max_variable_debt_liquidityIndex
         ORDER BY lb.asset
         """
 
         result = clickhouse_client.execute_query(query, {"user_address": user_address})
 
         balances = []
+        RAY = 1e27
         for row in result.result_rows:
+            # Convert scaled balances to underlying using ray math
+            scaled_collateral = float(row[3]) if row[3] else 0
+            collateral_index = float(row[4]) if row[4] else 0
+            scaled_debt = float(row[5]) if row[5] else 0
+            debt_index = float(row[6]) if row[6] else 0
+
+            # underlying = floor(scaled * current_index / RAY)
+            collateral_balance = (
+                int(scaled_collateral * collateral_index / RAY)
+                if collateral_index > 0
+                else 0
+            )
+            debt_balance = int(scaled_debt * debt_index / RAY) if debt_index > 0 else 0
+
             balance = {
                 "user": row[0],
                 "asset": row[1],
                 "is_enabled_as_collateral": int(row[2]) if row[2] else 0,
-                "collateral_balance": float(row[3]) if row[3] else 0,
-                "collateral_liquidityIndex": int(row[4]) if row[4] else 0,
-                "variable_debt_balance": float(row[5]) if row[5] else 0,
-                "variable_debt_liquidityIndex": int(row[6]) if row[6] else 0,
+                "collateral_balance": collateral_balance,
+                "collateral_liquidityIndex": int(collateral_index),
+                "variable_debt_balance": debt_balance,
+                "variable_debt_liquidityIndex": int(debt_index),
             }
             balances.append(balance)
 

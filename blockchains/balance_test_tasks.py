@@ -137,13 +137,13 @@ class CompareCollateralBalanceTask(Task):
         Returns:
             List[Tuple[str, str]]: List of (user, asset) tuples
         """
-        # Query LatestBalances for pairs with non-zero collateral
+        # Query LatestBalances_v2 for pairs with non-zero collateral
         # Use deterministic ordering and pagination
         query = """
         SELECT toString(user) as user, toString(asset) as asset
-        FROM aave_ethereum.LatestBalances
+        FROM aave_ethereum.LatestBalances_v2
         GROUP BY user, asset
-        HAVING sumMerge(collateral_balance) > 0
+        HAVING sumMerge(collateral_scaled_balance) > 0
         ORDER BY user, asset
         LIMIT 10000 OFFSET %(offset)s
         """
@@ -169,15 +169,18 @@ class CompareCollateralBalanceTask(Task):
         self, user_asset_pairs: List[Tuple[str, str]]
     ) -> Dict[Tuple[str, str], float]:
         """
-        Get scaled collateral balances from ClickHouse.
+        Get scaled collateral balances from ClickHouse and convert to underlying.
 
-        Formula: sumMerge(collateral_balance) * (max_global_index / maxMerge(user_index))
+        Formula: floor(sumMerge(scaled_balance) * current_index / RAY)
+        where RAY = 1e27
+
+        This uses the new LatestBalances_v2 table which stores scaled balances.
 
         Args:
             user_asset_pairs: List of (user, asset) tuples
 
         Returns:
-            Dict mapping (user, asset) to scaled balance
+            Dict mapping (user, asset) to underlying balance
         """
         if not user_asset_pairs:
             return {}
@@ -188,6 +191,7 @@ class CompareCollateralBalanceTask(Task):
 
         collateral_balances = {}
         batch_size = 500
+        RAY = 1e27
 
         for i in range(0, len(user_asset_pairs), batch_size):
             batch = user_asset_pairs[i : i + batch_size]
@@ -199,24 +203,22 @@ class CompareCollateralBalanceTask(Task):
             users_in_batch = list(set([user for user, _ in batch]))
             assets_in_batch = list(set([asset for _, asset in batch]))
 
-            # Query with scaling logic - JOIN with MaxLiquidityIndex instead of dictGet
+            # Query scaled balances from LatestBalances_v2 and convert to underlying
             query = """
             SELECT
                 balances.user,
                 balances.asset,
-                balances.raw_balance,
-                balances.user_index,
-                max_idx.max_collateral_liquidityIndex as max_index
+                balances.scaled_balance,
+                max_idx.max_collateral_liquidityIndex as current_index
             FROM (
                 SELECT
                     toString(lb.user) as user,
                     toString(lb.asset) as asset,
-                    sumMerge(lb.collateral_balance) as raw_balance,
-                    maxMerge(lb.collateral_liquidityIndex) as user_index
-                FROM aave_ethereum.LatestBalances lb
+                    sumMerge(lb.collateral_scaled_balance) as scaled_balance
+                FROM aave_ethereum.LatestBalances_v2 lb
                 WHERE lb.user IN %(users)s AND lb.asset IN %(assets)s
                 GROUP BY toString(lb.user), toString(lb.asset)
-                HAVING sumMerge(lb.collateral_balance) > 0
+                HAVING sumMerge(lb.collateral_scaled_balance) > 0
             ) AS balances
             LEFT JOIN aave_ethereum.MaxLiquidityIndex max_idx
                 ON balances.asset = max_idx.asset
@@ -232,17 +234,16 @@ class CompareCollateralBalanceTask(Task):
                 pair = (user, asset)
 
                 if pair in batch_set or (row[0], row[1]) in batch_set:
-                    raw_balance = float(row[2])
-                    user_index = float(row[3])
-                    max_index = float(row[4])
+                    scaled_balance = float(row[2])
+                    current_index = float(row[3])
 
-                    # Scale the balance: raw_balance * (max_index / user_index)
-                    if user_index > 0:
-                        scaled_balance = raw_balance * (max_index / user_index)
+                    # Convert scaled balance to underlying: floor(scaled * current_index / RAY)
+                    if current_index > 0:
+                        underlying_balance = int(scaled_balance * current_index / RAY)
                     else:
-                        scaled_balance = 0
+                        underlying_balance = 0
 
-                    collateral_balances[pair] = scaled_balance
+                    collateral_balances[pair] = underlying_balance
 
         logger.info(
             f"Retrieved {len(collateral_balances)} collateral balances from ClickHouse"
@@ -576,13 +577,13 @@ class CompareDebtBalanceTask(Task):
         Returns:
             List[Tuple[str, str]]: List of (user, asset) tuples
         """
-        # Query LatestBalances for pairs with non-zero debt
+        # Query LatestBalances_v2 for pairs with non-zero debt
         # Use deterministic ordering and pagination
         query = """
         SELECT toString(user) as user, toString(asset) as asset
-        FROM aave_ethereum.LatestBalances
+        FROM aave_ethereum.LatestBalances_v2
         GROUP BY user, asset
-        HAVING sumMerge(variable_debt_balance) > 0
+        HAVING sumMerge(variable_debt_scaled_balance) > 0
         ORDER BY user, asset
         LIMIT 10000 OFFSET %(offset)s
         """
@@ -608,15 +609,18 @@ class CompareDebtBalanceTask(Task):
         self, user_asset_pairs: List[Tuple[str, str]]
     ) -> Dict[Tuple[str, str], float]:
         """
-        Get scaled debt balances from ClickHouse.
+        Get scaled debt balances from ClickHouse and convert to underlying.
 
-        Formula: sumMerge(variable_debt_balance) * (max_global_index / maxMerge(user_index))
+        Formula: floor(sumMerge(scaled_balance) * current_index / RAY)
+        where RAY = 1e27
+
+        This uses the new LatestBalances_v2 table which stores scaled balances.
 
         Args:
             user_asset_pairs: List of (user, asset) tuples
 
         Returns:
-            Dict mapping (user, asset) to scaled balance
+            Dict mapping (user, asset) to underlying balance
         """
         if not user_asset_pairs:
             return {}
@@ -627,6 +631,7 @@ class CompareDebtBalanceTask(Task):
 
         debt_balances = {}
         batch_size = 500
+        RAY = 1e27
 
         for i in range(0, len(user_asset_pairs), batch_size):
             batch = user_asset_pairs[i : i + batch_size]
@@ -638,24 +643,22 @@ class CompareDebtBalanceTask(Task):
             users_in_batch = list(set([user for user, _ in batch]))
             assets_in_batch = list(set([asset for _, asset in batch]))
 
-            # Query with scaling logic - JOIN with MaxLiquidityIndex instead of dictGet
+            # Query scaled balances from LatestBalances_v2 and convert to underlying
             query = """
             SELECT
                 balances.user,
                 balances.asset,
-                balances.raw_balance,
-                balances.user_index,
-                max_idx.max_variable_debt_liquidityIndex as max_index
+                balances.scaled_balance,
+                max_idx.max_variable_debt_liquidityIndex as current_index
             FROM (
                 SELECT
                     toString(lb.user) as user,
                     toString(lb.asset) as asset,
-                    sumMerge(lb.variable_debt_balance) as raw_balance,
-                    maxMerge(lb.variable_debt_liquidityIndex) as user_index
-                FROM aave_ethereum.LatestBalances lb
+                    sumMerge(lb.variable_debt_scaled_balance) as scaled_balance
+                FROM aave_ethereum.LatestBalances_v2 lb
                 WHERE lb.user IN %(users)s AND lb.asset IN %(assets)s
                 GROUP BY toString(lb.user), toString(lb.asset)
-                HAVING sumMerge(lb.variable_debt_balance) > 0
+                HAVING sumMerge(lb.variable_debt_scaled_balance) > 0
             ) AS balances
             LEFT JOIN aave_ethereum.MaxLiquidityIndex max_idx
                 ON balances.asset = max_idx.asset
@@ -671,17 +674,16 @@ class CompareDebtBalanceTask(Task):
                 pair = (user, asset)
 
                 if pair in batch_set or (row[0], row[1]) in batch_set:
-                    raw_balance = float(row[2])
-                    user_index = float(row[3])
-                    max_index = float(row[4])
+                    scaled_balance = float(row[2])
+                    current_index = float(row[3])
 
-                    # Scale the balance: raw_balance * (max_index / user_index)
-                    if user_index > 0:
-                        scaled_balance = raw_balance * (max_index / user_index)
+                    # Convert scaled balance to underlying: floor(scaled * current_index / RAY)
+                    if current_index > 0:
+                        underlying_balance = int(scaled_balance * current_index / RAY)
                     else:
-                        scaled_balance = 0
+                        underlying_balance = 0
 
-                    debt_balances[pair] = scaled_balance
+                    debt_balances[pair] = underlying_balance
 
         logger.info(f"Retrieved {len(debt_balances)} debt balances from ClickHouse")
 
