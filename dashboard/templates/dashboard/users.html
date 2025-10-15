@@ -154,9 +154,9 @@
                     {% if balances %}
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <p class="text-muted mb-0">Found {{ balances|length }} asset balance(s)</p>
-                        <div class="badge {% if balances.0.is_in_emode %}bg-success{% else %}bg-secondary{% endif %} fs-6">
+                        <div class="badge {% if is_in_emode %}bg-success{% else %}bg-secondary{% endif %} fs-6">
                             <i class="fas fa-bolt me-1"></i>
-                            E-Mode: {% if balances.0.is_in_emode %}Enabled{% else %}Disabled{% endif %}
+                            E-Mode: {% if is_in_emode %}Enabled{% else %}Disabled{% endif %}
                         </div>
                     </div>
 
@@ -167,12 +167,16 @@
 
                         <div class="balance-grid">
                             <div class="balance-item">
-                                <div class="balance-label">Collateral Scaled Balance</div>
-                                <div class="balance-value">{{ balance.collateral_scaled_balance|floatformat:2 }}</div>
+                                <div class="balance-label">Collateral Balance</div>
+                                <div class="balance-value">{{ balance.collateral_balance|floatformat:6 }}</div>
                             </div>
                             <div class="balance-item">
-                                <div class="balance-label">Variable Debt Scaled Balance</div>
-                                <div class="balance-value">{{ balance.variable_debt_scaled_balance|floatformat:2 }}</div>
+                                <div class="balance-label">Variable Debt Balance</div>
+                                <div class="balance-value">{{ balance.variable_debt_balance|floatformat:6 }}</div>
+                            </div>
+                            <div class="balance-item">
+                                <div class="balance-label">Predicted Price (USD)</div>
+                                <div class="balance-value">${{ balance.predicted_price|floatformat:2 }}</div>
                             </div>
                             <div class="balance-item">
                                 <div class="balance-label">Collateral Enabled</div>
@@ -184,6 +188,25 @@
                                     {% endif %}
                                 </div>
                             </div>
+                            {% if is_in_emode %}
+                            <div class="balance-item">
+                                <div class="balance-label">E-Mode Liquidation Threshold</div>
+                                <div class="balance-value">{{ balance.emode_liquidation_threshold|floatformat:4 }}</div>
+                            </div>
+                            <div class="balance-item">
+                                <div class="balance-label">E-Mode Liquidation Bonus</div>
+                                <div class="balance-value">{{ balance.emode_liquidation_bonus|floatformat:4 }}</div>
+                            </div>
+                            {% else %}
+                            <div class="balance-item">
+                                <div class="balance-label">Liquidation Threshold</div>
+                                <div class="balance-value">{{ balance.liquidation_threshold|floatformat:4 }}</div>
+                            </div>
+                            <div class="balance-item">
+                                <div class="balance-label">Liquidation Bonus</div>
+                                <div class="balance-value">{{ balance.liquidation_bonus|floatformat:4 }}</div>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}

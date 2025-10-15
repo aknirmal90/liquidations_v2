@@ -3428,6 +3428,9 @@ def users(request):
             )
 
             balances = []
+            user_assets = []
+            is_in_emode = False
+
             for row in result.result_rows:
                 balance = {
                     "user": row[0],
@@ -3438,11 +3441,89 @@ def users(request):
                     "is_in_emode": bool(row[5]) if len(row) > 5 else False,
                 }
                 balances.append(balance)
+                user_assets.append(row[1])
+                if not is_in_emode and len(row) > 5:
+                    is_in_emode = bool(row[5])
+
+            # Query asset configuration separately
+            asset_config_map = {}
+            if user_assets:
+                assets_str = ",".join([f"'{asset}'" for asset in user_assets])
+                config_query = f"""
+                SELECT
+                    asset,
+                    decimals,
+                    predicted_transaction_price,
+                    collateralLiquidationThreshold,
+                    collateralLiquidationBonus,
+                    eModeLiquidationThreshold,
+                    eModeLiquidationBonus
+                FROM aave_ethereum.view_LatestAssetConfiguration
+                WHERE asset IN ({assets_str})
+                """
+
+                config_result = clickhouse_client.execute_query(config_query)
+
+                for config_row in config_result.result_rows:
+                    asset_config_map[config_row[0]] = {
+                        "decimals": int(config_row[1]) if config_row[1] else 18,
+                        "predicted_price": float(config_row[2]) if config_row[2] else 0,
+                        "liquidation_threshold": float(config_row[3]) / 10000
+                        if config_row[3]
+                        else 0,
+                        "liquidation_bonus": (float(config_row[4]) / 10000 - 1)
+                        if config_row[4]
+                        else 0,
+                        "emode_liquidation_threshold": float(config_row[5]) / 10000
+                        if config_row[5]
+                        else 0,
+                        "emode_liquidation_bonus": (float(config_row[6]) / 10000 - 1)
+                        if config_row[6]
+                        else 0,
+                    }
+
+            # Enrich balances with configuration data
+            for balance in balances:
+                asset = balance["asset"]
+                if asset in asset_config_map:
+                    config = asset_config_map[asset]
+                    decimals = config["decimals"]
+
+                    # Normalize balances by decimals
+                    balance["collateral_balance"] = balance[
+                        "collateral_scaled_balance"
+                    ] / (10**decimals)
+                    balance["variable_debt_balance"] = balance[
+                        "variable_debt_scaled_balance"
+                    ] / (10**decimals)
+
+                    # Add configuration data
+                    balance["predicted_price"] = config["predicted_price"]
+                    balance["liquidation_threshold"] = config["liquidation_threshold"]
+                    balance["liquidation_bonus"] = config["liquidation_bonus"]
+                    balance["emode_liquidation_threshold"] = config[
+                        "emode_liquidation_threshold"
+                    ]
+                    balance["emode_liquidation_bonus"] = config[
+                        "emode_liquidation_bonus"
+                    ]
+                else:
+                    balance["collateral_balance"] = 0
+                    balance["variable_debt_balance"] = 0
+                    balance["predicted_price"] = 0
+                    balance["liquidation_threshold"] = 0
+                    balance["liquidation_bonus"] = 0
+                    balance["emode_liquidation_threshold"] = 0
+                    balance["emode_liquidation_bonus"] = 0
 
             return render(
                 request,
                 "dashboard/users.html",
-                {"user_address": user_address, "balances": balances},
+                {
+                    "user_address": user_address,
+                    "balances": balances,
+                    "is_in_emode": is_in_emode,
+                },
             )
 
         except Exception as e:
