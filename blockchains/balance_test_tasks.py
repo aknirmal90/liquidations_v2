@@ -587,7 +587,7 @@ class CompareDebtBalanceTask(Task):
         query = """
         SELECT toString(user) as user, toString(asset) as asset
         FROM aave_ethereum.LatestBalances_v2 FINAL
-        WHERE variable_debt_scaled_balance > 100000
+        WHERE variable_debt_scaled_balance >= 0
         ORDER BY user, asset
         LIMIT 10000 OFFSET %(offset)s
         """
