@@ -141,9 +141,8 @@ class CompareCollateralBalanceTask(Task):
         # Use deterministic ordering and pagination
         query = """
         SELECT toString(user) as user, toString(asset) as asset
-        FROM aave_ethereum.LatestBalances_v2
-        GROUP BY user, asset
-        HAVING sumMerge(collateral_scaled_balance) > 100000
+        FROM aave_ethereum.LatestBalances_v2 FINAL
+        WHERE collateral_scaled_balance > 100000
         ORDER BY user, asset
         LIMIT 10000 OFFSET %(offset)s
         """
@@ -206,22 +205,19 @@ class CompareCollateralBalanceTask(Task):
             # Query scaled balances from LatestBalances_v2 and convert to underlying
             query = """
             SELECT
-                balances.user,
-                balances.asset,
-                balances.scaled_balance,
+                toString(user) as user,
+                toString(asset) as asset,
+                collateral_scaled_balance as scaled_balance,
                 max_idx.max_collateral_liquidityIndex as current_index
             FROM (
-                SELECT
-                    toString(lb.user) as user,
-                    toString(lb.asset) as asset,
-                    sumMerge(lb.collateral_scaled_balance) as scaled_balance
-                FROM aave_ethereum.LatestBalances_v2 lb
-                WHERE lb.user IN %(users)s AND lb.asset IN %(assets)s
-                GROUP BY toString(lb.user), toString(lb.asset)
-                HAVING sumMerge(lb.collateral_scaled_balance) > 0
-            ) AS balances
-            LEFT JOIN aave_ethereum.MaxLiquidityIndex max_idx
-                ON balances.asset = max_idx.asset
+                SELECT user, asset, collateral_scaled_balance
+                FROM aave_ethereum.LatestBalances_v2 FINAL
+                WHERE user IN %(users)s
+                  AND asset IN %(assets)s
+                  AND collateral_scaled_balance > 0
+            ) AS lb
+            LEFT JOIN aave_ethereum.MaxLiquidityIndex AS max_idx
+                ON lb.asset = max_idx.asset
             """
 
             parameters = {"users": users_in_batch, "assets": assets_in_batch}
@@ -590,9 +586,8 @@ class CompareDebtBalanceTask(Task):
         # Use deterministic ordering and pagination
         query = """
         SELECT toString(user) as user, toString(asset) as asset
-        FROM aave_ethereum.LatestBalances_v2
-        GROUP BY user, asset
-        HAVING sumMerge(variable_debt_scaled_balance) > 100000
+        FROM aave_ethereum.LatestBalances_v2 FINAL
+        WHERE variable_debt_scaled_balance > 100000
         ORDER BY user, asset
         LIMIT 10000 OFFSET %(offset)s
         """
@@ -655,22 +650,19 @@ class CompareDebtBalanceTask(Task):
             # Query scaled balances from LatestBalances_v2 and convert to underlying
             query = """
             SELECT
-                balances.user,
-                balances.asset,
-                balances.scaled_balance,
+                toString(user) as user,
+                toString(asset) as asset,
+                variable_debt_scaled_balance as scaled_balance,
                 max_idx.max_variable_debt_liquidityIndex as current_index
             FROM (
-                SELECT
-                    toString(lb.user) as user,
-                    toString(lb.asset) as asset,
-                    sumMerge(lb.variable_debt_scaled_balance) as scaled_balance
-                FROM aave_ethereum.LatestBalances_v2 lb
-                WHERE lb.user IN %(users)s AND lb.asset IN %(assets)s
-                GROUP BY toString(lb.user), toString(lb.asset)
-                HAVING sumMerge(lb.variable_debt_scaled_balance) > 0
-            ) AS balances
-            LEFT JOIN aave_ethereum.MaxLiquidityIndex max_idx
-                ON balances.asset = max_idx.asset
+                SELECT user, asset, variable_debt_scaled_balance
+                FROM aave_ethereum.LatestBalances_v2 FINAL
+                WHERE user IN %(users)s
+                  AND asset IN %(assets)s
+                  AND variable_debt_scaled_balance > 0
+            ) AS lb
+            LEFT JOIN aave_ethereum.MaxLiquidityIndex AS max_idx
+                ON lb.asset = max_idx.asset
             """
 
             parameters = {"users": users_in_batch, "assets": assets_in_batch}
