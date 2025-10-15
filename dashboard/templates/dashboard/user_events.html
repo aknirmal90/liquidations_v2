@@ -444,12 +444,14 @@
                 </div>
                 <div class="event-details">
                     <div class="event-detail">
-                        <span class="event-label">Transaction Hash</span>
-                        <span class="event-value">${event.transaction_hash}</span>
+                        <span class="event-label">Transaction</span>
+                        <a href="https://etherscan.io/tx/${event.transaction_hash}" target="_blank" style="color: #6366f1; text-decoration: none;">
+                            View on Etherscan <i class="fas fa-external-link-alt" style="font-size: 0.75rem;"></i>
+                        </a>
                     </div>
                     <div class="event-detail">
-                        <span class="event-label">Timestamp</span>
-                        <span class="event-value">${formatTimestamp(event.block_timestamp)}</span>
+                        <span class="event-label">Token Address</span>
+                        <span class="event-value" style="font-size: 0.75rem;">${event.token_address}</span>
                     </div>
                     <div class="event-detail">
                         <span class="event-label">Value</span>
@@ -500,12 +502,6 @@
             detailsHTML += '</div>';
             div.innerHTML = detailsHTML;
             return div;
-        }
-
-        function formatTimestamp(timestamp) {
-            if (!timestamp) return 'N/A';
-            const date = new Date(timestamp);
-            return date.toLocaleString();
         }
 
         function formatValue(value) {
