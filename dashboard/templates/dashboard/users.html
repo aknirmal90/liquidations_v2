@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 
-{% block title %}Users - Aave Asset Dashboard{% endblock %}
+{% block title %}User Balances - Aave Asset Dashboard{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -18,38 +18,13 @@
         border-radius: 12px;
         padding: 1.5rem;
         margin-bottom: 1rem;
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(0, 0, 0, 0.1);
         transition: all 0.3s ease;
-        cursor: pointer;
     }
 
     .balance-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-    }
-
-    .balance-value {
-        font-size: 1.1rem;
-        font-weight: 600;
-    }
-
-    .balance-value.positive {
-        color: #10b981;
-    }
-
-    .balance-value.negative {
-        color: #ef4444;
-    }
-
-    .balance-value.zero {
-        color: #6b7280;
-    }
-
-    .asset-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
     }
 
     .asset-address {
@@ -59,22 +34,9 @@
         word-break: break-all;
     }
 
-    .collateral-badge {
-        background: #10b981;
-        color: white;
-        padding: 0.25rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.8rem;
-        font-weight: 500;
-    }
-
-    .collateral-badge.disabled {
-        background: #6b7280;
-    }
-
     .balance-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
         gap: 1rem;
         margin-top: 1rem;
     }
@@ -86,59 +48,43 @@
     }
 
     .balance-label {
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         color: #6b7280;
-        margin-bottom: 0.25rem;
-    }
-
-    .loading-spinner {
-        display: none;
-        text-align: center;
-        padding: 2rem;
-    }
-
-    .events-modal .modal-body {
-        max-height: 500px;
-        overflow-y: auto;
-    }
-
-    .event-item {
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 1rem;
         margin-bottom: 0.5rem;
-        border-left: 4px solid #6366f1;
-    }
-
-    .event-type {
-        font-weight: 600;
-        color: #6366f1;
-        margin-bottom: 0.5rem;
-    }
-
-    .event-details {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 0.5rem;
-        font-size: 0.9rem;
-    }
-
-    .event-detail {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .event-label {
         font-weight: 500;
-        color: #6b7280;
-        font-size: 0.8rem;
     }
 
-    .event-value {
+    .balance-value {
+        font-size: 1.2rem;
+        font-weight: 600;
         color: #1f2937;
         font-family: monospace;
-        font-size: 0.9rem;
+    }
+
+    .user-address-display {
+        font-family: monospace;
+        font-size: 0.95rem;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 0.75rem;
+        border-radius: 8px;
         word-break: break-all;
+        margin-bottom: 1.5rem;
+    }
+
+    .no-results {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 12px;
+        padding: 3rem;
+        text-align: center;
+    }
+
+    .error-message {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        color: #dc2626;
     }
 </style>
 {% endblock %}
@@ -150,28 +96,34 @@
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h1 class="text-white">
                     <i class="fas fa-users me-3"></i>
-                    Users
+                    User Balances
                 </h1>
             </div>
 
-            <!-- Search Container -->
+            <!-- Search Form -->
             <div class="search-container">
-                <form id="searchForm">
+                <form method="post" action="{% url 'dashboard:users' %}">
                     {% csrf_token %}
                     <div class="row">
-                        <div class="col-md-8">
+                        <div class="col-md-9">
                             <div class="mb-3">
-                                <label for="userSearch" class="form-label text-white">Search User Address</label>
-                                <input type="text" class="form-control" id="userSearch"
-                                    placeholder="Enter user address (0x...)"
-                                    style="background: rgba(255, 255, 255, 0.9);">
+                                <label for="user_address" class="form-label text-white">User Address</label>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    id="user_address"
+                                    name="user_address"
+                                    placeholder="Enter Ethereum address (0x...)"
+                                    style="background: rgba(255, 255, 255, 0.9);"
+                                    required
+                                    value="{{ user_address|default:'' }}">
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="mb-3">
                                 <label class="form-label text-white">&nbsp;</label>
-                                <button type="button" class="btn btn-primary w-100" id="searchButton">
-                                    <i class="fas fa-search me-2"></i>Search
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="fas fa-search me-2"></i>Search Balances
                                 </button>
                             </div>
                         </div>
@@ -179,249 +131,58 @@
                 </form>
             </div>
 
-            <!-- Loading Spinner -->
-            <div class="loading-spinner" id="loadingSpinner">
-                <div class="spinner-border text-white" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="text-white mt-2">Loading user balances...</p>
-            </div>
-
-            <!-- Results Container -->
-            <div id="resultsContainer" style="display: none;">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="fas fa-wallet me-2"></i>
-                            Asset Balances for <span id="userAddress" class="asset-address"></span>
-                        </h5>
-                        <div id="balancesContainer"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- No Results -->
-            <div id="noResults" style="display: none;">
-                <div class="card">
-                    <div class="card-body text-center">
-                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
-                        <h5>No balances found</h5>
-                        <p class="text-muted">The user address you searched for has no asset balances.</p>
-                    </div>
-                </div>
-            </div>
-
             <!-- Error Message -->
-            <div id="errorMessage" style="display: none;">
-                <div class="alert alert-danger" role="alert">
-                    <i class="fas fa-exclamation-circle me-2"></i>
-                    <span id="errorText"></span>
+            {% if error %}
+            <div class="error-message">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <!-- Results -->
+            {% if user_address and not error %}
+            <div class="card mb-4" style="background: rgba(255, 255, 255, 0.95);">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">
+                        <i class="fas fa-wallet me-2"></i>
+                        Balances for User
+                    </h5>
+                    <div class="user-address-display">
+                        {{ user_address }}
+                    </div>
+
+                    {% if balances %}
+                    <p class="text-muted mb-3">Found {{ balances|length }} asset balance(s)</p>
+
+                    {% for balance in balances %}
+                    <div class="balance-card">
+                        <h6 class="mb-2">Asset</h6>
+                        <div class="asset-address mb-3">{{ balance.asset }}</div>
+
+                        <div class="balance-grid">
+                            <div class="balance-item">
+                                <div class="balance-label">Collateral Scaled Balance</div>
+                                <div class="balance-value">{{ balance.collateral_scaled_balance|floatformat:2 }}</div>
+                            </div>
+                            <div class="balance-item">
+                                <div class="balance-label">Variable Debt Scaled Balance</div>
+                                <div class="balance-value">{{ balance.variable_debt_scaled_balance|floatformat:2 }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    {% else %}
+                    <div class="no-results">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h5>No Balances Found</h5>
+                        <p class="text-muted">This address has no balances in the LatestBalances_v2 table.</p>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
+            {% endif %}
         </div>
     </div>
 </div>
-
-<!-- Events Modal -->
-<div class="modal fade events-modal" id="eventsModal" tabindex="-1" aria-labelledby="eventsModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="eventsModalLabel">
-                    <i class="fas fa-history me-2"></i>
-                    Events for <span id="modalAsset"></span>
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="eventsContainer">
-                <!-- Events will be loaded here -->
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
-
-{% block extra_js %}
-<script type="text/javascript">
-    document.addEventListener('DOMContentLoaded', function () {
-        var currentUser = null;
-
-        // Get elements
-        var searchButton = document.getElementById('searchButton');
-        var userSearchInput = document.getElementById('userSearch');
-
-        // Add event listeners
-        if (searchButton) {
-            searchButton.addEventListener('click', searchUser);
-        }
-
-        if (userSearchInput) {
-            userSearchInput.addEventListener('keypress', function (event) {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    searchUser();
-                }
-            });
-        }
-
-        function searchUser() {
-            console.log('Search function called');
-
-            var userAddress = userSearchInput.value.trim();
-            console.log('User address:', userAddress);
-
-            if (!userAddress) {
-                showError('Please enter a user address');
-                return;
-            }
-
-            if (!userAddress.startsWith('0x') || userAddress.length !== 42) {
-                showError('Please enter a valid Ethereum address (0x...)');
-                return;
-            }
-
-            currentUser = userAddress;
-
-            // Show loading
-            document.getElementById('loadingSpinner').style.display = 'block';
-            document.getElementById('resultsContainer').style.display = 'none';
-            document.getElementById('noResults').style.display = 'none';
-            document.getElementById('errorMessage').style.display = 'none';
-
-            // Make API call
-            var xhr = new XMLHttpRequest();
-            xhr.open('GET', '/api/user-balances/' + userAddress + '/', true);
-            xhr.setRequestHeader('Accept', 'application/json');
-            xhr.setRequestHeader('Content-Type', 'application/json');
-            xhr.setRequestHeader('X-CSRFToken', getCsrfToken());
-
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState === 4) {
-                    document.getElementById('loadingSpinner').style.display = 'none';
-
-                    if (xhr.status === 200) {
-                        try {
-                            var data = JSON.parse(xhr.responseText);
-                            console.log('Response data:', data);
-                            if (data.error) {
-                                showError(data.error);
-                            } else {
-                                displayBalances(data.balances, userAddress);
-                            }
-                        } catch (e) {
-                            console.error('JSON parse error:', e);
-                            showError('Invalid response from server');
-                        }
-                    } else {
-                        console.error('HTTP error:', xhr.status);
-                        showError('Failed to fetch user balances. Status: ' + xhr.status);
-                    }
-                }
-            };
-
-            xhr.send();
-        }
-
-        function getCsrfToken() {
-            var tokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
-            return tokenElement ? tokenElement.value : '';
-        }
-
-        function displayBalances(balances, userAddress) {
-            var resultsContainer = document.getElementById('resultsContainer');
-            var balancesContainer = document.getElementById('balancesContainer');
-            var noResults = document.getElementById('noResults');
-            var userAddressSpan = document.getElementById('userAddress');
-
-            userAddressSpan.textContent = userAddress;
-
-            if (!balances || balances.length === 0) {
-                resultsContainer.style.display = 'none';
-                noResults.style.display = 'block';
-                return;
-            }
-
-            var balancesHtml = '';
-
-            for (var i = 0; i < balances.length; i++) {
-                var balance = balances[i];
-                var isCollateralEnabled = balance.is_enabled_as_collateral > 0;
-
-                balancesHtml += '<div class="balance-card">';
-                balancesHtml += '<div class="asset-header">';
-                balancesHtml += '<div>';
-                balancesHtml += '<h6 class="mb-1">' + balance.asset + '</h6>';
-                balancesHtml += '<div class="asset-address">' + balance.asset + '</div>';
-                balancesHtml += '</div>';
-                balancesHtml += '<div>';
-                if (isCollateralEnabled) {
-                    balancesHtml += '<span class="collateral-badge">Collateral Enabled</span>';
-                } else {
-                    balancesHtml += '<span class="collateral-badge disabled">Collateral Disabled</span>';
-                }
-                balancesHtml += '</div>';
-                balancesHtml += '</div>';
-
-                balancesHtml += '<div class="balance-grid">';
-                balancesHtml += '<div class="balance-item">';
-                balancesHtml += '<div class="balance-label">Collateral Balance</div>';
-                balancesHtml += '<div class="balance-value ' + getBalanceClass(balance.collateral_balance) + '">';
-                balancesHtml += formatBalance(balance.collateral_balance);
-                balancesHtml += '</div>';
-                balancesHtml += '<div class="balance-label mt-1">Liquidity Index: ' + balance.collateral_liquidityIndex + '</div>';
-                balancesHtml += '</div>';
-
-
-                balancesHtml += '<div class="balance-item">';
-                balancesHtml += '<div class="balance-label">Variable Debt</div>';
-                balancesHtml += '<div class="balance-value ' + getBalanceClass(balance.variable_debt_balance) + '">';
-                balancesHtml += formatBalance(balance.variable_debt_balance);
-                balancesHtml += '</div>';
-                balancesHtml += '<div class="balance-label mt-1">Liquidity Index: ' + balance.variable_debt_liquidityIndex + '</div>';
-                balancesHtml += '</div>';
-
-                balancesHtml += '</div>';
-                balancesHtml += '</div>';
-            }
-
-            balancesContainer.innerHTML = balancesHtml;
-            resultsContainer.style.display = 'block';
-            noResults.style.display = 'none';
-        }
-
-        function getBalanceClass(balance) {
-            if (balance > 0) return 'positive';
-            if (balance < 0) return 'negative';
-            return 'zero';
-        }
-
-        function formatBalance(balance) {
-            if (balance === 0) return '0';
-            return Number(balance).toLocaleString(undefined, {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 6
-            });
-        }
-
-        function showError(message) {
-            var errorMessage = document.getElementById('errorMessage');
-            var errorText = document.getElementById('errorText');
-
-            errorText.textContent = message;
-            errorMessage.style.display = 'block';
-
-            // Hide other containers
-            document.getElementById('resultsContainer').style.display = 'none';
-            document.getElementById('noResults').style.display = 'none';
-            document.getElementById('loadingSpinner').style.display = 'none';
-        }
-
-        // Make functions available globally for testing
-        window.testSearch = function () {
-            userSearchInput.value = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
-            searchUser();
-        };
-    });
-</script>
 {% endblock %}

@@ -71,7 +71,6 @@ urlpatterns = [
         name="liquidator_detail",
     ),
     path("users/", views.users, name="users"),
-    path("users/events/", views.user_events_view, name="user_events"),
     path("tests/", views.tests, name="tests"),
     path(
         "tests/reserve-config/", views.reserve_config_tests, name="reserve_config_tests"
@@ -91,20 +90,5 @@ urlpatterns = [
         "tests/debt-balance/",
         views.debt_balance_tests,
         name="debt_balance_tests",
-    ),
-    path(
-        "api/user-balances/<str:user_address>/",
-        views.user_balances_api,
-        name="user_balances_api",
-    ),
-    path(
-        "api/user-events/<str:user_address>/<str:asset>/",
-        views.user_events_api,
-        name="user_events_api",
-    ),
-    path(
-        "api/user-asset-events/<str:user_address>/<str:asset>/",
-        views.user_asset_events_api,
-        name="user_asset_events_api",
     ),
 ]

@@ -3385,7 +3385,69 @@ def health_factor_analytics(request):
 
 @login_required
 def users(request):
-    """Users page with search functionality"""
+    """Users page - form to search for user balances from LatestBalances_v2"""
+    if request.method == "POST":
+        user_address = request.POST.get("user_address", "").strip().lower()
+
+        if not user_address:
+            return render(
+                request,
+                "dashboard/users.html",
+                {"error": "Please enter a user address"},
+            )
+
+        # Validate Ethereum address format
+        if not user_address.startswith("0x") or len(user_address) != 42:
+            return render(
+                request,
+                "dashboard/users.html",
+                {
+                    "error": "Invalid Ethereum address format. Address must start with 0x and be 42 characters long."
+                },
+            )
+
+        try:
+            # Query LatestBalances_v2 for all balances held by the user
+            # Using FINAL to get the latest version from ReplacingMergeTree
+            query = """
+            SELECT
+                user,
+                asset,
+                collateral_scaled_balance,
+                variable_debt_scaled_balance
+            FROM aave_ethereum.LatestBalances_v2 FINAL
+            WHERE user = %(user_address)s
+              AND (collateral_scaled_balance > 0 OR variable_debt_scaled_balance > 0)
+            ORDER BY asset
+            """
+
+            result = clickhouse_client.execute_query(
+                query, {"user_address": user_address}
+            )
+
+            balances = []
+            for row in result.result_rows:
+                balance = {
+                    "user": row[0],
+                    "asset": row[1],
+                    "collateral_scaled_balance": float(row[2]) if row[2] else 0,
+                    "variable_debt_scaled_balance": float(row[3]) if row[3] else 0,
+                }
+                balances.append(balance)
+
+            return render(
+                request,
+                "dashboard/users.html",
+                {"user_address": user_address, "balances": balances},
+            )
+
+        except Exception as e:
+            return render(
+                request,
+                "dashboard/users.html",
+                {"error": f"Error querying database: {str(e)}"},
+            )
+
     return render(request, "dashboard/users.html")
 
 
@@ -3883,378 +3945,3 @@ def debt_balance_tests(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
-
-
-@login_required
-@csrf_exempt
-@require_http_methods(["GET"])
-def user_balances_api(request, user_address):
-    """API endpoint to get user balances"""
-    try:
-        query = """
-        SELECT
-            lb.user,
-            lb.asset,
-            COALESCE(csd.is_enabled_as_collateral, 0) as is_enabled_as_collateral_total,
-            sumMerge(lb.collateral_scaled_balance) as collateral_scaled_balance,
-            max_idx.max_collateral_liquidityIndex as collateral_liquidityIndex_total,
-            sumMerge(lb.variable_debt_scaled_balance) as variable_debt_scaled_balance,
-            max_idx.max_variable_debt_liquidityIndex as variable_debt_liquidityIndex
-        FROM aave_ethereum.LatestBalances_v2 lb
-        LEFT JOIN aave_ethereum.MaxLiquidityIndex max_idx ON lb.asset = max_idx.asset
-        LEFT JOIN aave_ethereum.CollateralStatusDictionary csd
-            ON lb.user = csd.user AND lb.asset = csd.asset
-        WHERE lb.user = %(user_address)s
-        GROUP BY lb.user, lb.asset, csd.is_enabled_as_collateral, max_idx.max_collateral_liquidityIndex, max_idx.max_variable_debt_liquidityIndex
-        ORDER BY lb.asset
-        """
-
-        result = clickhouse_client.execute_query(query, {"user_address": user_address})
-
-        balances = []
-        RAY = 1e27
-        for row in result.result_rows:
-            # Convert scaled balances to underlying using ray math
-            scaled_collateral = float(row[3]) if row[3] else 0
-            collateral_index = float(row[4]) if row[4] else 0
-            scaled_debt = float(row[5]) if row[5] else 0
-            debt_index = float(row[6]) if row[6] else 0
-
-            # underlying = floor(scaled * current_index / RAY)
-            collateral_balance = (
-                int(scaled_collateral * collateral_index / RAY)
-                if collateral_index > 0
-                else 0
-            )
-            debt_balance = int(scaled_debt * debt_index / RAY) if debt_index > 0 else 0
-
-            balance = {
-                "user": row[0],
-                "asset": row[1],
-                "is_enabled_as_collateral": int(row[2]) if row[2] else 0,
-                "collateral_balance": collateral_balance,
-                "collateral_liquidityIndex": int(collateral_index),
-                "variable_debt_balance": debt_balance,
-                "variable_debt_liquidityIndex": int(debt_index),
-            }
-            balances.append(balance)
-
-        return JsonResponse({"balances": balances})
-
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
-
-
-@login_required
-@csrf_exempt
-@require_http_methods(["GET"])
-def user_events_api(request, user_address, asset):
-    """API endpoint to get user events for a specific asset"""
-    try:
-        # Get BalanceTransfer events
-        balance_transfer_query = """
-        SELECT
-            'BalanceTransfer' as event_type,
-            blockNumber,
-            blockTimestamp,
-            transactionHash,
-            _from,
-            _to,
-            value,
-            index,
-            type
-        FROM aave_ethereum.BalanceTransfer
-        WHERE ((_from = %(user_address)s) OR (_to = %(user_address)s)) AND asset = %(asset)s
-        ORDER BY blockTimestamp DESC
-        LIMIT 100
-        """
-
-        # Get Mint events
-        mint_query = """
-        SELECT
-            'Mint' as event_type,
-            blockNumber,
-            blockTimestamp,
-            transactionHash,
-            onBehalfOf,
-            '' as _to,
-            value,
-            index,
-            type
-        FROM aave_ethereum.Mint
-        WHERE onBehalfOf = %(user_address)s AND asset = %(asset)s
-        ORDER BY blockTimestamp DESC
-        LIMIT 100
-        """
-
-        # Get Burn events
-        burn_query = """
-        SELECT
-            'Burn' as event_type,
-            blockNumber,
-            blockTimestamp,
-            transactionHash,
-            from,
-            '' as _to,
-            value,
-            index,
-            type
-        FROM aave_ethereum.Burn
-        WHERE from = %(user_address)s AND asset = %(asset)s
-        ORDER BY blockTimestamp DESC
-        LIMIT 100
-        """
-
-        params = {"user_address": user_address, "asset": asset}
-
-        balance_transfers = clickhouse_client.execute_query(
-            balance_transfer_query, params
-        )
-        mints = clickhouse_client.execute_query(mint_query, params)
-        burns = clickhouse_client.execute_query(burn_query, params)
-
-        events = []
-
-        # Process BalanceTransfer events
-        for row in balance_transfers.result_rows:
-            event = {
-                "event_type": row[0],
-                "block_number": row[1],
-                "block_timestamp": row[2].isoformat() if row[2] else None,
-                "transaction_hash": row[3],
-                "from": row[4],
-                "to": row[5],
-                "value": float(row[6]) if row[6] else 0,
-                "index": int(row[7]) if row[7] else 0,
-                "type": row[8],
-            }
-            events.append(event)
-
-        # Process Mint events
-        for row in mints.result_rows:
-            event = {
-                "event_type": row[0],
-                "block_number": row[1],
-                "block_timestamp": row[2].isoformat() if row[2] else None,
-                "transaction_hash": row[3],
-                "from": "",
-                "to": row[4],
-                "value": float(row[6]) if row[6] else 0,
-                "index": int(row[7]) if row[7] else 0,
-                "type": row[8],
-            }
-            events.append(event)
-
-        # Process Burn events
-        for row in burns.result_rows:
-            event = {
-                "event_type": row[0],
-                "block_number": row[1],
-                "block_timestamp": row[2].isoformat() if row[2] else None,
-                "transaction_hash": row[3],
-                "from": row[4],
-                "to": "",
-                "value": float(row[6]) if row[6] else 0,
-                "index": int(row[7]) if row[7] else 0,
-                "type": row[8],
-            }
-            events.append(event)
-
-        # Sort all events by timestamp
-        events.sort(key=lambda x: x["block_timestamp"] or "", reverse=True)
-
-        return JsonResponse({"events": events})
-
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
-
-
-def user_events_view(request):
-    """User events view page"""
-    return render(request, "dashboard/user_events.html")
-
-
-def user_asset_events_api(request, user_address, asset):
-    """API endpoint to get user events for a specific asset, including aToken and variableDebt addresses"""
-    try:
-        # Get asset configuration from ClickHouse to retrieve aToken and variableDebt addresses
-        asset_query = f"""
-        SELECT
-            asset,
-            aToken,
-            variableDebtToken
-        FROM aave_ethereum.view_LatestAssetConfiguration
-        WHERE asset = '{asset}'
-        """
-
-        asset_result = clickhouse_client.execute_query(asset_query)
-
-        if not asset_result.result_rows:
-            return JsonResponse(
-                {"error": f"Asset {asset} not found in ClickHouse"}, status=404
-            )
-
-        asset_row = asset_result.result_rows[0]
-        atoken_address = asset_row[1]
-        variable_debt_address = asset_row[2]
-
-        # Build queries for mint, burn, and transfer events for both aToken and variableDebt
-        # We'll query using the token addresses (aToken and variableDebt)
-
-        events = []
-
-        # Get all relevant token addresses
-        token_addresses = []
-        if atoken_address:
-            token_addresses.append(atoken_address)
-        if variable_debt_address:
-            token_addresses.append(variable_debt_address)
-
-        if not token_addresses:
-            return JsonResponse(
-                {
-                    "error": "No aToken or variableDebt token addresses found for this asset",
-                    "atoken_address": atoken_address,
-                    "variable_debt_address": variable_debt_address,
-                    "events": [],
-                }
-            )
-
-        # Build WHERE clause for token addresses
-        # Create individual params for each token address
-        token_conditions = []
-        params = {"user_address": user_address}
-
-        for idx, token_addr in enumerate(token_addresses):
-            param_name = f"token_addr_{idx}"
-            params[param_name] = token_addr
-            token_conditions.append(f"address = %({param_name})s")
-
-        address_filter = " OR ".join(token_conditions) if token_conditions else "1=0"
-
-        # Query Mint events
-        mint_query = f"""
-        SELECT
-            'Mint' as event_type,
-            blockNumber,
-            transactionHash,
-            address,
-            onBehalfOf,
-            value,
-            balanceIncrease,
-            index,
-            type
-        FROM aave_ethereum.Mint
-        WHERE onBehalfOf = %(user_address)s
-            AND ({address_filter})
-        ORDER BY blockNumber DESC
-        LIMIT 200
-        """
-
-        # Query Burn events
-        burn_query = f"""
-        SELECT
-            'Burn' as event_type,
-            blockNumber,
-            transactionHash,
-            address,
-            `from`,
-            target,
-            value,
-            balanceIncrease,
-            index,
-            type
-        FROM aave_ethereum.Burn
-        WHERE `from` = %(user_address)s
-            AND ({address_filter})
-        ORDER BY blockNumber DESC
-        LIMIT 200
-        """
-
-        # Query Transfer events (BalanceTransfer)
-        transfer_query = f"""
-        SELECT
-            'Transfer' as event_type,
-            blockNumber,
-            transactionHash,
-            address,
-            _from,
-            _to,
-            value,
-            `index`,
-            type
-        FROM aave_ethereum.BalanceTransfer
-        WHERE ((_from = %(user_address)s) OR (_to = %(user_address)s))
-            AND ({address_filter})
-        ORDER BY blockNumber DESC
-        LIMIT 200
-        """
-
-        # Execute queries
-        mint_results = clickhouse_client.execute_query(mint_query, params)
-        burn_results = clickhouse_client.execute_query(burn_query, params)
-        transfer_results = clickhouse_client.execute_query(transfer_query, params)
-
-        # Process Mint events
-        for row in mint_results.result_rows:
-            event = {
-                "event_type": row[0],
-                "block_number": row[1],
-                "transaction_hash": row[2],
-                "token_address": row[3],
-                "on_behalf_of": row[4],
-                "value": float(row[5]) if row[5] else 0,
-                "balance_increase": float(row[6]) if row[6] else 0,
-                "liquidity_index": float(row[7]) if row[7] else 0,
-                "type": row[8],
-            }
-            events.append(event)
-
-        # Process Burn events
-        for row in burn_results.result_rows:
-            event = {
-                "event_type": row[0],
-                "block_number": row[1],
-                "transaction_hash": row[2],
-                "token_address": row[3],
-                "from_address": row[4],
-                "target": row[5],
-                "value": float(row[6]) if row[6] else 0,
-                "balance_increase": float(row[7]) if row[7] else 0,
-                "liquidity_index": float(row[8]) if row[8] else 0,
-                "type": row[9],
-            }
-            events.append(event)
-
-        # Process Transfer events
-        for row in transfer_results.result_rows:
-            event = {
-                "event_type": row[0],
-                "block_number": row[1],
-                "transaction_hash": row[2],
-                "token_address": row[3],
-                "from_address": row[4],
-                "to_address": row[5],
-                "value": float(row[6]) if row[6] else 0,
-                "liquidity_index": float(row[7]) if row[7] else 0,
-                "type": row[8],
-            }
-            events.append(event)
-
-        # Sort all events by block number
-        events.sort(key=lambda x: x["block_number"] or 0, reverse=True)
-
-        return JsonResponse(
-            {
-                "atoken_address": atoken_address,
-                "variable_debt_address": variable_debt_address,
-                "events": events,
-            }
-        )
-
-    except Exception as e:
-        import traceback
-
-        return JsonResponse(
-            {"error": str(e), "traceback": traceback.format_exc()}, status=500
-        )
