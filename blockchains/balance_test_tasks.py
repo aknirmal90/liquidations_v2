@@ -143,7 +143,7 @@ class CompareCollateralBalanceTask(Task):
         SELECT toString(user) as user, toString(asset) as asset
         FROM aave_ethereum.LatestBalances_v2
         GROUP BY user, asset
-        HAVING sumMerge(collateral_scaled_balance) > 0
+        HAVING sumMerge(collateral_scaled_balance) > 100
         ORDER BY user, asset
         LIMIT 10000 OFFSET %(offset)s
         """
@@ -583,7 +583,7 @@ class CompareDebtBalanceTask(Task):
         SELECT toString(user) as user, toString(asset) as asset
         FROM aave_ethereum.LatestBalances_v2
         GROUP BY user, asset
-        HAVING sumMerge(variable_debt_scaled_balance) > 0
+        HAVING sumMerge(variable_debt_scaled_balance) > 100
         ORDER BY user, asset
         LIMIT 10000 OFFSET %(offset)s
         """
