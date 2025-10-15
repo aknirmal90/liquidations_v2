@@ -8,7 +8,7 @@ AS SELECT
     asset as asset,
     -- Convert to scaled: floor((value + balanceIncrease) * RAY / index)
     sumState(toInt256(
-        floor((toDecimal256(value + balanceIncrease, 0) * toDecimal256('1000000000000000000000000000', 0)) / toDecimal256(index, 0))
+        floor((toDecimal256(value - balanceIncrease, 0) * toDecimal256('1000000000000000000000000000', 0)) / toDecimal256(index, 0))
     )) as collateral_scaled_balance,
     sumState(toInt256(0)) as variable_debt_scaled_balance
 FROM aave_ethereum.Mint
