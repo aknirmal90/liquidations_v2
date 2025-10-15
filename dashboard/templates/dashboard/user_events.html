@@ -360,7 +360,9 @@
             })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        return response.json().then(data => {
+                            throw new Error(`HTTP ${response.status}: ${data.error || 'Unknown error'}`);
+                        });
                     }
                     return response.json();
                 })
@@ -368,7 +370,11 @@
                     document.getElementById('loadingSpinner').style.display = 'none';
 
                     if (data.error) {
-                        showError(data.error);
+                        console.error('API Error:', data.error);
+                        if (data.traceback) {
+                            console.error('Traceback:', data.traceback);
+                        }
+                        showError(data.error + '\n\nCheck browser console for full traceback.');
                     } else {
                         displayResults(data, userAddress);
                     }

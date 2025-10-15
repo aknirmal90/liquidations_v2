@@ -4077,17 +4077,26 @@ def user_events_view(request):
 def user_asset_events_api(request, user_address, asset):
     """API endpoint to get user events for a specific asset, including aToken and variableDebt addresses"""
     try:
-        from aave.models import Asset
+        # Get asset configuration from ClickHouse to retrieve aToken and variableDebt addresses
+        asset_query = f"""
+        SELECT
+            asset,
+            aToken,
+            variableDebtToken
+        FROM aave_ethereum.view_LatestAssetConfiguration
+        WHERE asset = '{asset}'
+        """
 
-        # Get asset from database to retrieve aToken and variableDebt addresses
-        try:
-            asset_obj = Asset.objects.get(asset__iexact=asset)
-            atoken_address = asset_obj.atoken_address
-            variable_debt_address = asset_obj.variable_debt_token_address
-        except Asset.DoesNotExist:
+        asset_result = clickhouse_client.execute_query(asset_query)
+
+        if not asset_result.result_rows:
             return JsonResponse(
-                {"error": f"Asset {asset} not found in database"}, status=404
+                {"error": f"Asset {asset} not found in ClickHouse"}, status=404
             )
+
+        asset_row = asset_result.result_rows[0]
+        atoken_address = asset_row[1]
+        variable_debt_address = asset_row[2]
 
         # Build queries for mint, burn, and transfer events for both aToken and variableDebt
         # We'll query using the token addresses (aToken and variableDebt)
@@ -4111,8 +4120,20 @@ def user_asset_events_api(request, user_address, asset):
                 }
             )
 
+        # Build WHERE clause for token addresses
+        # Create individual params for each token address
+        token_conditions = []
+        params = {"user_address": user_address}
+
+        for idx, token_addr in enumerate(token_addresses):
+            param_name = f"token_addr_{idx}"
+            params[param_name] = token_addr
+            token_conditions.append(f"address = %({param_name})s")
+
+        address_filter = " OR ".join(token_conditions) if token_conditions else "1=0"
+
         # Query Mint events
-        mint_query = """
+        mint_query = f"""
         SELECT
             'Mint' as event_type,
             blockNumber,
@@ -4126,13 +4147,13 @@ def user_asset_events_api(request, user_address, asset):
             type
         FROM aave_ethereum.Mint
         WHERE onBehalfOf = %(user_address)s
-            AND address IN %(token_addresses)s
+            AND ({address_filter})
         ORDER BY blockTimestamp DESC
         LIMIT 200
         """
 
         # Query Burn events
-        burn_query = """
+        burn_query = f"""
         SELECT
             'Burn' as event_type,
             blockNumber,
@@ -4147,13 +4168,13 @@ def user_asset_events_api(request, user_address, asset):
             type
         FROM aave_ethereum.Burn
         WHERE `from` = %(user_address)s
-            AND address IN %(token_addresses)s
+            AND ({address_filter})
         ORDER BY blockTimestamp DESC
         LIMIT 200
         """
 
         # Query Transfer events (BalanceTransfer)
-        transfer_query = """
+        transfer_query = f"""
         SELECT
             'Transfer' as event_type,
             blockNumber,
@@ -4167,12 +4188,10 @@ def user_asset_events_api(request, user_address, asset):
             type
         FROM aave_ethereum.BalanceTransfer
         WHERE ((_from = %(user_address)s) OR (_to = %(user_address)s))
-            AND address IN %(token_addresses)s
+            AND ({address_filter})
         ORDER BY blockTimestamp DESC
         LIMIT 200
         """
-
-        params = {"user_address": user_address, "token_addresses": token_addresses}
 
         # Execute queries
         mint_results = clickhouse_client.execute_query(mint_query, params)
