@@ -4198,12 +4198,43 @@ def user_asset_events_api(request, user_address, asset):
         burn_results = clickhouse_client.execute_query(burn_query, params)
         transfer_results = clickhouse_client.execute_query(transfer_query, params)
 
+        # Helper function to safely format timestamp
+        def format_timestamp(ts):
+            if not ts:
+                return None
+            try:
+                from datetime import datetime
+
+                # If it's a numeric timestamp, convert to datetime
+                if isinstance(ts, (int, float)):
+                    # Try interpreting as seconds first
+                    dt = datetime.fromtimestamp(ts)
+                    return dt.isoformat()
+                # If it has a timestamp method (datetime object)
+                elif hasattr(ts, "timestamp"):
+                    # Convert to datetime first to avoid year out of range
+                    return datetime.fromtimestamp(int(ts.timestamp())).isoformat()
+                # If it has isoformat method
+                elif hasattr(ts, "isoformat"):
+                    return ts.isoformat()
+                # Otherwise convert to string
+                return str(ts)
+            except Exception as e:
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.error(
+                    f"Error formatting timestamp {ts} (type: {type(ts)}): {str(e)}"
+                )
+                # Return as string for debugging
+                return str(ts)
+
         # Process Mint events
         for row in mint_results.result_rows:
             event = {
                 "event_type": row[0],
                 "block_number": row[1],
-                "block_timestamp": row[2].isoformat() if row[2] else None,
+                "block_timestamp": format_timestamp(row[2]),
                 "transaction_hash": row[3],
                 "token_address": row[4],
                 "on_behalf_of": row[5],
@@ -4219,7 +4250,7 @@ def user_asset_events_api(request, user_address, asset):
             event = {
                 "event_type": row[0],
                 "block_number": row[1],
-                "block_timestamp": row[2].isoformat() if row[2] else None,
+                "block_timestamp": format_timestamp(row[2]),
                 "transaction_hash": row[3],
                 "token_address": row[4],
                 "from_address": row[5],
@@ -4236,7 +4267,7 @@ def user_asset_events_api(request, user_address, asset):
             event = {
                 "event_type": row[0],
                 "block_number": row[1],
-                "block_timestamp": row[2].isoformat() if row[2] else None,
+                "block_timestamp": format_timestamp(row[2]),
                 "transaction_hash": row[3],
                 "token_address": row[4],
                 "from_address": row[5],
