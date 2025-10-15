@@ -4203,7 +4203,7 @@ def user_asset_events_api(request, user_address, asset):
             event = {
                 "event_type": row[0],
                 "block_number": row[1],
-                "block_timestamp": int(row[2].timestamp()) if row[2] else None,
+                "block_timestamp": row[2].isoformat() if row[2] else None,
                 "transaction_hash": row[3],
                 "token_address": row[4],
                 "on_behalf_of": row[5],
@@ -4219,7 +4219,7 @@ def user_asset_events_api(request, user_address, asset):
             event = {
                 "event_type": row[0],
                 "block_number": row[1],
-                "block_timestamp": int(row[2].timestamp()) if row[2] else None,
+                "block_timestamp": row[2].isoformat() if row[2] else None,
                 "transaction_hash": row[3],
                 "token_address": row[4],
                 "from_address": row[5],
@@ -4236,7 +4236,7 @@ def user_asset_events_api(request, user_address, asset):
             event = {
                 "event_type": row[0],
                 "block_number": row[1],
-                "block_timestamp": int(row[2].timestamp()) if row[2] else None,
+                "block_timestamp": row[2].isoformat() if row[2] else None,
                 "transaction_hash": row[3],
                 "token_address": row[4],
                 "from_address": row[5],
