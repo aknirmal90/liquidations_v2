@@ -89,10 +89,16 @@
                     <i class="fas fa-exclamation-triangle me-2"></i>
                     Liquidations
                 </a>
-                <a class="nav-link" href="{% url 'dashboard:users' %}">
-                    <i class="fas fa-users me-2"></i>
-                    Users
-                </a>
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="usersDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-users me-2"></i>
+                        Users
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="usersDropdown">
+                        <li><a class="dropdown-item" href="{% url 'dashboard:users' %}">User Balances</a></li>
+                        <li><a class="dropdown-item" href="{% url 'dashboard:user_events' %}">User Events</a></li>
+                    </ul>
+                </div>
                 <a class="nav-link" href="{% url 'dashboard:tests' %}">
                     <i class="fas fa-vial me-2"></i>
                     Tests

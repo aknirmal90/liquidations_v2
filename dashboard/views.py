@@ -4067,3 +4067,181 @@ def user_events_api(request, user_address, asset):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+def user_events_view(request):
+    """User events view page"""
+    return render(request, "dashboard/user_events.html")
+
+
+def user_asset_events_api(request, user_address, asset):
+    """API endpoint to get user events for a specific asset, including aToken and variableDebt addresses"""
+    try:
+        from aave.models import Asset
+
+        # Get asset from database to retrieve aToken and variableDebt addresses
+        try:
+            asset_obj = Asset.objects.get(asset__iexact=asset)
+            atoken_address = asset_obj.atoken_address
+            variable_debt_address = asset_obj.variable_debt_token_address
+        except Asset.DoesNotExist:
+            return JsonResponse(
+                {"error": f"Asset {asset} not found in database"}, status=404
+            )
+
+        # Build queries for mint, burn, and transfer events for both aToken and variableDebt
+        # We'll query using the token addresses (aToken and variableDebt)
+
+        events = []
+
+        # Get all relevant token addresses
+        token_addresses = []
+        if atoken_address:
+            token_addresses.append(atoken_address)
+        if variable_debt_address:
+            token_addresses.append(variable_debt_address)
+
+        if not token_addresses:
+            return JsonResponse(
+                {
+                    "error": "No aToken or variableDebt token addresses found for this asset",
+                    "atoken_address": atoken_address,
+                    "variable_debt_address": variable_debt_address,
+                    "events": [],
+                }
+            )
+
+        # Query Mint events
+        mint_query = """
+        SELECT
+            'Mint' as event_type,
+            blockNumber,
+            blockTimestamp,
+            transactionHash,
+            address,
+            onBehalfOf,
+            value,
+            balanceIncrease,
+            index,
+            type
+        FROM aave_ethereum.Mint
+        WHERE onBehalfOf = %(user_address)s
+            AND address IN %(token_addresses)s
+        ORDER BY blockTimestamp DESC
+        LIMIT 200
+        """
+
+        # Query Burn events
+        burn_query = """
+        SELECT
+            'Burn' as event_type,
+            blockNumber,
+            blockTimestamp,
+            transactionHash,
+            address,
+            `from`,
+            target,
+            value,
+            balanceIncrease,
+            index,
+            type
+        FROM aave_ethereum.Burn
+        WHERE `from` = %(user_address)s
+            AND address IN %(token_addresses)s
+        ORDER BY blockTimestamp DESC
+        LIMIT 200
+        """
+
+        # Query Transfer events (BalanceTransfer)
+        transfer_query = """
+        SELECT
+            'Transfer' as event_type,
+            blockNumber,
+            blockTimestamp,
+            transactionHash,
+            address,
+            _from,
+            _to,
+            value,
+            `index`,
+            type
+        FROM aave_ethereum.BalanceTransfer
+        WHERE ((_from = %(user_address)s) OR (_to = %(user_address)s))
+            AND address IN %(token_addresses)s
+        ORDER BY blockTimestamp DESC
+        LIMIT 200
+        """
+
+        params = {"user_address": user_address, "token_addresses": token_addresses}
+
+        # Execute queries
+        mint_results = clickhouse_client.execute_query(mint_query, params)
+        burn_results = clickhouse_client.execute_query(burn_query, params)
+        transfer_results = clickhouse_client.execute_query(transfer_query, params)
+
+        # Process Mint events
+        for row in mint_results.result_rows:
+            event = {
+                "event_type": row[0],
+                "block_number": row[1],
+                "block_timestamp": int(row[2].timestamp()) if row[2] else None,
+                "transaction_hash": row[3],
+                "token_address": row[4],
+                "on_behalf_of": row[5],
+                "value": float(row[6]) if row[6] else 0,
+                "balance_increase": float(row[7]) if row[7] else 0,
+                "liquidity_index": float(row[8]) if row[8] else 0,
+                "type": row[9],
+            }
+            events.append(event)
+
+        # Process Burn events
+        for row in burn_results.result_rows:
+            event = {
+                "event_type": row[0],
+                "block_number": row[1],
+                "block_timestamp": int(row[2].timestamp()) if row[2] else None,
+                "transaction_hash": row[3],
+                "token_address": row[4],
+                "from_address": row[5],
+                "target": row[6],
+                "value": float(row[7]) if row[7] else 0,
+                "balance_increase": float(row[8]) if row[8] else 0,
+                "liquidity_index": float(row[9]) if row[9] else 0,
+                "type": row[10],
+            }
+            events.append(event)
+
+        # Process Transfer events
+        for row in transfer_results.result_rows:
+            event = {
+                "event_type": row[0],
+                "block_number": row[1],
+                "block_timestamp": int(row[2].timestamp()) if row[2] else None,
+                "transaction_hash": row[3],
+                "token_address": row[4],
+                "from_address": row[5],
+                "to_address": row[6],
+                "value": float(row[7]) if row[7] else 0,
+                "liquidity_index": float(row[8]) if row[8] else 0,
+                "type": row[9],
+            }
+            events.append(event)
+
+        # Sort all events by timestamp
+        events.sort(key=lambda x: x["block_timestamp"] or 0, reverse=True)
+
+        return JsonResponse(
+            {
+                "atoken_address": atoken_address,
+                "variable_debt_address": variable_debt_address,
+                "events": events,
+            }
+        )
+
+    except Exception as e:
+        import traceback
+
+        return JsonResponse(
+            {"error": str(e), "traceback": traceback.format_exc()}, status=500
+        )
