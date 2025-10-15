@@ -179,7 +179,7 @@
 
             <!-- Search Container -->
             <div class="search-container">
-                <form id="searchForm">
+                <form id="searchForm" onsubmit="return false;">
                     {% csrf_token %}
                     <div class="row">
                         <div class="col-md-5">
@@ -299,15 +299,26 @@
 {% endblock %}
 
 {% block extra_js %}
-<script type="text/javascript">
+    // User Events page JavaScript
     document.addEventListener('DOMContentLoaded', function () {
+        console.log('User Events page loaded');
+
         const searchForm = document.getElementById('searchForm');
         const userAddressInput = document.getElementById('userAddress');
         const assetAddressInput = document.getElementById('assetAddress');
 
+        if (!searchForm) {
+            console.error('Search form not found!');
+            return;
+        }
+
+        console.log('Form found, attaching event listener');
+
         searchForm.addEventListener('submit', function (event) {
+            console.log('Form submit event triggered');
             event.preventDefault();
             searchEvents();
+            return false;
         });
 
         function searchEvents() {
@@ -511,5 +522,4 @@
             document.getElementById('loadingSpinner').style.display = 'none';
         }
     });
-</script>
 {% endblock %}
