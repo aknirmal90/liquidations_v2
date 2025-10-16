@@ -144,7 +144,10 @@ class CompareCollateralBalanceTask(Task):
                         ORDER BY user, asset
                         LIMIT %(batch_size)s OFFSET %(offset)s
                     ) AS lb
-                    LEFT JOIN aave_ethereum.MaxLiquidityIndex AS max_idx
+                    LEFT JOIN (
+                        SELECT asset, max_collateral_liquidityIndex
+                        FROM aave_ethereum.MaxLiquidityIndex FINAL
+                    ) AS max_idx
                         ON lb.asset = max_idx.asset
                     """
 
@@ -571,7 +574,10 @@ class CompareDebtBalanceTask(Task):
                         ORDER BY user, asset
                         LIMIT %(batch_size)s OFFSET %(offset)s
                     ) AS lb
-                    LEFT JOIN aave_ethereum.MaxLiquidityIndex AS max_idx
+                    LEFT JOIN (
+                        SELECT asset, max_variable_debt_liquidityIndex
+                        FROM aave_ethereum.MaxLiquidityIndex FINAL
+                    ) AS max_idx
                         ON lb.asset = max_idx.asset
                     """
 
