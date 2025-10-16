@@ -359,52 +359,6 @@ class BalancesBackfillTask(Task):
             logger.error(f"Error exporting user/asset pairs to CSV: {e}", exc_info=True)
             return None
 
-    def _export_from_latest_balances(self, csv_filepath: str) -> int:
-        """
-        Export user/asset pairs from LatestBalances_v2 table.
-        Returns the count of pairs exported.
-        """
-        try:
-            total_pairs = 0
-            batch_size = 1000
-            offset = 0
-
-            with open(csv_filepath, "w", newline="") as csvfile:
-                fieldnames = ["user", "asset"]
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writeheader()
-
-                while True:
-                    query = f"""
-                    SELECT user, asset
-                    FROM aave_ethereum.LatestBalances_v2
-                    WHERE user != '0x0000000000000000000000000000000000000000'
-                    GROUP BY user, asset
-                    ORDER BY user, asset
-                    LIMIT {batch_size} OFFSET {offset}
-                    """
-
-                    result = self.clickhouse_client.execute_query(query)
-                    if not result.result_rows:
-                        break
-
-                    for row in result.result_rows:
-                        writer.writerow({"user": row[0], "asset": row[1]})
-
-                    total_pairs += len(result.result_rows)
-                    offset += batch_size
-                    logger.info(
-                        f"Retrieved {total_pairs} user/asset pairs from LatestBalances_v2..."
-                    )
-
-                    if len(result.result_rows) < batch_size:
-                        break
-
-            return total_pairs
-        except Exception as e:
-            logger.warning(f"Could not query LatestBalances_v2: {e}")
-            return 0
-
     def _export_from_event_tables(self, csv_filepath: str) -> int:
         """
         Export user/asset pairs by querying each event table separately.

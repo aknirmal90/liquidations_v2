@@ -133,16 +133,14 @@ class CompareCollateralBalanceTask(Task):
                 while True:
                     query = """
                     SELECT
-                        toString(lb.user) as user,
-                        toString(lb.asset) as asset,
-                        lb.collateral_scaled_balance as scaled_balance,
-                        lb.collateral_index as stored_index,
-                        max_idx.max_collateral_liquidityIndex as current_index
-                    FROM aave_ethereum.LatestBalances_v2 FINAL AS lb
-                    LEFT JOIN aave_ethereum.MaxLiquidityIndex AS max_idx
-                        ON lb.asset = max_idx.asset
-                    WHERE lb.collateral_scaled_balance > 0
-                    ORDER BY lb.user, lb.asset
+                        toString(user) as user,
+                        toString(asset) as asset,
+                        collateral_scaled_balance as scaled_balance,
+                        collateral_index as stored_index,
+                        dictGetOrDefault('aave_ethereum.dict_max_liquidity_index', 'max_collateral_liquidityIndex', asset, 0) as current_index
+                    FROM aave_ethereum.LatestBalances_v2 FINAL
+                    WHERE collateral_scaled_balance > 0
+                    ORDER BY user, asset
                     LIMIT %(batch_size)s OFFSET %(offset)s
                     """
 
@@ -558,16 +556,14 @@ class CompareDebtBalanceTask(Task):
                 while True:
                     query = """
                     SELECT
-                        toString(lb.user) as user,
-                        toString(lb.asset) as asset,
-                        lb.variable_debt_scaled_balance as scaled_balance,
-                        lb.debt_index as stored_index,
-                        max_idx.max_variable_debt_liquidityIndex as current_index
-                    FROM aave_ethereum.LatestBalances_v2 FINAL AS lb
-                    LEFT JOIN aave_ethereum.MaxLiquidityIndex AS max_idx
-                        ON lb.asset = max_idx.asset
-                    WHERE lb.variable_debt_scaled_balance > 0
-                    ORDER BY lb.user, lb.asset
+                        toString(user) as user,
+                        toString(asset) as asset,
+                        variable_debt_scaled_balance as scaled_balance,
+                        debt_index as stored_index,
+                        dictGetOrDefault('aave_ethereum.dict_max_liquidity_index', 'max_variable_debt_liquidityIndex', asset, 0) as current_index
+                    FROM aave_ethereum.LatestBalances_v2 FINAL
+                    WHERE variable_debt_scaled_balance > 0
+                    ORDER BY user, asset
                     LIMIT %(batch_size)s OFFSET %(offset)s
                     """
 
