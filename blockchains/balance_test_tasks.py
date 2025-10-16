@@ -137,7 +137,7 @@ class CompareCollateralBalanceTask(Task):
                         toString(asset) as asset,
                         collateral_scaled_balance as scaled_balance,
                         collateral_index as stored_index,
-                        dictGetOrDefault('aave_ethereum.dict_max_liquidity_index', 'max_collateral_liquidityIndex', asset, 0) as current_index
+                        dictGetOrDefault('aave_ethereum.dict_max_liquidity_index', 'max_collateral_liquidityIndex', toString(asset), toUInt256(0)) as current_index
                     FROM aave_ethereum.LatestBalances_v2 FINAL
                     ORDER BY user, asset
                     LIMIT %(batch_size)s OFFSET %(offset)s
@@ -559,7 +559,7 @@ class CompareDebtBalanceTask(Task):
                         toString(asset) as asset,
                         variable_debt_scaled_balance as scaled_balance,
                         debt_index as stored_index,
-                        dictGetOrDefault('aave_ethereum.dict_max_liquidity_index', 'max_variable_debt_liquidityIndex', asset, 0) as current_index
+                        dictGetOrDefault('aave_ethereum.dict_max_liquidity_index', 'max_variable_debt_liquidityIndex', toString(asset), toUInt256(0)) as current_index
                     FROM aave_ethereum.LatestBalances_v2 FINAL
                     ORDER BY user, asset
                     LIMIT %(batch_size)s OFFSET %(offset)s
