@@ -142,7 +142,7 @@ class CompareCollateralBalanceTask(Task):
         query = """
         SELECT toString(user) as user, toString(asset) as asset
         FROM aave_ethereum.LatestBalances_v2 FINAL
-        WHERE collateral_scaled_balance > 100000
+        WHERE collateral_scaled_balance > 0
         ORDER BY user, asset
         LIMIT 10000 OFFSET %(offset)s
         """
@@ -326,15 +326,6 @@ class CompareCollateralBalanceTask(Task):
             if ch_balance == 0:
                 if rpc_balance == 0:
                     matching_count += 1
-                else:
-                    if abs(ch_balance - rpc_balance) < 100_000:
-                        matching_count += 1
-                    else:
-                        mismatched_count += 1
-                        user, asset = pair
-                        mismatches.append(
-                            f"({user},{asset}): CH={ch_balance:.2f} RPC={rpc_balance:.2f}"
-                        )
                 continue
 
             # Calculate difference in basis points
@@ -344,7 +335,7 @@ class CompareCollateralBalanceTask(Task):
             differences_bps.append(difference_bps)
 
             # Match if difference < 1 bps
-            if difference_bps < 100.0:
+            if difference_bps < 10.0:
                 matching_count += 1
             else:
                 mismatched_count += 1
@@ -587,7 +578,7 @@ class CompareDebtBalanceTask(Task):
         query = """
         SELECT toString(user) as user, toString(asset) as asset
         FROM aave_ethereum.LatestBalances_v2 FINAL
-        WHERE variable_debt_scaled_balance >= 0
+        WHERE variable_debt_scaled_balance > 0
         ORDER BY user, asset
         LIMIT 10000 OFFSET %(offset)s
         """
@@ -767,15 +758,6 @@ class CompareDebtBalanceTask(Task):
             if ch_balance == 0:
                 if rpc_balance == 0:
                     matching_count += 1
-                else:
-                    if abs(ch_balance - rpc_balance) < 100_000:
-                        matching_count += 1
-                    else:
-                        mismatched_count += 1
-                        user, asset = pair
-                        mismatches.append(
-                            f"({user},{asset}): CH={ch_balance:.2f} RPC={rpc_balance:.2f}"
-                        )
                 continue
 
             # Calculate difference in basis points
@@ -785,7 +767,7 @@ class CompareDebtBalanceTask(Task):
             differences_bps.append(difference_bps)
 
             # Match if difference < 1 bps
-            if difference_bps < 100.0:
+            if difference_bps < 10.0:
                 matching_count += 1
             else:
                 mismatched_count += 1
