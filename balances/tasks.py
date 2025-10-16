@@ -342,15 +342,6 @@ class BalancesBackfillTask(Task):
             csv_filename = f"user_asset_pairs_{int(time.time())}.csv"
             csv_filepath = os.path.join(output_path, csv_filename)
 
-            # Try LatestBalances_v2 first (most efficient)
-            total_pairs = self._export_from_latest_balances(csv_filepath)
-
-            if total_pairs > 0:
-                logger.info(
-                    f"Exported {total_pairs} user/asset pairs from LatestBalances_v2 to {csv_filepath}"
-                )
-                return csv_filepath
-
             # Fallback: Query from event tables separately
             logger.info("LatestBalances_v2 is empty, querying from event tables...")
             total_pairs = self._export_from_event_tables(csv_filepath)
