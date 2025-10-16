@@ -197,7 +197,6 @@ class CompareCollateralBalanceTask(Task):
             Dict containing comparison statistics
         """
 
-        RAY = 10**27
         try:
             # Read all pairs from CSV
             user_asset_pairs = []
@@ -213,10 +212,13 @@ class CompareCollateralBalanceTask(Task):
 
                     # Calculate ClickHouse balance using formula: scaled * current_index / stored_index
                     scaled_balance = float(row["scaled_balance"])
+                    stored_index = float(row["stored_index"])
                     current_index = float(row["current_index"])
 
-                    if current_index > 0:
-                        underlying_balance = int(scaled_balance * RAY / current_index)
+                    if stored_index > 0:
+                        underlying_balance = int(
+                            scaled_balance * current_index / stored_index
+                        )
                     else:
                         underlying_balance = 0
 
