@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS aave_ethereum.LatestBalances_v2
     -- Scaled balances in ray units (no index needed - scales with global index automatically)
     collateral_scaled_balance Int256,
     variable_debt_scaled_balance Int256,
+    -- Previous index values at the time of last update (used for accurate interest calculations)
+    collateral_index UInt256,
+    debt_index UInt256,
     updated_at DateTime64 DEFAULT now64()
 )
 ENGINE = ReplacingMergeTree(updated_at)
