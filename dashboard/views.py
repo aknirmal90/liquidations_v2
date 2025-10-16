@@ -1,3 +1,5 @@
+import logging
+import time
 from datetime import datetime
 
 from bokeh.embed import components
@@ -15,6 +17,8 @@ from utils.constants import NETWORK_ID, NETWORK_NAME
 from utils.event_parser import parse_transaction_logs
 from utils.rpc import rpc_adapter
 from utils.simulation import get_simulated_health_factor
+
+logger = logging.getLogger(__name__)
 
 
 def get_simple_explorer_url(address_id: str):
@@ -1876,6 +1880,155 @@ def transaction_timestamp_differences(request):
         return JsonResponse({"data": data})
 
     except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def transaction_detection_timing_histogram(request):
+    """API endpoint to get histogram data for websocket detection timing"""
+    try:
+        time_window = request.GET.get("time_window", "1_hour")
+
+        # Convert time window to seconds for filtering
+        interval_seconds_map = {
+            "1_hour": 3600,
+            "1_day": 86400,
+            "1_week": 604800,
+            "1_month": 2592000,
+        }
+
+        interval_seconds = interval_seconds_map.get(time_window, 3600)
+        current_timestamp = int(time.time())
+        cutoff_timestamp = current_timestamp - interval_seconds
+
+        # Query to get histogram of time differences between unconfirmed and confirmed timestamps
+        # Only include transactions where both timestamps exist and confirmed > unconfirmed
+        histogram_query = f"""
+        WITH time_diffs AS (
+            SELECT
+                txn_id,
+                anyMerge(asset_source) as asset_source,
+                maxMerge(unconfirmed_tx_ts) as unconfirmed_ts,
+                maxMerge(confirmed_tx_ts) as confirmed_ts,
+                maxMerge(confirmed_tx_ts) - maxMerge(unconfirmed_tx_ts) as time_diff_seconds
+            FROM aave_ethereum.TransactionTimingTracking
+            GROUP BY txn_id
+            HAVING confirmed_ts > 0
+                AND unconfirmed_ts > 0
+                AND time_diff_seconds > 0
+                AND unconfirmed_ts >= {cutoff_timestamp}
+        )
+        SELECT
+            time_diff_seconds,
+            COUNT(*) as count
+        FROM time_diffs
+        GROUP BY time_diff_seconds
+        ORDER BY time_diff_seconds
+        """
+
+        result = clickhouse_client.execute_query(histogram_query)
+
+        # Convert to histogram data
+        histogram_data = []
+        total_records = 0
+        for row in result.result_rows:
+            time_diff = int(row[0])
+            count = int(row[1])
+            histogram_data.append({"time_diff_seconds": time_diff, "count": count})
+            total_records += count
+
+        return JsonResponse(
+            {
+                "data": histogram_data,
+                "total_records": total_records,
+                "time_window": time_window,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error fetching transaction detection timing histogram: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def asset_source_timing_stats(request):
+    """API endpoint to get timing statistics by asset source"""
+    try:
+        time_window = request.GET.get("time_window", "1_hour")
+
+        # Convert time window to seconds for filtering
+        interval_seconds_map = {
+            "1_hour": 3600,
+            "1_day": 86400,
+            "1_week": 604800,
+            "1_month": 2592000,
+        }
+
+        interval_seconds = interval_seconds_map.get(time_window, 3600)
+        current_timestamp = int(time.time())
+        cutoff_timestamp = current_timestamp - interval_seconds
+
+        # Query to get statistics by asset source
+        stats_query = f"""
+        WITH time_diffs AS (
+            SELECT
+                anyMerge(asset_source) as asset_source,
+                maxMerge(unconfirmed_tx_ts) as unconfirmed_ts,
+                maxMerge(confirmed_tx_ts) as confirmed_ts,
+                maxMerge(confirmed_tx_ts) - maxMerge(unconfirmed_tx_ts) as time_diff_seconds
+            FROM aave_ethereum.TransactionTimingTracking
+            GROUP BY txn_id
+            HAVING confirmed_ts > 0
+                AND unconfirmed_ts > 0
+                AND time_diff_seconds > 0
+                AND unconfirmed_ts >= {cutoff_timestamp}
+        )
+        SELECT
+            asset_source,
+            COUNT(*) as total_records,
+            MIN(time_diff_seconds) as min_lead_time,
+            AVG(time_diff_seconds) as avg_lead_time,
+            MAX(time_diff_seconds) as max_lead_time
+        FROM time_diffs
+        WHERE asset_source != ''
+        GROUP BY asset_source
+        ORDER BY total_records DESC
+        """
+
+        result = clickhouse_client.execute_query(stats_query)
+
+        # Get asset source names from Django ORM
+        from oracles.models import PriceEvent
+
+        asset_source_names = {}
+        for price_event in PriceEvent.objects.filter(is_active=True).values(
+            "asset_source", "asset_source_name"
+        ):
+            asset_source_names[price_event["asset_source"].lower()] = price_event[
+                "asset_source_name"
+            ]
+
+        # Convert to list of dictionaries
+        stats_data = []
+        for row in result.result_rows:
+            asset_source = row[0]
+            stats_data.append(
+                {
+                    "asset_source": asset_source,
+                    "asset_source_name": asset_source_names.get(
+                        asset_source.lower(), "Unknown"
+                    ),
+                    "total_records": int(row[1]),
+                    "min_lead_time": int(row[2]),
+                    "avg_lead_time": float(row[3]),
+                    "max_lead_time": int(row[4]),
+                }
+            )
+
+        return JsonResponse({"data": stats_data, "time_window": time_window})
+
+    except Exception as e:
+        logger.error(f"Error fetching asset source timing stats: {e}")
         return JsonResponse({"error": str(e)}, status=500)
 
 

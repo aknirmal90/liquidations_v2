@@ -36,6 +36,16 @@ urlpatterns = [
         name="transaction_timestamp_differences",
     ),
     path(
+        "api/transaction-detection-timing-histogram/",
+        views.transaction_detection_timing_histogram,
+        name="transaction_detection_timing_histogram",
+    ),
+    path(
+        "api/asset-source-timing-stats/",
+        views.asset_source_timing_stats,
+        name="asset_source_timing_stats",
+    ),
+    path(
         "api/liquidations-metrics/",
         views.liquidations_metrics,
         name="liquidations_metrics",
