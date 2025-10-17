@@ -4200,8 +4200,7 @@ def debt_metrics(request):
                 lb.user,
                 lb.asset,
                 floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGet('aave_ethereum.dict_latest_asset_configuration', 'max_variable_debt_liquidityIndex', lb.asset))) / toInt256('1000000000000000000000000000')) AS debt_balance
-            FROM aave_ethereum.LatestBalances_v2 AS lb
-            FINAL
+            FROM aave_ethereum.LatestBalances_v2_Memory AS lb
             WHERE lb.variable_debt_scaled_balance > 0
         )
         SELECT
@@ -4221,8 +4220,7 @@ def debt_metrics(request):
                 lb.user,
                 lb.asset,
                 floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGet('aave_ethereum.dict_latest_asset_configuration', 'max_variable_debt_liquidityIndex', lb.asset))) / toInt256('1000000000000000000000000000')) AS debt_balance
-            FROM aave_ethereum.LatestBalances_v2 AS lb
-            FINAL
+            FROM aave_ethereum.LatestBalances_v2_Memory AS lb
             WHERE lb.variable_debt_scaled_balance > 0
         )
         SELECT

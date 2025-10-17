@@ -101,6 +101,60 @@ class ChildBalancesSynchronizeTask(EventSynchronizeMixin, Task):
 
             BalanceEvent.objects.bulk_update(updated_network_events, ["logs_count"])
 
+    def _refresh_memory_table(self):
+        """
+        Atomically refresh the in-memory table from LatestBalances_v2.
+        Only includes rows where collateral or debt balance > 0.
+        Uses EXCHANGE TABLES for atomic swap to avoid query downtime.
+        """
+        try:
+            logger.info("Refreshing LatestBalances_v2_Memory table")
+
+            # Create temp table with fresh data
+            create_temp_query = """
+            CREATE TABLE aave_ethereum.LatestBalances_v2_Memory_temp
+            ENGINE = Memory
+            AS SELECT
+                user,
+                asset,
+                collateral_scaled_balance,
+                variable_debt_scaled_balance,
+                updated_at
+            FROM aave_ethereum.LatestBalances_v2
+            FINAL
+            WHERE collateral_scaled_balance > 0 OR variable_debt_scaled_balance > 0
+            """
+
+            # Drop temp table if it exists (from previous failed run)
+            self.clickhouse_client.execute_query(
+                "DROP TABLE IF EXISTS aave_ethereum.LatestBalances_v2_Memory_temp"
+            )
+
+            # Create and populate temp table
+            self.clickhouse_client.execute_query(create_temp_query)
+
+            # Atomic swap
+            self.clickhouse_client.execute_query(
+                "EXCHANGE TABLES aave_ethereum.LatestBalances_v2_Memory AND aave_ethereum.LatestBalances_v2_Memory_temp"
+            )
+
+            # Drop old data (now in temp table)
+            self.clickhouse_client.execute_query(
+                "DROP TABLE IF EXISTS aave_ethereum.LatestBalances_v2_Memory_temp"
+            )
+
+            logger.info("Successfully refreshed LatestBalances_v2_Memory table")
+
+        except Exception as e:
+            logger.error(f"Error refreshing memory table: {e}", exc_info=True)
+            # Clean up temp table if it exists
+            try:
+                self.clickhouse_client.execute_query(
+                    "DROP TABLE IF EXISTS aave_ethereum.LatestBalances_v2_Memory_temp"
+                )
+            except Exception:
+                pass
+
     def post_handle_hook(
         self, network_events: List[Any], start_block: int, end_block: int
     ):
@@ -108,6 +162,7 @@ class ChildBalancesSynchronizeTask(EventSynchronizeMixin, Task):
         Post hook to update LatestBalances_v2 with scaled balances from on-chain data.
         Retrieves unique user/asset pairs from synchronized events and updates their
         scaled balances by querying aToken and variableDebtToken contracts.
+        After updating, atomically refreshes the in-memory table for fast queries.
         """
         try:
             # Get all unique user/asset pairs from the synced events in batches
@@ -222,6 +277,9 @@ class ChildBalancesSynchronizeTask(EventSynchronizeMixin, Task):
                     except Exception as e:
                         logger.error(f"Error optimizing LatestBalances_v2: {e}")
                         time.sleep(5)
+
+            # Refresh in-memory table after all updates complete
+            self._refresh_memory_table()
 
         except Exception as e:
             logger.error(f"Error in post_handle_hook: {e}", exc_info=True)

@@ -11,6 +11,7 @@
 CREATE OR REPLACE VIEW aave_ethereum.view_user_health_factor AS
 WITH
 -- Get current underlying balances by applying liquidity index to scaled balances
+-- Uses in-memory table for fast access (filtered to only non-zero balances)
 current_balances AS (
     SELECT
         lb.user,
@@ -19,9 +20,7 @@ current_balances AS (
         -- RAY = 1e27
         floor((toInt256(lb.collateral_scaled_balance) * toInt256(dictGet('aave_ethereum.dict_latest_asset_configuration', 'max_collateral_liquidityIndex', lb.asset))) / toInt256('1000000000000000000000000000')) AS collateral_balance,
         floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGet('aave_ethereum.dict_latest_asset_configuration', 'max_variable_debt_liquidityIndex', lb.asset))) / toInt256('1000000000000000000000000000')) AS debt_balance
-    FROM aave_ethereum.LatestBalances_v2 AS lb
-    FINAL
-    WHERE lb.collateral_scaled_balance > 0 OR lb.variable_debt_scaled_balance > 0
+    FROM aave_ethereum.LatestBalances_v2_Memory AS lb
 ),
 -- Calculate effective collateral and debt per user
 user_metrics AS (
