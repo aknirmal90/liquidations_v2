@@ -43,3 +43,29 @@ class PoolInterface(BaseContractInterface):
                 results_by_user[user] = decode_result(result_value)
             return results_by_user
         return raw_results
+
+    def get_user_account_data(self, users: List[str]) -> Dict[str, Dict]:
+        """
+        Issues a batch of getUserAccountData(address) calls and decodes the results.
+        Returns a dict mapping user address to account data.
+        """
+        call_targets = [
+            {
+                "method_signature": "getUserAccountData(address)",
+                "param_types": ["address"],
+                "params": [user],
+            }
+            for user in users
+        ]
+        raw_results = self.batch_eth_call(call_targets)
+
+        def decode_result(hex_result):
+            return self.decode_eth_call_result(hex_result, "getUserAccountData")
+
+        results_by_user = {}
+        if isinstance(raw_results, list):
+            for user, rpc_result in zip(users, raw_results):
+                result_value = rpc_result.get("result", "")
+                results_by_user[user] = decode_result(result_value)
+            return results_by_user
+        return raw_results

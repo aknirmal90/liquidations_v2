@@ -18,8 +18,8 @@ current_balances AS (
         lb.asset,
         -- Convert scaled balance to underlying: floor((scaled * liquidityIndex) / RAY)
         -- RAY = 1e27
-        floor((toInt256(lb.collateral_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS collateral_balance,
-        floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance
+        floor((toInt256(lb.collateral_scaled_balance) * toInt256(dictGet('aave_ethereum.dict_latest_asset_configuration', 'max_collateral_liquidityIndex', lb.asset))) / toInt256('1000000000000000000000000000')) AS collateral_balance,
+        floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGet('aave_ethereum.dict_latest_asset_configuration', 'max_variable_debt_liquidityIndex', lb.asset))) / toInt256('1000000000000000000000000000')) AS debt_balance
     FROM aave_ethereum.LatestBalances_v2_Memory AS lb
 ),
 -- Calculate effective collateral and debt per user
@@ -27,7 +27,7 @@ user_metrics AS (
     SELECT
         cb.user,
         -- Get user's eMode status (default 0 if not in dict)
-        dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', toString(cb.user), toInt8(0)) AS is_in_emode,
+        dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', cb.user, toInt8(0)) AS is_in_emode,
 
         -- Effective Collateral:
         -- For eMode users: use eModeLiquidationThreshold
@@ -41,6 +41,7 @@ user_metrics AS (
                     dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationThreshold', cb.asset, toUInt256(0))
                 ) AS Float64
             ) / 10000.0 /
+            CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64) *
             CAST(dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(cb.user, cb.asset), toInt8(0)) AS Float64) *
             CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
             CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64),
@@ -50,6 +51,7 @@ user_metrics AS (
         -- Effective Debt: sum of all debt balances divided by decimals twice and multiplied by price
         sum(
             CAST(cb.debt_balance AS Float64) /
+            CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64) *
             CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
             CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64)
         ) AS effective_debt

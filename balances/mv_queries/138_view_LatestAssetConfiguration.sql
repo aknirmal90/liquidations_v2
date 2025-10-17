@@ -1,4 +1,4 @@
-CREATE OR REPLACE VIEW aave_ethereum.view_LatestAssetConfiguration AS
+CREATE VIEW IF NOT EXISTS aave_ethereum.view_LatestAssetConfiguration AS
 SELECT
     aave_ethereum.ReserveInitialized.asset AS asset,
     aave_ethereum.ReserveInitialized.aToken AS aToken,
