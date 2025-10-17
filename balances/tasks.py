@@ -217,6 +217,7 @@ class ChildBalancesSynchronizeTask(EventSynchronizeMixin, Task):
                 for i in range(3):
                     try:
                         self.clickhouse_client.optimize_table("LatestBalances_v2")
+                        self.clickhouse_client.optimize_table("MaxLiquidityIndex")
                         break
                     except Exception as e:
                         logger.error(f"Error optimizing LatestBalances_v2: {e}")
