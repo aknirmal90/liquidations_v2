@@ -4,8 +4,8 @@ CREATE TABLE IF NOT EXISTS aave_ethereum.DebtLiquidityIndex
 (
     asset String,
     liquidityIndex UInt256,
-    version UInt64  -- Use blockNumber or timestamp as version
+    version UInt256  -- Use blockNumber or timestamp as version
 )
 ENGINE = ReplacingMergeTree(version)
-ORDER BY (asset, version)
+ORDER BY (asset)
 PRIMARY KEY asset;
