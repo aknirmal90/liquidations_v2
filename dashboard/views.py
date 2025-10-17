@@ -4183,3 +4183,92 @@ def debt_balance_tests(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+def debt(request):
+    """Debt dashboard page - displays debt metrics"""
+    return render(request, "dashboard/debt.html")
+
+
+def debt_metrics(request):
+    """API endpoint to get debt metrics"""
+    try:
+        # Query 1: Number of users who have borrowed debt
+        users_query = """
+        WITH current_balances AS (
+            SELECT
+                lb.user,
+                lb.asset,
+                floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGet('aave_ethereum.dict_latest_asset_configuration', 'max_variable_debt_liquidityIndex', lb.asset))) / toInt256('1000000000000000000000000000')) AS debt_balance
+            FROM aave_ethereum.LatestBalances_v2 AS lb
+            FINAL
+            WHERE lb.variable_debt_scaled_balance > 0
+        )
+        SELECT
+            COUNT(DISTINCT user) as total_users_with_debt
+        FROM current_balances
+        WHERE debt_balance > 0
+        """
+
+        users_result = clickhouse_client.execute_query(users_query)
+        total_users = users_result.result_rows[0][0] if users_result.result_rows else 0
+
+        # Query 2: Breakdown of assets and amount in USD borrowed per asset
+        # Using JOIN with view instead of dictionary lookups for better price data
+        assets_query = """
+        WITH current_balances AS (
+            SELECT
+                lb.user,
+                lb.asset,
+                floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGet('aave_ethereum.dict_latest_asset_configuration', 'max_variable_debt_liquidityIndex', lb.asset))) / toInt256('1000000000000000000000000000')) AS debt_balance
+            FROM aave_ethereum.LatestBalances_v2 AS lb
+            FINAL
+            WHERE lb.variable_debt_scaled_balance > 0
+        )
+        SELECT
+            cb.asset,
+            ac.name AS asset_name,
+            ac.symbol AS asset_symbol,
+            ac.decimals_places AS decimals_places,
+            ac.historical_event_price AS price_usd,
+            sum(cb.debt_balance) AS total_debt_balance,
+            sum(
+                CAST(cb.debt_balance AS Float64) /
+                CAST(ac.decimals_places AS Float64) *
+                CAST(ac.historical_event_price AS Float64)
+            ) AS total_debt_usd,
+            COUNT(DISTINCT cb.user) AS users_count
+        FROM current_balances AS cb
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration AS ac ON cb.asset = ac.asset
+        WHERE cb.debt_balance > 0
+        GROUP BY cb.asset, ac.name, ac.symbol, ac.decimals_places, ac.historical_event_price
+        ORDER BY total_debt_usd DESC
+        """
+
+        assets_result = clickhouse_client.execute_query(assets_query)
+
+        assets_breakdown = []
+        for row in assets_result.result_rows:
+            assets_breakdown.append(
+                {
+                    "asset_address": row[0],
+                    "asset_name": row[1] if row[1] else "Unknown",
+                    "asset_symbol": row[2] if row[2] else "Unknown",
+                    "decimals_places": float(row[3]) if row[3] else 1,
+                    "price_usd": float(row[4]) if row[4] else 0,
+                    "total_debt_balance": float(row[5]) if row[5] else 0,
+                    "total_debt_usd": float(row[6]) if row[6] else 0,
+                    "users_count": int(row[7]) if row[7] else 0,
+                }
+            )
+
+        return JsonResponse(
+            {
+                "total_users_with_debt": total_users,
+                "assets_breakdown": assets_breakdown,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error fetching debt metrics: {e}")
+        return JsonResponse({"error": str(e)}, status=500)

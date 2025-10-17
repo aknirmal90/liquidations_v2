@@ -101,4 +101,6 @@ urlpatterns = [
         views.debt_balance_tests,
         name="debt_balance_tests",
     ),
+    path("debt/", views.debt, name="debt"),
+    path("api/debt-metrics/", views.debt_metrics, name="debt_metrics"),
 ]

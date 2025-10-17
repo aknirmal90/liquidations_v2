@@ -1,0 +1,264 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Debt Dashboard | Aave Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        background: linear-gradient(135deg, #8b5cf6, #6366f1);
+        color: white;
+        border: none;
+        border-radius: 16px;
+        text-align: center;
+        padding: 3rem 3rem;
+        margin-bottom: 2rem;
+    }
+
+    .page-title {
+        font-size: 3rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+
+    .page-subtitle {
+        font-size: 1.2rem;
+        opacity: 0.9;
+    }
+
+    .stats-card {
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .stats-value {
+        font-size: 3rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 0.5rem;
+    }
+
+    .stats-label {
+        font-size: 1.1rem;
+        color: #6b7280;
+        font-weight: 500;
+    }
+
+    .table-container {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        margin-top: 2rem;
+    }
+
+    .table-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        color: var(--dark-color);
+    }
+
+    .table {
+        margin-bottom: 0;
+    }
+
+    .table thead th {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        font-weight: 600;
+        border: none;
+        padding: 1rem;
+    }
+
+    .table tbody tr {
+        transition: all 0.3s ease;
+    }
+
+    .table tbody tr:hover {
+        background: rgba(99, 102, 241, 0.05);
+        transform: scale(1.01);
+    }
+
+    .loading-spinner {
+        text-align: center;
+        padding: 3rem;
+        color: var(--primary-color);
+    }
+
+    .error-message {
+        background: #fee;
+        color: #c33;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+
+    .asset-address {
+        font-family: monospace;
+        font-size: 0.85rem;
+        color: #6b7280;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="card page-header">
+    <h1 class="page-title">
+        <i class="fas fa-money-bill-wave me-3"></i>
+        Debt Dashboard
+    </h1>
+    <p class="page-subtitle">Track debt metrics and asset breakdown across the Aave protocol</p>
+</div>
+
+<!-- Stats Card -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card stats-card">
+            <div id="loading-stats" class="loading-spinner">
+                <i class="fas fa-spinner fa-spin fa-3x"></i>
+                <p class="mt-3" id="loading-message">Loading debt metrics... This may take 20-30 seconds</p>
+            </div>
+            <div id="stats-content" style="display: none;">
+                <div class="stats-value" id="total-users">-</div>
+                <div class="stats-label">Total Users with Debt</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Assets Breakdown Table -->
+<div class="table-container" id="table-container" style="display: none;">
+    <h2 class="table-title">
+        <i class="fas fa-chart-pie me-2"></i>
+        Debt Breakdown by Asset
+    </h2>
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Asset</th>
+                    <th>Symbol</th>
+                    <th class="text-end">Total Debt (USD)</th>
+                    <th class="text-end">Total Debt (Balance)</th>
+                    <th class="text-end">Price (USD)</th>
+                    <th class="text-end">Users Count</th>
+                </tr>
+            </thead>
+            <tbody id="assets-table-body">
+                <!-- Table rows will be populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="error-container"></div>
+{% endblock %}
+
+{% block extra_js %}
+    // Fetch debt metrics from API
+    async function fetchDebtMetrics() {
+        try {
+            console.log('Fetching debt metrics from /api/debt-metrics/...');
+            const response = await fetch('/api/debt-metrics/');
+            console.log('Response status:', response.status);
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch debt metrics: ${response.status}`);
+            }
+            const data = await response.json();
+            console.log('Received data:', data);
+
+            // Clear the loading timer
+            if (window.loadingTimer) {
+                clearInterval(window.loadingTimer);
+            }
+
+            // Update stats
+            document.getElementById('total-users').textContent = data.total_users_with_debt.toLocaleString();
+            document.getElementById('loading-stats').style.display = 'none';
+            document.getElementById('stats-content').style.display = 'block';
+
+            // Populate assets table
+            const tableBody = document.getElementById('assets-table-body');
+            tableBody.innerHTML = '';
+
+            data.assets_breakdown.forEach((asset, index) => {
+                const row = document.createElement('tr');
+
+                // Format numbers
+                const debtUSD = asset.total_debt_usd.toLocaleString('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+
+                const debtBalance = (asset.total_debt_balance / asset.decimals_places).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 4
+                });
+
+                const priceUSD = asset.price_usd.toLocaleString('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 4
+                });
+
+                row.innerHTML = `
+                    <td>
+                        <div><strong>${asset.asset_name}</strong></div>
+                        <div class="asset-address">${asset.asset_address}</div>
+                    </td>
+                    <td><strong>${asset.asset_symbol}</strong></td>
+                    <td class="text-end"><strong>${debtUSD}</strong></td>
+                    <td class="text-end">${debtBalance}</td>
+                    <td class="text-end">${priceUSD}</td>
+                    <td class="text-end">${asset.users_count.toLocaleString()}</td>
+                `;
+
+                tableBody.appendChild(row);
+            });
+
+            // Show table
+            document.getElementById('table-container').style.display = 'block';
+
+        } catch (error) {
+            console.error('Error fetching debt metrics:', error);
+
+            // Clear the loading timer
+            if (window.loadingTimer) {
+                clearInterval(window.loadingTimer);
+            }
+
+            document.getElementById('loading-stats').style.display = 'none';
+            document.getElementById('error-container').innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Error loading debt metrics: ${error.message}
+                </div>
+            `;
+        }
+    }
+
+    // Load data when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM Content Loaded - starting to fetch debt metrics');
+
+        // Add a timer to show progress
+        let seconds = 0;
+        const loadingMessage = document.getElementById('loading-message');
+        const timer = setInterval(() => {
+            seconds++;
+            loadingMessage.textContent = `Loading debt metrics... ${seconds} seconds (this may take 20-30 seconds)`;
+        }, 1000);
+
+        // Store timer ID so we can clear it
+        window.loadingTimer = timer;
+
+        fetchDebtMetrics();
+    });
+
+    // Also try immediate execution as backup
+    console.log('Debt page script loaded');
+{% endblock %}
