@@ -30,5 +30,5 @@ SOURCE(CLICKHOUSE(
     DB 'aave_ethereum'
     TABLE 'view_LatestAssetConfiguration'
 ))
-LAYOUT(HASHED())
+LAYOUT(COMPLEX_KEY_HASHED())
 LIFETIME(MIN 1 MAX 1);

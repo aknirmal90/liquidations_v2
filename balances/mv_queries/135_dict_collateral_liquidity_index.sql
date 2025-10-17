@@ -15,4 +15,4 @@ SOURCE(CLICKHOUSE(
     TABLE 'view_collateral_liquidity_index'
 ))
 LAYOUT(COMPLEX_KEY_HASHED())
-LIFETIME(MIN 0 MAX 60);
+LIFETIME(MIN 6 MAX 6);
