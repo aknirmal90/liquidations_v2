@@ -12,6 +12,7 @@ import csv
 import logging
 import os
 import time
+from math import ceil, floor
 from typing import Any, Dict, List, Tuple
 
 from celery import Task
@@ -215,7 +216,9 @@ class CompareCollateralBalanceTask(Task):
                     RAY = 1e27
 
                     if current_index > 0:
-                        underlying_balance = int((scaled_balance * current_index) / RAY)
+                        underlying_balance = int(
+                            floor(scaled_balance * current_index / RAY)
+                        )
                     else:
                         underlying_balance = 0
 
@@ -642,7 +645,9 @@ class CompareDebtBalanceTask(Task):
                     RAY = 1e27
 
                     if current_index > 0:
-                        underlying_balance = int((scaled_balance * current_index) / RAY)
+                        underlying_balance = int(
+                            ceil(scaled_balance * current_index / RAY)
+                        )
                     else:
                         underlying_balance = 0
 
