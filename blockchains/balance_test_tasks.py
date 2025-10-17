@@ -104,7 +104,7 @@ class CompareCollateralBalanceTask(Task):
     def _export_collateral_pairs_to_csv(self, output_path: str):
         """
         Export all user-asset pairs with non-zero collateral from LatestBalances_v2 to CSV.
-        Includes scaled_balance, stored_index, and current_index for quick reference.
+        Includes scaled_balance and current_index for quick reference.
 
         Returns:
             CSV file path, or None if no pairs found
@@ -124,7 +124,6 @@ class CompareCollateralBalanceTask(Task):
                     "user",
                     "asset",
                     "scaled_balance",
-                    "stored_index",
                     "current_index",
                 ]
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -136,11 +135,11 @@ class CompareCollateralBalanceTask(Task):
                         lb.user,
                         lb.asset,
                         lb.collateral_scaled_balance as scaled_balance,
-                        lb.collateral_index as stored_index,
                         COALESCE(max_idx.max_collateral_liquidityIndex, 0) as current_index
                     FROM (
-                        SELECT user, asset, collateral_scaled_balance, collateral_index
+                        SELECT user, asset, collateral_scaled_balance
                         FROM aave_ethereum.LatestBalances_v2 FINAL
+                        WHERE collateral_scaled_balance > 0
                         ORDER BY user, asset
                         LIMIT %(batch_size)s OFFSET %(offset)s
                     ) AS lb
@@ -164,8 +163,7 @@ class CompareCollateralBalanceTask(Task):
                                 "user": row[0],
                                 "asset": row[1],
                                 "scaled_balance": row[2],
-                                "stored_index": row[3],
-                                "current_index": row[4],
+                                "current_index": row[3],
                             }
                         )
 
@@ -210,15 +208,14 @@ class CompareCollateralBalanceTask(Task):
                     pair = (user, asset)
                     user_asset_pairs.append(pair)
 
-                    # Calculate ClickHouse balance using formula: scaled * current_index / stored_index
+                    # Calculate ClickHouse balance using ray math: underlying = floor((scaled * liquidityIndex) / RAY)
+                    # where RAY = 1e27
                     scaled_balance = float(row["scaled_balance"])
-                    stored_index = float(row["stored_index"])
                     current_index = float(row["current_index"])
+                    RAY = 1e27
 
-                    if stored_index > 0:
-                        underlying_balance = int(
-                            scaled_balance * current_index / stored_index
-                        )
+                    if current_index > 0:
+                        underlying_balance = int((scaled_balance * current_index) / RAY)
                     else:
                         underlying_balance = 0
 
@@ -535,7 +532,7 @@ class CompareDebtBalanceTask(Task):
     def _export_debt_pairs_to_csv(self, output_path: str):
         """
         Export all user-asset pairs with non-zero debt from LatestBalances_v2 to CSV.
-        Includes scaled_balance, stored_index, and current_index for quick reference.
+        Includes scaled_balance and current_index for quick reference.
 
         Returns:
             CSV file path, or None if no pairs found
@@ -555,7 +552,6 @@ class CompareDebtBalanceTask(Task):
                     "user",
                     "asset",
                     "scaled_balance",
-                    "stored_index",
                     "current_index",
                 ]
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -567,11 +563,11 @@ class CompareDebtBalanceTask(Task):
                         lb.user,
                         lb.asset,
                         lb.variable_debt_scaled_balance as scaled_balance,
-                        lb.debt_index as stored_index,
                         COALESCE(max_idx.max_variable_debt_liquidityIndex, 0) as current_index
                     FROM (
-                        SELECT user, asset, variable_debt_scaled_balance, debt_index
+                        SELECT user, asset, variable_debt_scaled_balance
                         FROM aave_ethereum.LatestBalances_v2 FINAL
+                        WHERE variable_debt_scaled_balance > 0
                         ORDER BY user, asset
                         LIMIT %(batch_size)s OFFSET %(offset)s
                     ) AS lb
@@ -595,8 +591,7 @@ class CompareDebtBalanceTask(Task):
                                 "user": row[0],
                                 "asset": row[1],
                                 "scaled_balance": row[2],
-                                "stored_index": row[3],
-                                "current_index": row[4],
+                                "current_index": row[3],
                             }
                         )
 
@@ -640,15 +635,14 @@ class CompareDebtBalanceTask(Task):
                     pair = (user, asset)
                     user_asset_pairs.append(pair)
 
-                    # Calculate ClickHouse balance using formula: scaled * current_index / stored_index
+                    # Calculate ClickHouse balance using ray math: underlying = floor((scaled * liquidityIndex) / RAY)
+                    # where RAY = 1e27
                     scaled_balance = float(row["scaled_balance"])
-                    stored_index = float(row["stored_index"])
                     current_index = float(row["current_index"])
+                    RAY = 1e27
 
-                    if stored_index > 0:
-                        underlying_balance = int(
-                            scaled_balance * current_index / stored_index
-                        )
+                    if current_index > 0:
+                        underlying_balance = int((scaled_balance * current_index) / RAY)
                     else:
                         underlying_balance = 0
 

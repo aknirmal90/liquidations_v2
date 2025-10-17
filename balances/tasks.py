@@ -159,40 +159,30 @@ class ChildBalancesSynchronizeTask(EventSynchronizeMixin, Task):
                     "variableDebtToken"
                 ]
 
-                # Get collateral scaled balances and indexes in batches of 100
+                # Get collateral scaled balances in batches of 100
                 collateral_balances = {}
-                collateral_indexes = {}
                 if atoken_address:
                     atoken = AaveToken(atoken_address)
                     for i in range(0, len(users), 100):
                         batch_users = users[i : i + 100]
                         batch_balances = atoken.get_scaled_balance(batch_users)
-                        batch_indexes = atoken.get_previous_index(batch_users)
                         collateral_balances.update(batch_balances)
-                        collateral_indexes.update(batch_indexes)
 
-                # Get variable debt scaled balances and indexes in batches of 100
+                # Get variable debt scaled balances in batches of 100
                 debt_balances = {}
-                debt_indexes = {}
                 if variable_debt_token_address:
                     debt_token = AaveToken(variable_debt_token_address)
                     for i in range(0, len(users), 100):
                         batch_users = users[i : i + 100]
                         batch_balances = debt_token.get_scaled_balance(batch_users)
-                        batch_indexes = debt_token.get_previous_index(batch_users)
                         debt_balances.update(batch_balances)
-                        debt_indexes.update(batch_indexes)
 
-                # Prepare rows for ClickHouse insert (user, asset, collateral, debt, collateral_index, debt_index)
+                # Prepare rows for ClickHouse insert (user, asset, collateral, debt)
                 for user in users:
                     collateral = collateral_balances.get(user, 0)
                     debt = debt_balances.get(user, 0)
-                    collateral_idx = collateral_indexes.get(user, 0)
-                    debt_idx = debt_indexes.get(user, 0)
                     # Note: updated_at will be set by DEFAULT now64() in ClickHouse
-                    updates.append(
-                        (user, asset, collateral, debt, collateral_idx, debt_idx)
-                    )
+                    updates.append((user, asset, collateral, debt))
 
             # Batch insert into LatestBalances_v2
             if updates:
@@ -208,14 +198,12 @@ class ChildBalancesSynchronizeTask(EventSynchronizeMixin, Task):
                                     "asset",
                                     "collateral_scaled_balance",
                                     "variable_debt_scaled_balance",
-                                    "collateral_index",
-                                    "debt_index",
                                 ],
                             )
 
                         self.clickhouse_client._execute_with_retry(insert_operation)
                         logger.info(
-                            f"Successfully updated {len(updates)} scaled balances with indexes in LatestBalances_v2"
+                            f"Successfully updated {len(updates)} scaled balances in LatestBalances_v2"
                         )
                         break
                     except Exception as e:
@@ -301,7 +289,7 @@ class BalancesBackfillTask(Task):
     """
     Standalone task that retrieves all user/asset pairs from ClickHouse,
     stores them in a CSV file, then iteratively fetches scaled balances
-    and indexes to update LatestBalances_v2.
+    to update LatestBalances_v2.
     """
 
     clickhouse_client = clickhouse_client
@@ -418,7 +406,7 @@ class BalancesBackfillTask(Task):
 
     def _backfill_from_csv(self, csv_filepath: str):
         """
-        Read user/asset pairs from CSV and fetch scaled balances + indexes
+        Read user/asset pairs from CSV and fetch scaled balances
         from on-chain, then update LatestBalances_v2.
         """
         try:
@@ -454,7 +442,7 @@ class BalancesBackfillTask(Task):
                     "variableDebtToken"
                 ]
 
-                # Fetch scaled balances and indexes in batches
+                # Fetch scaled balances in batches
                 updates = []
                 batch_size = 100
 
@@ -463,29 +451,21 @@ class BalancesBackfillTask(Task):
 
                     # Get collateral data
                     collateral_balances = {}
-                    collateral_indexes = {}
                     if atoken_address:
                         atoken = AaveToken(atoken_address)
                         collateral_balances = atoken.get_scaled_balance(batch_users)
-                        collateral_indexes = atoken.get_previous_index(batch_users)
 
                     # Get debt data
                     debt_balances = {}
-                    debt_indexes = {}
                     if variable_debt_token_address:
                         debt_token = AaveToken(variable_debt_token_address)
                         debt_balances = debt_token.get_scaled_balance(batch_users)
-                        debt_indexes = debt_token.get_previous_index(batch_users)
 
                     # Prepare update rows
                     for user in batch_users:
                         collateral = collateral_balances.get(user, 0)
                         debt = debt_balances.get(user, 0)
-                        collateral_idx = collateral_indexes.get(user, 0)
-                        debt_idx = debt_indexes.get(user, 0)
-                        updates.append(
-                            (user, asset, collateral, debt, collateral_idx, debt_idx)
-                        )
+                        updates.append((user, asset, collateral, debt))
 
                     logger.info(
                         f"Fetched balances for batch {i // batch_size + 1} ({len(batch_users)} users)"
@@ -505,8 +485,6 @@ class BalancesBackfillTask(Task):
                                         "asset",
                                         "collateral_scaled_balance",
                                         "variable_debt_scaled_balance",
-                                        "collateral_index",
-                                        "debt_index",
                                     ],
                                 )
 
