@@ -1,4 +1,5 @@
 -- Dictionary for fast lookups of collateral liquidity index by asset
+-- Uses COMPLEX_KEY_HASHED for String key type
 CREATE DICTIONARY IF NOT EXISTS aave_ethereum.dict_collateral_liquidity_index
 (
     asset String,
@@ -13,5 +14,5 @@ SOURCE(CLICKHOUSE(
     DB 'aave_ethereum'
     TABLE 'view_collateral_liquidity_index'
 ))
-LAYOUT(HASHED())
+LAYOUT(COMPLEX_KEY_HASHED())
 LIFETIME(MIN 0 MAX 60);

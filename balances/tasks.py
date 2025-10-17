@@ -155,134 +155,134 @@ class ChildBalancesSynchronizeTask(EventSynchronizeMixin, Task):
             except Exception:
                 pass
 
-    def post_handle_hook(
-        self, network_events: List[Any], start_block: int, end_block: int
-    ):
-        """
-        Post hook to update LatestBalances_v2 with scaled balances from on-chain data.
-        Retrieves unique user/asset pairs from synchronized events and updates their
-        scaled balances by querying aToken and variableDebtToken contracts.
-        After updating, atomically refreshes the in-memory table for fast queries.
-        """
-        try:
-            # Get all unique user/asset pairs from the synced events in batches
-            all_user_asset_pairs = []
-            batch_size = 500
-            offset = 0
+    # def post_handle_hook(
+    #     self, network_events: List[Any], start_block: int, end_block: int
+    # ):
+    #     """
+    #     Post hook to update LatestBalances_v2 with scaled balances from on-chain data.
+    #     Retrieves unique user/asset pairs from synchronized events and updates their
+    #     scaled balances by querying aToken and variableDebtToken contracts.
+    #     After updating, atomically refreshes the in-memory table for fast queries.
+    #     """
+    #     try:
+    #         # Get all unique user/asset pairs from the synced events in batches
+    #         all_user_asset_pairs = []
+    #         batch_size = 500
+    #         offset = 0
 
-            while True:
-                user_asset_pairs = self._get_unique_user_asset_pairs(
-                    start_block, end_block, limit=batch_size, offset=offset
-                )
-                if not user_asset_pairs:
-                    break
+    #         while True:
+    #             user_asset_pairs = self._get_unique_user_asset_pairs(
+    #                 start_block, end_block, limit=batch_size, offset=offset
+    #             )
+    #             if not user_asset_pairs:
+    #                 break
 
-                all_user_asset_pairs.extend(user_asset_pairs)
-                offset += batch_size
+    #             all_user_asset_pairs.extend(user_asset_pairs)
+    #             offset += batch_size
 
-                # If we got fewer results than batch_size, we're done
-                if len(user_asset_pairs) < batch_size:
-                    break
+    #             # If we got fewer results than batch_size, we're done
+    #             if len(user_asset_pairs) < batch_size:
+    #                 break
 
-            if not all_user_asset_pairs:
-                logger.info("No user/asset pairs found to update")
-                return
+    #         if not all_user_asset_pairs:
+    #             logger.info("No user/asset pairs found to update")
+    #             return
 
-            logger.info(
-                f"Updating scaled balances for {len(all_user_asset_pairs)} user/asset pairs"
-            )
+    #         logger.info(
+    #             f"Updating scaled balances for {len(all_user_asset_pairs)} user/asset pairs"
+    #         )
 
-            # Get token address mappings from ClickHouse
-            asset_token_mapping = self._get_asset_token_mapping(
-                list({asset for _, asset in all_user_asset_pairs})
-            )
+    #         # Get token address mappings from ClickHouse
+    #         asset_token_mapping = self._get_asset_token_mapping(
+    #             list({asset for _, asset in all_user_asset_pairs})
+    #         )
 
-            # Group users by asset for efficient batch processing
-            users_by_asset = defaultdict(list)
-            for user, asset in all_user_asset_pairs:
-                users_by_asset[asset].append(user)
+    #         # Group users by asset for efficient batch processing
+    #         users_by_asset = defaultdict(list)
+    #         for user, asset in all_user_asset_pairs:
+    #             users_by_asset[asset].append(user)
 
-            # Fetch scaled balances and prepare update data
-            updates = []
-            for asset, users in users_by_asset.items():
-                if asset not in asset_token_mapping:
-                    logger.warning(f"No token mapping found for asset {asset}")
-                    continue
+    #         # Fetch scaled balances and prepare update data
+    #         updates = []
+    #         for asset, users in users_by_asset.items():
+    #             if asset not in asset_token_mapping:
+    #                 logger.warning(f"No token mapping found for asset {asset}")
+    #                 continue
 
-                atoken_address = asset_token_mapping[asset]["aToken"]
-                variable_debt_token_address = asset_token_mapping[asset][
-                    "variableDebtToken"
-                ]
+    #             atoken_address = asset_token_mapping[asset]["aToken"]
+    #             variable_debt_token_address = asset_token_mapping[asset][
+    #                 "variableDebtToken"
+    #             ]
 
-                # Get collateral scaled balances in batches of 100
-                collateral_balances = {}
-                if atoken_address:
-                    atoken = AaveToken(atoken_address)
-                    for i in range(0, len(users), 100):
-                        batch_users = users[i : i + 100]
-                        batch_balances = atoken.get_scaled_balance(batch_users)
-                        collateral_balances.update(batch_balances)
+    #             # Get collateral scaled balances in batches of 100
+    #             collateral_balances = {}
+    #             if atoken_address:
+    #                 atoken = AaveToken(atoken_address)
+    #                 for i in range(0, len(users), 100):
+    #                     batch_users = users[i : i + 100]
+    #                     batch_balances = atoken.get_scaled_balance(batch_users)
+    #                     collateral_balances.update(batch_balances)
 
-                # Get variable debt scaled balances in batches of 100
-                debt_balances = {}
-                if variable_debt_token_address:
-                    debt_token = AaveToken(variable_debt_token_address)
-                    for i in range(0, len(users), 100):
-                        batch_users = users[i : i + 100]
-                        batch_balances = debt_token.get_scaled_balance(batch_users)
-                        debt_balances.update(batch_balances)
+    #             # Get variable debt scaled balances in batches of 100
+    #             debt_balances = {}
+    #             if variable_debt_token_address:
+    #                 debt_token = AaveToken(variable_debt_token_address)
+    #                 for i in range(0, len(users), 100):
+    #                     batch_users = users[i : i + 100]
+    #                     batch_balances = debt_token.get_scaled_balance(batch_users)
+    #                     debt_balances.update(batch_balances)
 
-                # Prepare rows for ClickHouse insert (user, asset, collateral, debt)
-                for user in users:
-                    collateral = collateral_balances.get(user, 0)
-                    debt = debt_balances.get(user, 0)
-                    # Note: updated_at will be set by DEFAULT now64() in ClickHouse
-                    updates.append((user, asset, collateral, debt))
+    #             # Prepare rows for ClickHouse insert (user, asset, collateral, debt)
+    #             for user in users:
+    #                 collateral = collateral_balances.get(user, 0)
+    #                 debt = debt_balances.get(user, 0)
+    #                 # Note: updated_at will be set by DEFAULT now64() in ClickHouse
+    #                 updates.append((user, asset, collateral, debt))
 
-            # Batch insert into LatestBalances_v2
-            if updates:
-                for i in range(3):
-                    try:
-                        # Use direct client access to specify column names
-                        def insert_operation(client):
-                            return client.insert(
-                                f"{self.clickhouse_client.db_name}.LatestBalances_v2",
-                                updates,
-                                column_names=[
-                                    "user",
-                                    "asset",
-                                    "collateral_scaled_balance",
-                                    "variable_debt_scaled_balance",
-                                ],
-                            )
+    #         # Batch insert into LatestBalances_v2
+    #         if updates:
+    #             for i in range(3):
+    #                 try:
+    #                     # Use direct client access to specify column names
+    #                     def insert_operation(client):
+    #                         return client.insert(
+    #                             f"{self.clickhouse_client.db_name}.LatestBalances_v2",
+    #                             updates,
+    #                             column_names=[
+    #                                 "user",
+    #                                 "asset",
+    #                                 "collateral_scaled_balance",
+    #                                 "variable_debt_scaled_balance",
+    #                             ],
+    #                         )
 
-                        self.clickhouse_client._execute_with_retry(insert_operation)
-                        logger.info(
-                            f"Successfully updated {len(updates)} scaled balances in LatestBalances_v2"
-                        )
-                        break
-                    except Exception as e:
-                        logger.error(
-                            f"Error inserting scaled balances (attempt {i + 1}/3): {e}"
-                        )
-                        if i < 2:
-                            time.sleep(5)
+    #                     self.clickhouse_client._execute_with_retry(insert_operation)
+    #                     logger.info(
+    #                         f"Successfully updated {len(updates)} scaled balances in LatestBalances_v2"
+    #                     )
+    #                     break
+    #                 except Exception as e:
+    #                     logger.error(
+    #                         f"Error inserting scaled balances (attempt {i + 1}/3): {e}"
+    #                     )
+    #                     if i < 2:
+    #                         time.sleep(5)
 
-                # Optimize table after updates
-                for i in range(3):
-                    try:
-                        self.clickhouse_client.optimize_table("LatestBalances_v2")
-                        self.clickhouse_client.optimize_table("MaxLiquidityIndex")
-                        break
-                    except Exception as e:
-                        logger.error(f"Error optimizing LatestBalances_v2: {e}")
-                        time.sleep(5)
+    #             # Optimize table after updates
+    #             for i in range(3):
+    #                 try:
+    #                     self.clickhouse_client.optimize_table("LatestBalances_v2")
+    #                     self.clickhouse_client.optimize_table("MaxLiquidityIndex")
+    #                     break
+    #                 except Exception as e:
+    #                     logger.error(f"Error optimizing LatestBalances_v2: {e}")
+    #                     time.sleep(5)
 
-            # Refresh in-memory table after all updates complete
-            self._refresh_memory_table()
+    #         # Refresh in-memory table after all updates complete
+    #         self._refresh_memory_table()
 
-        except Exception as e:
-            logger.error(f"Error in post_handle_hook: {e}", exc_info=True)
+    #     except Exception as e:
+    #         logger.error(f"Error in post_handle_hook: {e}", exc_info=True)
 
     def _get_unique_user_asset_pairs(
         self, start_block: int, end_block: int, limit: int = 500, offset: int = 0
