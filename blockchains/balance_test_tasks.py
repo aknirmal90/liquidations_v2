@@ -133,21 +133,14 @@ class CompareCollateralBalanceTask(Task):
                 while True:
                     query = """
                     SELECT
-                        lb.user,
-                        lb.asset,
-                        lb.collateral_scaled_balance as scaled_balance,
-                        COALESCE(max_idx.max_collateral_liquidityIndex, 0) as current_index
-                    FROM (
-                        SELECT user, asset, collateral_scaled_balance
-                        FROM aave_ethereum.LatestBalances_v2 FINAL
-                        ORDER BY user, asset
-                        LIMIT %(batch_size)s OFFSET %(offset)s
-                    ) AS lb
-                    LEFT JOIN (
-                        SELECT asset, max_collateral_liquidityIndex
-                        FROM aave_ethereum.MaxLiquidityIndex FINAL
-                    ) AS max_idx
-                        ON lb.asset = max_idx.asset
+                        user,
+                        asset,
+                        collateral_scaled_balance as scaled_balance,
+                        dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'liquidityIndex', asset, toUInt256(0)) as current_index
+                    FROM aave_ethereum.LatestBalances_v2_Memory
+                    WHERE collateral_scaled_balance > 0
+                    ORDER BY user, asset
+                    LIMIT %(batch_size)s OFFSET %(offset)s
                     """
 
                     result = clickhouse_client.execute_query(
@@ -562,21 +555,14 @@ class CompareDebtBalanceTask(Task):
                 while True:
                     query = """
                     SELECT
-                        lb.user,
-                        lb.asset,
-                        lb.variable_debt_scaled_balance as scaled_balance,
-                        COALESCE(max_idx.max_variable_debt_liquidityIndex, 0) as current_index
-                    FROM (
-                        SELECT user, asset, variable_debt_scaled_balance
-                        FROM aave_ethereum.LatestBalances_v2 FINAL
-                        ORDER BY user, asset
-                        LIMIT %(batch_size)s OFFSET %(offset)s
-                    ) AS lb
-                    LEFT JOIN (
-                        SELECT asset, max_variable_debt_liquidityIndex
-                        FROM aave_ethereum.MaxLiquidityIndex FINAL
-                    ) AS max_idx
-                        ON lb.asset = max_idx.asset
+                        user,
+                        asset,
+                        variable_debt_scaled_balance as scaled_balance,
+                        dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', asset, toUInt256(0)) as current_index
+                    FROM aave_ethereum.LatestBalances_v2_Memory
+                    WHERE variable_debt_scaled_balance > 0
+                    ORDER BY user, asset
+                    LIMIT %(batch_size)s OFFSET %(offset)s
                     """
 
                     result = clickhouse_client.execute_query(

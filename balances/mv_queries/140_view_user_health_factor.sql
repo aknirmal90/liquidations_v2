@@ -18,8 +18,8 @@ current_balances AS (
         lb.asset,
         -- Convert scaled balance to underlying: floor((scaled * liquidityIndex) / RAY)
         -- RAY = 1e27
-        floor((toInt256(lb.collateral_scaled_balance) * toInt256(dictGet('aave_ethereum.dict_latest_asset_configuration', 'max_collateral_liquidityIndex', lb.asset))) / toInt256('1000000000000000000000000000')) AS collateral_balance,
-        floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGet('aave_ethereum.dict_latest_asset_configuration', 'max_variable_debt_liquidityIndex', lb.asset))) / toInt256('1000000000000000000000000000')) AS debt_balance
+        floor((toInt256(lb.collateral_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS collateral_balance,
+        floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance
     FROM aave_ethereum.LatestBalances_v2_Memory AS lb
 ),
 -- Calculate effective collateral and debt per user
