@@ -20,7 +20,10 @@ SELECT
     aave_ethereum.LatestTokenMetadata.decimals_places AS decimals_places,
 
     aave_ethereum.LatestPriceEvent.historical_price_usd AS historical_event_price,
-    aave_ethereum.LatestPriceTransaction.predicted_price AS predicted_transaction_price
+    aave_ethereum.LatestPriceTransaction.predicted_price AS predicted_transaction_price,
+
+    aave_ethereum.MaxLiquidityIndex.max_collateral_liquidityIndex AS max_collateral_liquidityIndex,
+    aave_ethereum.MaxLiquidityIndex.max_variable_debt_liquidityIndex AS max_variable_debt_liquidityIndex
 
 FROM aave_ethereum.ReserveInitialized
 LEFT JOIN aave_ethereum.LatestCollateralConfigurationChanged
@@ -34,4 +37,6 @@ LEFT JOIN aave_ethereum.LatestTokenMetadata
 LEFT JOIN aave_ethereum.LatestPriceEvent
     ON aave_ethereum.ReserveInitialized.asset = aave_ethereum.LatestPriceEvent.asset
 LEFT JOIN aave_ethereum.LatestPriceTransaction
-    ON aave_ethereum.ReserveInitialized.asset = aave_ethereum.LatestPriceTransaction.asset;
+    ON aave_ethereum.ReserveInitialized.asset = aave_ethereum.LatestPriceTransaction.asset
+LEFT JOIN aave_ethereum.MaxLiquidityIndex
+    ON aave_ethereum.ReserveInitialized.asset = aave_ethereum.MaxLiquidityIndex.asset;
