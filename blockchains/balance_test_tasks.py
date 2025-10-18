@@ -32,17 +32,20 @@ class CompareCollateralBalanceTask(Task):
     Match criteria: |difference| / rpc_balance < 0.0001 (1 bps)
     """
 
-    def run(self, csv_output_path: str = "/tmp"):
+    def run(self, csv_output_path: str = "/tmp", fix_errors: bool = False):
         """
         Execute the collateral balance comparison test using CSV export.
 
         Args:
             csv_output_path: Path to store the CSV file
+            fix_errors: If True, fix detected errors by un-scaling, correcting, and re-scaling
 
         Returns:
             Dict[str, Any]: Test results summary
         """
         logger.info("Starting CompareCollateralBalanceTask with CSV export method")
+        if fix_errors:
+            logger.info("Error correction is ENABLED - will fix mismatched balances")
         start_time = time.time()
 
         try:
@@ -60,7 +63,9 @@ class CompareCollateralBalanceTask(Task):
 
             # Step 2: Read CSV and compare balances
             logger.info(f"Reading user-asset pairs from {csv_filepath}")
-            comparison_results = self._compare_from_csv(csv_filepath)
+            comparison_results = self._compare_from_csv(
+                csv_filepath, fix_errors=fix_errors
+            )
 
             # Calculate test duration
             test_duration = time.time() - start_time
@@ -179,10 +184,16 @@ class CompareCollateralBalanceTask(Task):
             logger.error(f"Error exporting collateral pairs to CSV: {e}", exc_info=True)
             return None
 
-    def _compare_from_csv(self, csv_filepath: str) -> Dict[str, Any]:
+    def _compare_from_csv(
+        self, csv_filepath: str, fix_errors: bool = False
+    ) -> Dict[str, Any]:
         """
         Read user-asset pairs from CSV, calculate ClickHouse balances,
         fetch RPC balances, and compare them.
+
+        Args:
+            csv_filepath: Path to CSV file with user-asset pairs
+            fix_errors: If True, fix detected errors by reinserting corrected values
 
         Returns:
             Dict containing comparison statistics
@@ -192,6 +203,7 @@ class CompareCollateralBalanceTask(Task):
             # Read all pairs from CSV
             user_asset_pairs = []
             clickhouse_data = {}
+            current_indices = {}
 
             with open(csv_filepath, "r") as csvfile:
                 reader = csv.DictReader(csvfile)
@@ -215,6 +227,7 @@ class CompareCollateralBalanceTask(Task):
                         underlying_balance = 0
 
                     clickhouse_data[pair] = underlying_balance
+                    current_indices[asset] = current_index
 
             logger.info(f"Loaded {len(user_asset_pairs)} user-asset pairs from CSV")
             logger.info(f"Calculated {len(clickhouse_data)} ClickHouse balances")
@@ -227,6 +240,16 @@ class CompareCollateralBalanceTask(Task):
             comparison_results = self._compare_collateral_balances(
                 clickhouse_data, rpc_data
             )
+
+            # Fix errors if requested
+            if fix_errors and comparison_results["mismatched_records"] > 0:
+                logger.info("Fixing mismatched collateral balances...")
+                fix_results = self._fix_mismatched_balances(
+                    clickhouse_data, rpc_data, current_indices
+                )
+                comparison_results["fixed_count"] = fix_results["fixed_count"]
+            else:
+                comparison_results["fixed_count"] = 0
 
             return comparison_results
 
@@ -322,7 +345,7 @@ class CompareCollateralBalanceTask(Task):
             differences_bps.append(difference_bps)
 
             # Match if difference < 1 bps
-            if difference_bps < 10.0:
+            if difference_bps < 1.0:
                 matching_count += 1
             else:
                 mismatched_count += 1
@@ -443,6 +466,113 @@ class CompareCollateralBalanceTask(Task):
         except Exception as e:
             logger.error(f"Failed to cleanup old test records: {e}")
 
+    def _fix_mismatched_balances(
+        self,
+        clickhouse_data: Dict[Tuple[str, str], float],
+        rpc_data: Dict[Tuple[str, str], float],
+        current_indices: Dict[str, float],
+    ) -> Dict[str, int]:
+        """
+        Fix mismatched collateral balances by un-scaling, correcting, and re-scaling.
+
+        Args:
+            clickhouse_data: Collateral balances from ClickHouse
+            rpc_data: Collateral balances from RPC
+            current_indices: Current liquidity indices by asset
+
+        Returns:
+            Dict with count of fixed records
+        """
+        RAY = 1e27
+        fixed_count = 0
+        updates = []
+
+        common_pairs = set(clickhouse_data.keys()) & set(rpc_data.keys())
+
+        for pair in common_pairs:
+            ch_balance = clickhouse_data[pair]
+            rpc_balance = rpc_data[pair]
+            user, asset = pair
+
+            # Skip if balances match within tolerance
+            if ch_balance == 0:
+                if rpc_balance == 0:
+                    continue
+
+            difference = abs(ch_balance - rpc_balance)
+            difference_bps = (difference / ch_balance) * 10000 if ch_balance > 0 else 0
+
+            # Only fix if difference >= 1 bps (10 in our scale)
+            if difference_bps < 1.0:
+                continue
+
+            # Get current liquidity index for this asset
+            current_index = current_indices.get(asset.lower(), 0)
+            if current_index == 0:
+                logger.warning(f"No liquidity index found for asset {asset}, skipping")
+                continue
+
+            # Calculate corrected scaled balance using RPC value
+            # scaled = floor((underlying * RAY) / liquidityIndex)
+            corrected_scaled_balance = int(floor(rpc_balance * RAY / current_index))
+
+            updates.append(
+                {
+                    "user": user,
+                    "asset": asset,
+                    "corrected_scaled_balance": corrected_scaled_balance,
+                }
+            )
+            fixed_count += 1
+
+            logger.info(
+                f"Fixing collateral for ({user},{asset}): "
+                f"CH={ch_balance:.2f} RPC={rpc_balance:.2f} "
+                f"new_scaled={corrected_scaled_balance}"
+            )
+
+        # Batch update ClickHouse
+        if updates:
+            self._batch_update_collateral_balances(updates)
+            logger.info(f"Fixed {fixed_count} mismatched collateral balances")
+        else:
+            logger.info("No collateral balances to fix")
+
+        return {"fixed_count": fixed_count}
+
+    def _batch_update_collateral_balances(self, updates: List[Dict[str, Any]]):
+        """
+        Batch update collateral scaled balances in LatestBalances_v2.
+
+        Args:
+            updates: List of dicts with user, asset, and corrected_scaled_balance
+        """
+        if not updates:
+            return
+
+        # Use ReplacingMergeTree behavior - insert new rows with updated_at = now
+        query = """
+        INSERT INTO aave_ethereum.LatestBalances_v2
+        (user, asset, collateral_scaled_balance, variable_debt_scaled_balance, updated_at)
+        SELECT
+            %(user)s as user,
+            %(asset)s as asset,
+            %(corrected_scaled_balance)s as collateral_scaled_balance,
+            variable_debt_scaled_balance,
+            now64() as updated_at
+        FROM aave_ethereum.LatestBalances_v2
+        WHERE user = %(user)s AND asset = %(asset)s
+        LIMIT 1
+        """
+
+        for update in updates:
+            try:
+                clickhouse_client.execute_query(query, parameters=update)
+            except Exception as e:
+                logger.error(
+                    f"Failed to update balance for {update['user']}, {update['asset']}: {e}"
+                )
+
 
 class CompareDebtBalanceTask(Task):
     """
@@ -454,17 +584,20 @@ class CompareDebtBalanceTask(Task):
     Match criteria: |difference| / rpc_balance < 0.0001 (1 bps)
     """
 
-    def run(self, csv_output_path: str = "/tmp"):
+    def run(self, csv_output_path: str = "/tmp", fix_errors: bool = False):
         """
         Execute the debt balance comparison test using CSV export.
 
         Args:
             csv_output_path: Path to store the CSV file
+            fix_errors: If True, fix detected errors by un-scaling, correcting, and re-scaling
 
         Returns:
             Dict[str, Any]: Test results summary
         """
         logger.info("Starting CompareDebtBalanceTask with CSV export method")
+        if fix_errors:
+            logger.info("Error correction is ENABLED - will fix mismatched balances")
         start_time = time.time()
 
         try:
@@ -482,7 +615,9 @@ class CompareDebtBalanceTask(Task):
 
             # Step 2: Read CSV and compare balances
             logger.info(f"Reading user-asset pairs from {csv_filepath}")
-            comparison_results = self._compare_from_csv(csv_filepath)
+            comparison_results = self._compare_from_csv(
+                csv_filepath, fix_errors=fix_errors
+            )
 
             # Calculate test duration
             test_duration = time.time() - start_time
@@ -601,10 +736,16 @@ class CompareDebtBalanceTask(Task):
             logger.error(f"Error exporting debt pairs to CSV: {e}", exc_info=True)
             return None
 
-    def _compare_from_csv(self, csv_filepath: str) -> Dict[str, Any]:
+    def _compare_from_csv(
+        self, csv_filepath: str, fix_errors: bool = False
+    ) -> Dict[str, Any]:
         """
         Read user-asset pairs from CSV, calculate ClickHouse balances,
         fetch RPC balances, and compare them.
+
+        Args:
+            csv_filepath: Path to CSV file with user-asset pairs
+            fix_errors: If True, fix detected errors by reinserting corrected values
 
         Returns:
             Dict containing comparison statistics
@@ -613,6 +754,7 @@ class CompareDebtBalanceTask(Task):
             # Read all pairs from CSV
             user_asset_pairs = []
             clickhouse_data = {}
+            current_indices = {}
 
             with open(csv_filepath, "r") as csvfile:
                 reader = csv.DictReader(csvfile)
@@ -622,7 +764,7 @@ class CompareDebtBalanceTask(Task):
                     pair = (user, asset)
                     user_asset_pairs.append(pair)
 
-                    # Calculate ClickHouse balance using ray math: underlying = floor((scaled * liquidityIndex) / RAY)
+                    # Calculate ClickHouse balance using ray math: underlying = ceil((scaled * liquidityIndex) / RAY)
                     # where RAY = 1e27
                     scaled_balance = float(row["scaled_balance"])
                     current_index = float(row["current_index"])
@@ -636,6 +778,7 @@ class CompareDebtBalanceTask(Task):
                         underlying_balance = 0
 
                     clickhouse_data[pair] = underlying_balance
+                    current_indices[asset] = current_index
 
             logger.info(f"Loaded {len(user_asset_pairs)} user-asset pairs from CSV")
             logger.info(f"Calculated {len(clickhouse_data)} ClickHouse balances")
@@ -646,6 +789,16 @@ class CompareDebtBalanceTask(Task):
 
             # Compare the balances
             comparison_results = self._compare_debt_balances(clickhouse_data, rpc_data)
+
+            # Fix errors if requested
+            if fix_errors and comparison_results["mismatched_records"] > 0:
+                logger.info("Fixing mismatched debt balances...")
+                fix_results = self._fix_mismatched_balances(
+                    clickhouse_data, rpc_data, current_indices
+                )
+                comparison_results["fixed_count"] = fix_results["fixed_count"]
+            else:
+                comparison_results["fixed_count"] = 0
 
             return comparison_results
 
@@ -739,7 +892,7 @@ class CompareDebtBalanceTask(Task):
             differences_bps.append(difference_bps)
 
             # Match if difference < 1 bps
-            if difference_bps < 10.0:
+            if difference_bps < 1.0:
                 matching_count += 1
             else:
                 mismatched_count += 1
@@ -859,6 +1012,113 @@ class CompareDebtBalanceTask(Task):
 
         except Exception as e:
             logger.error(f"Failed to cleanup old test records: {e}")
+
+    def _fix_mismatched_balances(
+        self,
+        clickhouse_data: Dict[Tuple[str, str], float],
+        rpc_data: Dict[Tuple[str, str], float],
+        current_indices: Dict[str, float],
+    ) -> Dict[str, int]:
+        """
+        Fix mismatched debt balances by un-scaling, correcting, and re-scaling.
+
+        Args:
+            clickhouse_data: Debt balances from ClickHouse
+            rpc_data: Debt balances from RPC
+            current_indices: Current liquidity indices by asset
+
+        Returns:
+            Dict with count of fixed records
+        """
+        RAY = 1e27
+        fixed_count = 0
+        updates = []
+
+        common_pairs = set(clickhouse_data.keys()) & set(rpc_data.keys())
+
+        for pair in common_pairs:
+            ch_balance = clickhouse_data[pair]
+            rpc_balance = rpc_data[pair]
+            user, asset = pair
+
+            # Skip if balances match within tolerance
+            if ch_balance == 0:
+                if rpc_balance == 0:
+                    continue
+
+            difference = abs(ch_balance - rpc_balance)
+            difference_bps = (difference / ch_balance) * 10000 if ch_balance > 0 else 0
+
+            # Only fix if difference >= 1 bps (10 in our scale)
+            if difference_bps < 1.0:
+                continue
+
+            # Get current liquidity index for this asset
+            current_index = current_indices.get(asset.lower(), 0)
+            if current_index == 0:
+                logger.warning(f"No liquidity index found for asset {asset}, skipping")
+                continue
+
+            # Calculate corrected scaled balance using RPC value
+            # For debt: scaled = ceil((underlying * RAY) / liquidityIndex)
+            corrected_scaled_balance = int(ceil(rpc_balance * RAY / current_index))
+
+            updates.append(
+                {
+                    "user": user,
+                    "asset": asset,
+                    "corrected_scaled_balance": corrected_scaled_balance,
+                }
+            )
+            fixed_count += 1
+
+            logger.info(
+                f"Fixing debt for ({user},{asset}): "
+                f"CH={ch_balance:.2f} RPC={rpc_balance:.2f} "
+                f"new_scaled={corrected_scaled_balance}"
+            )
+
+        # Batch update ClickHouse
+        if updates:
+            self._batch_update_debt_balances(updates)
+            logger.info(f"Fixed {fixed_count} mismatched debt balances")
+        else:
+            logger.info("No debt balances to fix")
+
+        return {"fixed_count": fixed_count}
+
+    def _batch_update_debt_balances(self, updates: List[Dict[str, Any]]):
+        """
+        Batch update debt scaled balances in LatestBalances_v2.
+
+        Args:
+            updates: List of dicts with user, asset, and corrected_scaled_balance
+        """
+        if not updates:
+            return
+
+        # Use ReplacingMergeTree behavior - insert new rows with updated_at = now
+        query = """
+        INSERT INTO aave_ethereum.LatestBalances_v2
+        (user, asset, collateral_scaled_balance, variable_debt_scaled_balance, updated_at)
+        SELECT
+            %(user)s as user,
+            %(asset)s as asset,
+            collateral_scaled_balance,
+            %(corrected_scaled_balance)s as variable_debt_scaled_balance,
+            now64() as updated_at
+        FROM aave_ethereum.LatestBalances_v2
+        WHERE user = %(user)s AND asset = %(asset)s
+        LIMIT 1
+        """
+
+        for update in updates:
+            try:
+                clickhouse_client.execute_query(query, parameters=update)
+            except Exception as e:
+                logger.error(
+                    f"Failed to update balance for {update['user']}, {update['asset']}: {e}"
+                )
 
 
 class CompareHealthFactorTask(Task):
