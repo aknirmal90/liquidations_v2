@@ -27,7 +27,7 @@
 
     .stats-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 1.5rem;
         margin-bottom: 2rem;
     }
@@ -204,6 +204,10 @@
             <div class="stats-label">Total Debt at Risk</div>
         </div>
         <div class="card stats-card">
+            <div class="stats-value" id="total-max-profit">-</div>
+            <div class="stats-label">Total Max Profit</div>
+        </div>
+        <div class="card stats-card">
             <div class="stats-value" id="avg-health-factor">-</div>
             <div class="stats-label">Avg Health Factor</div>
         </div>
@@ -237,6 +241,7 @@
                         <th class="text-end">Health Factor</th>
                         <th class="text-end">Effective Collateral</th>
                         <th class="text-end">Effective Debt</th>
+                        <th class="text-end">Max Profit</th>
                         <th class="text-center">eMode</th>
                     </tr>
                 </thead>
@@ -276,6 +281,10 @@
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 0
             });
+            document.getElementById('total-max-profit').textContent = '$' + data.total_max_profit.toLocaleString('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            });
             document.getElementById('avg-health-factor').textContent = data.avg_health_factor.toFixed(4);
             document.getElementById('min-health-factor').textContent = data.min_health_factor.toFixed(4);
 
@@ -311,6 +320,13 @@
                     maximumFractionDigits: 2
                 });
 
+                const maxProfitUSD = candidate.max_profit.toLocaleString('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+
                 const eModebadge = candidate.is_in_emode === 1
                     ? '<span class="badge-emode">eMode</span>'
                     : '<span style="color: #9ca3af;">-</span>';
@@ -321,6 +337,7 @@
                     <td class="text-end ${hfClass}">${candidate.health_factor.toFixed(4)}</td>
                     <td class="text-end">${collateralUSD}</td>
                     <td class="text-end"><strong>${debtUSD}</strong></td>
+                    <td class="text-end" style="color: #10b981; font-weight: bold;">${maxProfitUSD}</td>
                     <td class="text-center">${eModebadge}</td>
                 `;
 

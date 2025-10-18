@@ -4415,6 +4415,35 @@ def liquidation_candidates_api(request):
             WHERE debt_balance > 0
             AND lower(asset) IN ({assets_str})
         ),
+        -- Calculate collateral value in USD per user per asset
+        user_asset_collateral_usd AS (
+            SELECT
+                cb.user,
+                cb.asset,
+                CAST(cb.collateral_balance AS Float64) *
+                CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
+                CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64) AS collateral_usd,
+                dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', toString(cb.user), toInt8(0)) AS is_in_emode,
+                dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationBonus', cb.asset, toUInt256(0)) AS collateral_liquidation_bonus,
+                dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationBonus', cb.asset, toUInt256(0)) AS emode_liquidation_bonus
+            FROM current_balances AS cb
+            WHERE cb.user IN (SELECT user FROM users_with_whitelisted_debt)
+            AND cb.collateral_balance > 0
+        ),
+        -- Calculate max profit per user across all their collateral assets
+        user_max_profit AS (
+            SELECT
+                user,
+                max(
+                    if(
+                        is_in_emode = 1,
+                        (CAST(emode_liquidation_bonus AS Float64) / 10000.0 - 1.0) * collateral_usd,
+                        (CAST(collateral_liquidation_bonus AS Float64) / 10000.0 - 1.0) * collateral_usd
+                    )
+                ) AS max_profit
+            FROM user_asset_collateral_usd
+            GROUP BY user
+        ),
         -- Calculate effective collateral and debt per user
         user_metrics AS (
             SELECT
@@ -4450,22 +4479,25 @@ def liquidation_candidates_api(request):
             GROUP BY cb.user
         )
         SELECT
-            user,
-            is_in_emode,
-            effective_collateral,
-            effective_debt,
+            um.user,
+            um.is_in_emode,
+            um.effective_collateral,
+            um.effective_debt,
             -- Health Factor
             if(
-                effective_debt = 0,
+                um.effective_debt = 0,
                 999.9,
-                effective_collateral / effective_debt
-            ) AS health_factor
-        FROM user_metrics
-        WHERE effective_debt > 10000
-        AND effective_collateral > 10000
+                um.effective_collateral / um.effective_debt
+            ) AS health_factor,
+            -- Max Profit
+            coalesce(ump.max_profit, 0) AS max_profit
+        FROM user_metrics AS um
+        LEFT JOIN user_max_profit AS ump ON um.user = ump.user
+        WHERE um.effective_debt > 10000
+        AND um.effective_collateral > 10000
         AND health_factor >= 0.95
         AND health_factor <= 1.25
-        ORDER BY effective_debt DESC
+        ORDER BY um.effective_debt DESC
         """
 
         result = clickhouse_client.execute_query(query)
@@ -4479,6 +4511,7 @@ def liquidation_candidates_api(request):
                     "effective_collateral": float(row[2]) if row[2] else 0,
                     "effective_debt": float(row[3]) if row[3] else 0,
                     "health_factor": float(row[4]) if row[4] else 0,
+                    "max_profit": float(row[5]) if row[5] else 0,
                 }
             )
 
@@ -4486,6 +4519,7 @@ def liquidation_candidates_api(request):
         if candidates:
             total_debt = sum(c["effective_debt"] for c in candidates)
             total_collateral = sum(c["effective_collateral"] for c in candidates)
+            total_max_profit = sum(c["max_profit"] for c in candidates)
             avg_health_factor = sum(c["health_factor"] for c in candidates) / len(
                 candidates
             )
@@ -4495,6 +4529,7 @@ def liquidation_candidates_api(request):
         else:
             total_debt = 0
             total_collateral = 0
+            total_max_profit = 0
             avg_health_factor = 0
             min_health_factor = 0
             max_health_factor = 0
@@ -4505,6 +4540,7 @@ def liquidation_candidates_api(request):
                 "total_candidates": len(candidates),
                 "total_debt": total_debt,
                 "total_collateral": total_collateral,
+                "total_max_profit": total_max_profit,
                 "avg_health_factor": avg_health_factor,
                 "min_health_factor": min_health_factor,
                 "max_health_factor": max_health_factor,
