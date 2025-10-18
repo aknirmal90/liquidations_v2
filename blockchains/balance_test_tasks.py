@@ -1138,7 +1138,7 @@ class CompareHealthFactorTask(Task):
             differences.append(difference)
 
             # Match if difference is less than 0.01 (allowing for small rounding errors)
-            if difference < 0.01:
+            if difference < 0.000001:
                 matching_count += 1
             else:
                 mismatched_count += 1

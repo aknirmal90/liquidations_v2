@@ -3606,7 +3606,7 @@ def users(request):
                 SELECT
                     asset,
                     decimals,
-                    predicted_transaction_price,
+                    historical_event_price,
                     collateralLiquidationThreshold,
                     collateralLiquidationBonus,
                     eModeLiquidationThreshold,
@@ -3620,7 +3620,9 @@ def users(request):
                 for config_row in config_result.result_rows:
                     asset_config_map[config_row[0]] = {
                         "decimals": int(config_row[1]) if config_row[1] else 18,
-                        "predicted_price": float(config_row[2]) if config_row[2] else 0,
+                        "historical_event_price": float(config_row[2])
+                        if config_row[2]
+                        else 0,
                         "liquidation_threshold": float(config_row[3]) / 10000
                         if config_row[3]
                         else 0,
@@ -3651,7 +3653,7 @@ def users(request):
                     ] / (10**decimals)
 
                     # Add configuration data
-                    balance["predicted_price"] = config["predicted_price"]
+                    balance["historical_event_price"] = config["historical_event_price"]
                     balance["liquidation_threshold"] = config["liquidation_threshold"]
                     balance["liquidation_bonus"] = config["liquidation_bonus"]
                     balance["emode_liquidation_threshold"] = config[
@@ -3663,7 +3665,7 @@ def users(request):
                 else:
                     balance["collateral_balance"] = 0
                     balance["variable_debt_balance"] = 0
-                    balance["predicted_price"] = 0
+                    balance["historical_event_price"] = 0
                     balance["liquidation_threshold"] = 0
                     balance["liquidation_bonus"] = 0
                     balance["emode_liquidation_threshold"] = 0
@@ -4306,16 +4308,17 @@ def debt_metrics(request):
         users_result = clickhouse_client.execute_query(users_query)
         total_users = users_result.result_rows[0][0] if users_result.result_rows else 0
 
-        # Query 2: Breakdown of assets and amount in USD borrowed per asset
+        # Query 2: Breakdown of assets with debt and collateral amounts in USD per asset
         # Using JOIN with view instead of dictionary lookups for better price data
         assets_query = """
         WITH current_balances AS (
             SELECT
                 lb.user,
                 lb.asset,
-                floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance
+                floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance,
+                floor((toInt256(lb.collateral_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS collateral_balance
             FROM aave_ethereum.LatestBalances_v2_Memory AS lb
-            WHERE lb.variable_debt_scaled_balance > 0
+            WHERE lb.variable_debt_scaled_balance > 0 OR lb.collateral_scaled_balance > 0
         )
         SELECT
             cb.asset,
@@ -4329,6 +4332,12 @@ def debt_metrics(request):
                 CAST(ac.decimals_places AS Float64) *
                 CAST(ac.historical_event_price AS Float64)
             ) AS total_debt_usd,
+            sum(cb.collateral_balance) AS total_collateral_balance,
+            sum(
+                CAST(cb.collateral_balance AS Float64) /
+                CAST(ac.decimals_places AS Float64) *
+                CAST(ac.historical_event_price AS Float64)
+            ) AS total_collateral_usd,
             COUNT(DISTINCT cb.user) AS users_count
         FROM current_balances AS cb
         LEFT JOIN aave_ethereum.view_LatestAssetConfiguration AS ac ON cb.asset = ac.asset
@@ -4350,7 +4359,9 @@ def debt_metrics(request):
                     "price_usd": float(row[4]) if row[4] else 0,
                     "total_debt_balance": float(row[5]) if row[5] else 0,
                     "total_debt_usd": float(row[6]) if row[6] else 0,
-                    "users_count": int(row[7]) if row[7] else 0,
+                    "total_collateral_balance": float(row[7]) if row[7] else 0,
+                    "total_collateral_usd": float(row[8]) if row[8] else 0,
+                    "users_count": int(row[9]) if row[9] else 0,
                 }
             )
 

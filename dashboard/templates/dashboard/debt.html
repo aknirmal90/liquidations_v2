@@ -139,7 +139,7 @@
                     <th>Asset</th>
                     <th>Symbol</th>
                     <th class="text-end">Total Debt (USD)</th>
-                    <th class="text-end">Total Debt (Balance)</th>
+                    <th class="text-end">Total Collateral (USD)</th>
                     <th class="text-end">Price (USD)</th>
                     <th class="text-end">Users Count</th>
                 </tr>
@@ -193,9 +193,11 @@
                     maximumFractionDigits: 2
                 });
 
-                const debtBalance = (asset.total_debt_balance / asset.decimals_places).toLocaleString('en-US', {
+                const collateralUSD = asset.total_collateral_usd.toLocaleString('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
                     minimumFractionDigits: 2,
-                    maximumFractionDigits: 4
+                    maximumFractionDigits: 2
                 });
 
                 const priceUSD = asset.price_usd.toLocaleString('en-US', {
@@ -212,7 +214,7 @@
                     </td>
                     <td><strong>${asset.asset_symbol}</strong></td>
                     <td class="text-end"><strong>${debtUSD}</strong></td>
-                    <td class="text-end">${debtBalance}</td>
+                    <td class="text-end">${collateralUSD}</td>
                     <td class="text-end">${priceUSD}</td>
                     <td class="text-end">${asset.users_count.toLocaleString()}</td>
                 `;
