@@ -548,6 +548,132 @@
             </div>
         </div>
     </div>
+
+    <!-- Liquidity Index Test Card -->
+    <div class="col-12 col-lg-6 mb-4">
+        <div class="card test-type-card" onclick="window.location.href='{% url 'dashboard:liquidity_index_tests' %}'">
+            <div class="card-body py-4">
+                <div class="d-flex align-items-center">
+                    <div class="test-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="test-info">
+                        <div class="test-name">Collateral Liquidity Index</div>
+                        <div class="test-description">
+                            Validates collateral liquidity indices between ClickHouse and Pool.getReserveData (exact match)
+                        </div>
+                        {% if liquidity_index_summary %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Last Run</div>
+                                <div class="test-meta-value">{{ liquidity_index_summary.test_timestamp|date:"M d, H:i" }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Match Rate</div>
+                                <div class="test-meta-value match-percentage {% if liquidity_index_summary.match_percentage >= 99 %}match-high{% elif liquidity_index_summary.match_percentage >= 95 %}match-medium{% else %}match-low{% endif %}">
+                                    {{ liquidity_index_summary.match_percentage|floatformat:2 }}%
+                                </div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Total Assets</div>
+                                <div class="test-meta-value">{{ liquidity_index_summary.total_assets }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Avg Diff (bps)</div>
+                                <div class="test-meta-value">{{ liquidity_index_summary.avg_difference_bps|floatformat:2 }}</div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Status</div>
+                                <div class="test-meta-value text-muted">No tests run yet</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if liquidity_index_summary %}
+                    <span class="status-badge status-{{ liquidity_index_summary.test_status }}">
+                        {% if liquidity_index_summary.test_status == 'completed' %}
+                            <i class="fas fa-check-circle me-1"></i>
+                        {% else %}
+                            <i class="fas fa-exclamation-circle me-1"></i>
+                        {% endif %}
+                        {{ liquidity_index_summary.test_status }}
+                    </span>
+                    {% else %}
+                    <span class="status-badge status-pending">
+                        <i class="fas fa-clock me-1"></i>
+                        Pending
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Variable Borrow Index Test Card -->
+    <div class="col-12 col-lg-6 mb-4">
+        <div class="card test-type-card" onclick="window.location.href='{% url 'dashboard:variable_borrow_index_tests' %}'">
+            <div class="card-body py-4">
+                <div class="d-flex align-items-center">
+                    <div class="test-icon" style="background: linear-gradient(135deg, #ec4899, #db2777);">
+                        <i class="fas fa-percent"></i>
+                    </div>
+                    <div class="test-info">
+                        <div class="test-name">Variable Borrow Index</div>
+                        <div class="test-description">
+                            Validates variable borrow indices between ClickHouse and Pool.getReserveData (exact match)
+                        </div>
+                        {% if variable_borrow_index_summary %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Last Run</div>
+                                <div class="test-meta-value">{{ variable_borrow_index_summary.test_timestamp|date:"M d, H:i" }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Match Rate</div>
+                                <div class="test-meta-value match-percentage {% if variable_borrow_index_summary.match_percentage >= 99 %}match-high{% elif variable_borrow_index_summary.match_percentage >= 95 %}match-medium{% else %}match-low{% endif %}">
+                                    {{ variable_borrow_index_summary.match_percentage|floatformat:2 }}%
+                                </div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Total Assets</div>
+                                <div class="test-meta-value">{{ variable_borrow_index_summary.total_assets }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Avg Diff (bps)</div>
+                                <div class="test-meta-value">{{ variable_borrow_index_summary.avg_difference_bps|floatformat:2 }}</div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Status</div>
+                                <div class="test-meta-value text-muted">No tests run yet</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if variable_borrow_index_summary %}
+                    <span class="status-badge status-{{ variable_borrow_index_summary.test_status }}">
+                        {% if variable_borrow_index_summary.test_status == 'completed' %}
+                            <i class="fas fa-check-circle me-1"></i>
+                        {% else %}
+                            <i class="fas fa-exclamation-circle me-1"></i>
+                        {% endif %}
+                        {{ variable_borrow_index_summary.test_status }}
+                    </span>
+                    {% else %}
+                    <span class="status-badge status-pending">
+                        <i class="fas fa-clock me-1"></i>
+                        Pending
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

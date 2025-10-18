@@ -3924,6 +3924,80 @@ def tests(request):
                 "error_message": row[10],
             }
 
+        # Get the latest liquidity index test summary
+        liquidity_index_query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message
+        FROM aave_ethereum.LiquidityIndexTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        liquidity_index_result = clickhouse_client.execute_query(liquidity_index_query)
+
+        liquidity_index_summary = None
+        if liquidity_index_result.result_rows:
+            row = liquidity_index_result.result_rows[0]
+            liquidity_index_summary = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+            }
+
+        # Get the latest variable borrow index test summary
+        variable_borrow_index_query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message
+        FROM aave_ethereum.VariableBorrowIndexTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        variable_borrow_index_result = clickhouse_client.execute_query(
+            variable_borrow_index_query
+        )
+
+        variable_borrow_index_summary = None
+        if variable_borrow_index_result.result_rows:
+            row = variable_borrow_index_result.result_rows[0]
+            variable_borrow_index_summary = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+            }
+
         context = {
             "reserve_test_summary": reserve_test_summary,
             "emode_test_summary": emode_test_summary,
@@ -3931,6 +4005,8 @@ def tests(request):
             "collateral_balance_summary": collateral_balance_summary,
             "debt_balance_summary": debt_balance_summary,
             "health_factor_summary": health_factor_summary,
+            "liquidity_index_summary": liquidity_index_summary,
+            "variable_borrow_index_summary": variable_borrow_index_summary,
         }
 
         return render(request, "dashboard/tests.html", context)
