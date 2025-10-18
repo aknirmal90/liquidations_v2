@@ -4341,7 +4341,6 @@ def debt_metrics(request):
             COUNT(DISTINCT cb.user) AS users_count
         FROM current_balances AS cb
         LEFT JOIN aave_ethereum.view_LatestAssetConfiguration AS ac ON cb.asset = ac.asset
-        WHERE cb.debt_balance > 0
         GROUP BY cb.asset, ac.name, ac.symbol, ac.decimals_places, ac.historical_event_price
         ORDER BY total_debt_usd DESC
         """
