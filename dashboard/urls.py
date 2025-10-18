@@ -106,6 +106,16 @@ urlpatterns = [
         views.health_factor_tests,
         name="health_factor_tests",
     ),
+    path(
+        "tests/liquidity-index/",
+        views.liquidity_index_tests,
+        name="liquidity_index_tests",
+    ),
+    path(
+        "tests/variable-borrow-index/",
+        views.variable_borrow_index_tests,
+        name="variable_borrow_index_tests",
+    ),
     path("debt/", views.debt, name="debt"),
     path("api/debt-metrics/", views.debt_metrics, name="debt_metrics"),
     path(

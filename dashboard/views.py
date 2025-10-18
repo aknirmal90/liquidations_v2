@@ -4281,6 +4281,122 @@ def health_factor_tests(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
+@csrf_exempt
+@require_http_methods(["GET"])
+def liquidity_index_tests(request):
+    """Collateral liquidity index test detail page with history"""
+    try:
+        # Get the latest test results
+        query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message,
+            mismatches_detail
+        FROM aave_ethereum.LiquidityIndexTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 50
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        test_results = []
+        for row in result.result_rows:
+            test = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+                "mismatches_detail": row[10],
+            }
+            test_results.append(test)
+
+        # Get latest test summary
+        latest_test = test_results[0] if test_results else None
+
+        context = {
+            "test_results": test_results,
+            "latest_test": latest_test,
+        }
+
+        return render(request, "dashboard/liquidity_index_tests.html", context)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET"])
+def variable_borrow_index_tests(request):
+    """Variable borrow index test detail page with history"""
+    try:
+        # Get the latest test results
+        query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message,
+            mismatches_detail
+        FROM aave_ethereum.VariableBorrowIndexTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 50
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        test_results = []
+        for row in result.result_rows:
+            test = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+                "mismatches_detail": row[10],
+            }
+            test_results.append(test)
+
+        # Get latest test summary
+        latest_test = test_results[0] if test_results else None
+
+        context = {
+            "test_results": test_results,
+            "latest_test": latest_test,
+        }
+
+        return render(request, "dashboard/variable_borrow_index_tests.html", context)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
 def debt(request):
     """Debt dashboard page - displays debt metrics"""
     return render(request, "dashboard/debt.html")
