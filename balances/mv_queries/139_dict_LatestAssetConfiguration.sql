@@ -17,7 +17,9 @@ CREATE DICTIONARY IF NOT EXISTS aave_ethereum.dict_latest_asset_configuration
     decimals UInt8,
     decimals_places UInt256,
     historical_event_price Float64,
-    predicted_transaction_price UInt256
+    predicted_transaction_price UInt256,
+    max_collateral_liquidityIndex UInt256,
+    max_variable_debt_liquidityIndex UInt256
 )
 PRIMARY KEY asset
 SOURCE(CLICKHOUSE(
@@ -28,5 +30,5 @@ SOURCE(CLICKHOUSE(
     DB 'aave_ethereum'
     TABLE 'view_LatestAssetConfiguration'
 ))
-LAYOUT(HASHED())
+LAYOUT(COMPLEX_KEY_HASHED())
 LIFETIME(MIN 1 MAX 1);

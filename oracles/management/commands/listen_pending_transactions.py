@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 
 import orjson as json
 import websockets
@@ -7,6 +8,7 @@ from django.core.cache import cache
 from django.core.management.base import BaseCommand
 
 from oracles.management.commands.listen_base import WebsocketCommand
+from oracles.tasks import RecordTransactionTimingTask
 from utils.oracle import (
     InvalidMethodSignature,
     InvalidObservations,
@@ -122,6 +124,17 @@ class Command(WebsocketCommand, BaseCommand):
                 try:
                     # Parse the forwarder call
                     parsed_data = parse_forwarder_call(tx_data["input"])
+
+                    # Record unconfirmed transaction timing with oracle address
+                    tx_hash = tx_data.get("hash")
+                    oracle_address = parsed_data.get("oracle_address")
+                    if tx_hash and oracle_address:
+                        asyncio.create_task(
+                            self._record_unconfirmed_transaction(
+                                tx_hash, oracle_address
+                            )
+                        )
+
                     await self.handle_oracle_update(parsed_data, tx_data)
                     self.processed_transactions += 1
 
@@ -179,3 +192,37 @@ class Command(WebsocketCommand, BaseCommand):
         except Exception as e:
             logger.error(f"Error filtering transaction: {e}")
             return False
+
+    async def _record_unconfirmed_transaction(self, tx_hash: str, oracle_address: str):
+        """
+        Record the unconfirmed transaction timestamp in ClickHouse.
+
+        Args:
+            tx_hash: The transaction hash
+            oracle_address: The oracle address from the parsed transaction
+        """
+        try:
+            unconfirmed_ts = int(time.time())
+
+            # Get asset sources for this oracle address
+            asset_sources = cache.get(f"underlying_asset_source_{oracle_address}")
+
+            if asset_sources:
+                # Record timing for each asset source
+                for asset, asset_source in asset_sources:
+                    RecordTransactionTimingTask.delay(
+                        tx_hash=tx_hash,
+                        asset_source=asset_source,
+                        unconfirmed_tx_ts=unconfirmed_ts,
+                        confirmed_tx_ts=0,
+                        mev_share_ts=0,
+                    )
+                    logger.debug(
+                        f"Recorded unconfirmed tx {tx_hash} for asset_source {asset_source}"
+                    )
+            else:
+                logger.warning(
+                    f"No asset sources found for oracle {oracle_address}, skipping timing record"
+                )
+        except Exception as e:
+            logger.error(f"Error recording unconfirmed transaction {tx_hash}: {e}")

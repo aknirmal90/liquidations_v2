@@ -40,6 +40,10 @@ def handle_events(sender, instance, **kwargs):
         logger.info("Processing LiquidationCall event")
         handle_liquidation_call(instance)
 
+    if instance.name == "ReserveDataUpdated":
+        logger.info("Processing ReserveDataUpdated event")
+        handle_reserve_data_updated(instance)
+
 
 def handle_new_reserve(instance: Event):
     all_reserves_initialized_rows = clickhouse_client.select_event_rows(instance)
@@ -100,3 +104,8 @@ def handle_liquidation_call(instance: Event):
 
 
 pre_save.connect(handle_events, sender=Event)
+
+
+def handle_reserve_data_updated(instance: Event):
+    clickhouse_client.optimize_table("CollateralLiquidityIndex")
+    clickhouse_client.optimize_table("DebtLiquidityIndex")

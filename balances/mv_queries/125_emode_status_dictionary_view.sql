@@ -13,5 +13,5 @@ SOURCE(CLICKHOUSE(
     DB 'aave_ethereum'
     TABLE 'EModeStatusDictionary'
 ))
-LAYOUT(HASHED())
+LAYOUT(COMPLEX_KEY_HASHED())
 LIFETIME(MIN 15 MAX 15);

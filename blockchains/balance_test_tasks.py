@@ -8,8 +8,11 @@ These tasks validate:
 Against getUserReserveData RPC calls.
 """
 
+import csv
 import logging
+import os
 import time
+from math import ceil, floor
 from typing import Any, Dict, List, Tuple
 
 from celery import Task
@@ -29,30 +32,27 @@ class CompareCollateralBalanceTask(Task):
     Match criteria: |difference| / rpc_balance < 0.0001 (1 bps)
     """
 
-    def run(self):
+    def run(self, csv_output_path: str = "/tmp", fix_errors: bool = False):
         """
-        Execute the collateral balance comparison test.
+        Execute the collateral balance comparison test using CSV export.
+
+        Args:
+            csv_output_path: Path to store the CSV file
+            fix_errors: If True, fix detected errors by un-scaling, correcting, and re-scaling
 
         Returns:
             Dict[str, Any]: Test results summary
         """
-        logger.info("Starting CompareCollateralBalanceTask")
+        logger.info("Starting CompareCollateralBalanceTask with CSV export method")
+        if fix_errors:
+            logger.info("Error correction is ENABLED - will fix mismatched balances")
         start_time = time.time()
 
         try:
-            # Get the offset for the next batch
-            batch_offset = self._get_last_batch_offset()
-
-            # Get user-asset pairs to test (only those with non-zero balances)
-            user_asset_pairs = self._get_user_asset_pairs_with_balances(batch_offset)
-            total_pairs = len(user_asset_pairs)
-            logger.info(
-                f"Retrieved {total_pairs} user-asset pairs to test "
-                f"(offset: {batch_offset})"
-            )
-
-            if total_pairs == 0:
-                logger.info("No user-asset pairs to test")
+            # Step 1: Export all user-asset pairs with collateral to CSV
+            csv_filepath = self._export_collateral_pairs_to_csv(csv_output_path)
+            if not csv_filepath:
+                logger.info("No user-asset pairs with collateral to test")
                 return {
                     "status": "completed",
                     "test_duration": time.time() - start_time,
@@ -61,26 +61,17 @@ class CompareCollateralBalanceTask(Task):
                     "mismatched_records": 0,
                 }
 
-            # Get ClickHouse computed balances
-            clickhouse_data = self._get_clickhouse_collateral_balances(user_asset_pairs)
-            logger.info(
-                f"Retrieved {len(clickhouse_data)} collateral balances from ClickHouse"
-            )
-
-            # Get RPC balances in batches of 100
-            rpc_data = self._get_rpc_balances_batched(user_asset_pairs, batch_size=100)
-            logger.info(f"Retrieved {len(rpc_data)} collateral balances from RPC")
-
-            # Compare the balances
-            comparison_results = self._compare_collateral_balances(
-                clickhouse_data, rpc_data
+            # Step 2: Read CSV and compare balances
+            logger.info(f"Reading user-asset pairs from {csv_filepath}")
+            comparison_results = self._compare_from_csv(
+                csv_filepath, fix_errors=fix_errors
             )
 
             # Calculate test duration
             test_duration = time.time() - start_time
 
             # Store results in ClickHouse
-            self._store_test_results(comparison_results, test_duration, batch_offset)
+            self._store_test_results(comparison_results, test_duration, 0)
 
             # Clean up old test records
             self._cleanup_old_test_records()
@@ -93,6 +84,13 @@ class CompareCollateralBalanceTask(Task):
             # Send notification if mismatches found
             if comparison_results["mismatched_records"] > 0:
                 self._send_mismatch_notification(comparison_results)
+
+            # Clean up CSV file
+            try:
+                os.remove(csv_filepath)
+                logger.info(f"Cleaned up CSV file: {csv_filepath}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up CSV file: {e}")
 
             return {
                 "status": "completed",
@@ -109,146 +107,155 @@ class CompareCollateralBalanceTask(Task):
 
             return {"status": "error", "error": error_msg}
 
-    def _get_last_batch_offset(self):
-        """Get the offset of the last successful test run."""
-        query = """
-        SELECT batch_offset
-        FROM aave_ethereum.CollateralBalanceTestResults
-        WHERE test_status = 'completed'
-        ORDER BY test_timestamp DESC
-        LIMIT 1
+    def _export_collateral_pairs_to_csv(self, output_path: str):
         """
-
-        result = clickhouse_client.execute_query(query)
-
-        if result.result_rows:
-            last_offset = result.result_rows[0][0]
-            # Return next offset (increment by batch size)
-            return last_offset + 10000
-        return 0
-
-    def _get_user_asset_pairs_with_balances(self, offset: int) -> List[Tuple[str, str]]:
-        """
-        Get list of (user, asset) pairs that have non-zero collateral balance.
-
-        Args:
-            offset: Offset to start from for pagination
+        Export all user-asset pairs with non-zero collateral from LatestBalances_v2 to CSV.
+        Includes scaled_balance and current_index for quick reference.
 
         Returns:
-            List[Tuple[str, str]]: List of (user, asset) tuples
+            CSV file path, or None if no pairs found
         """
-        # Query LatestBalances for pairs with non-zero collateral
-        # Use deterministic ordering and pagination
-        query = """
-        SELECT toString(user) as user, toString(asset) as asset
-        FROM aave_ethereum.LatestBalances
-        GROUP BY user, asset
-        HAVING sumMerge(collateral_balance) > 0
-        ORDER BY user, asset
-        LIMIT 10000 OFFSET %(offset)s
+        try:
+            logger.info("Exporting collateral user-asset pairs to CSV")
+
+            csv_filename = f"collateral_pairs_{int(time.time())}.csv"
+            csv_filepath = os.path.join(output_path, csv_filename)
+
+            total_pairs = 0
+            batch_size = 1000
+            offset = 0
+
+            with open(csv_filepath, "w", newline="") as csvfile:
+                fieldnames = [
+                    "user",
+                    "asset",
+                    "scaled_balance",
+                    "current_index",
+                ]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+
+                while True:
+                    query = """
+                    SELECT
+                        user,
+                        asset,
+                        collateral_scaled_balance as scaled_balance,
+                        dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'liquidityIndex', asset, toUInt256(0)) as current_index
+                    FROM aave_ethereum.LatestBalances_v2
+                    WHERE collateral_scaled_balance > 0
+                    ORDER BY user, asset
+                    LIMIT %(batch_size)s OFFSET %(offset)s
+                    """
+
+                    result = clickhouse_client.execute_query(
+                        query, parameters={"batch_size": batch_size, "offset": offset}
+                    )
+
+                    if not result.result_rows:
+                        break
+
+                    for row in result.result_rows:
+                        writer.writerow(
+                            {
+                                "user": row[0],
+                                "asset": row[1],
+                                "scaled_balance": row[2],
+                                "current_index": row[3],
+                            }
+                        )
+
+                    total_pairs += len(result.result_rows)
+                    offset += batch_size
+                    logger.info(f"Exported {total_pairs} collateral pairs so far...")
+
+                    if len(result.result_rows) < batch_size:
+                        break
+
+            if total_pairs == 0:
+                logger.info("No collateral pairs found")
+                os.remove(csv_filepath)
+                return None
+
+            logger.info(f"Exported {total_pairs} collateral pairs to {csv_filepath}")
+            return csv_filepath
+
+        except Exception as e:
+            logger.error(f"Error exporting collateral pairs to CSV: {e}", exc_info=True)
+            return None
+
+    def _compare_from_csv(
+        self, csv_filepath: str, fix_errors: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Read user-asset pairs from CSV, calculate ClickHouse balances,
+        fetch RPC balances, and compare them.
+
+        Args:
+            csv_filepath: Path to CSV file with user-asset pairs
+            fix_errors: If True, fix detected errors by reinserting corrected values
+
+        Returns:
+            Dict containing comparison statistics
         """
 
         try:
-            result = clickhouse_client.execute_query(
-                query, parameters={"offset": offset}
+            # Read all pairs from CSV
+            user_asset_pairs = []
+            clickhouse_data = {}
+            current_indices = {}
+
+            with open(csv_filepath, "r") as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    user = row["user"].lower()
+                    asset = row["asset"].lower()
+                    pair = (user, asset)
+                    user_asset_pairs.append(pair)
+
+                    # Calculate ClickHouse balance using ray math: underlying = floor((scaled * liquidityIndex) / RAY)
+                    # where RAY = 1e27
+                    scaled_balance = float(row["scaled_balance"])
+                    current_index = float(row["current_index"])
+                    RAY = 1e27
+
+                    if current_index > 0:
+                        underlying_balance = int(
+                            floor(scaled_balance * current_index / RAY)
+                        )
+                    else:
+                        underlying_balance = 0
+
+                    clickhouse_data[pair] = underlying_balance
+                    current_indices[asset] = current_index
+
+            logger.info(f"Loaded {len(user_asset_pairs)} user-asset pairs from CSV")
+            logger.info(f"Calculated {len(clickhouse_data)} ClickHouse balances")
+
+            # Get RPC balances in batches of 100
+            rpc_data = self._get_rpc_balances_batched(user_asset_pairs, batch_size=100)
+            logger.info(f"Retrieved {len(rpc_data)} collateral balances from RPC")
+
+            # Compare the balances
+            comparison_results = self._compare_collateral_balances(
+                clickhouse_data, rpc_data
             )
 
-            if not result or not result.result_rows:
-                logger.warning("No user-asset pairs with collateral balances found")
-                return []
+            # Fix errors if requested
+            if fix_errors and comparison_results["mismatched_records"] > 0:
+                logger.info("Fixing mismatched collateral balances...")
+                fix_results = self._fix_mismatched_balances(
+                    clickhouse_data, rpc_data, current_indices
+                )
+                comparison_results["fixed_count"] = fix_results["fixed_count"]
+            else:
+                comparison_results["fixed_count"] = 0
 
-            pairs = [(str(row[0]), str(row[1])) for row in result.result_rows]
-            logger.info(f"Found {len(pairs)} user-asset pairs with collateral balances")
-            return pairs
+            return comparison_results
 
         except Exception as e:
-            logger.error(f"Error fetching user-asset pairs: {e}", exc_info=True)
+            logger.error(f"Error comparing from CSV: {e}", exc_info=True)
             raise
-
-    def _get_clickhouse_collateral_balances(
-        self, user_asset_pairs: List[Tuple[str, str]]
-    ) -> Dict[Tuple[str, str], float]:
-        """
-        Get scaled collateral balances from ClickHouse.
-
-        Formula: sumMerge(collateral_balance) * (max_global_index / maxMerge(user_index))
-
-        Args:
-            user_asset_pairs: List of (user, asset) tuples
-
-        Returns:
-            Dict mapping (user, asset) to scaled balance
-        """
-        if not user_asset_pairs:
-            return {}
-
-        logger.info(
-            f"Querying ClickHouse for collateral balances of {len(user_asset_pairs)} pairs"
-        )
-
-        collateral_balances = {}
-        batch_size = 500
-
-        for i in range(0, len(user_asset_pairs), batch_size):
-            batch = user_asset_pairs[i : i + batch_size]
-            logger.info(
-                f"Querying ClickHouse batch {i // batch_size + 1}/{(len(user_asset_pairs) + batch_size - 1) // batch_size} "
-                f"({len(batch)} pairs)"
-            )
-
-            users_in_batch = list(set([user for user, _ in batch]))
-            assets_in_batch = list(set([asset for _, asset in batch]))
-
-            # Query with scaling logic - JOIN with MaxLiquidityIndex instead of dictGet
-            query = """
-            SELECT
-                balances.user,
-                balances.asset,
-                balances.raw_balance,
-                balances.user_index,
-                max_idx.max_collateral_liquidityIndex as max_index
-            FROM (
-                SELECT
-                    toString(lb.user) as user,
-                    toString(lb.asset) as asset,
-                    sumMerge(lb.collateral_balance) as raw_balance,
-                    maxMerge(lb.collateral_liquidityIndex) as user_index
-                FROM aave_ethereum.LatestBalances lb
-                WHERE lb.user IN %(users)s AND lb.asset IN %(assets)s
-                GROUP BY toString(lb.user), toString(lb.asset)
-                HAVING sumMerge(lb.collateral_balance) > 0
-            ) AS balances
-            LEFT JOIN aave_ethereum.MaxLiquidityIndex max_idx
-                ON balances.asset = max_idx.asset
-            """
-
-            parameters = {"users": users_in_batch, "assets": assets_in_batch}
-            result = clickhouse_client.execute_query(query, parameters=parameters)
-
-            batch_set = set(batch)
-            for row in result.result_rows:
-                user = str(row[0]).lower()
-                asset = str(row[1]).lower()
-                pair = (user, asset)
-
-                if pair in batch_set or (row[0], row[1]) in batch_set:
-                    raw_balance = float(row[2])
-                    user_index = float(row[3])
-                    max_index = float(row[4])
-
-                    # Scale the balance: raw_balance * (max_index / user_index)
-                    if user_index > 0:
-                        scaled_balance = raw_balance * (max_index / user_index)
-                    else:
-                        scaled_balance = 0
-
-                    collateral_balances[pair] = scaled_balance
-
-        logger.info(
-            f"Retrieved {len(collateral_balances)} collateral balances from ClickHouse"
-        )
-
-        return collateral_balances
 
     def _get_rpc_balances_batched(
         self, user_asset_pairs: List[Tuple[str, str]], batch_size: int = 100
@@ -326,19 +333,19 @@ class CompareCollateralBalanceTask(Task):
             rpc_balance = rpc_data[pair]
 
             # Skip if RPC balance is zero (can't calculate percentage)
-            if rpc_balance == 0:
-                if ch_balance == 0:
+            if ch_balance == 0:
+                if rpc_balance == 0:
                     matching_count += 1
                 continue
 
             # Calculate difference in basis points
             difference = abs(ch_balance - rpc_balance)
-            difference_bps = (difference / rpc_balance) * 10000
+            difference_bps = (difference / ch_balance) * 10000
 
             differences_bps.append(difference_bps)
 
             # Match if difference < 1 bps
-            if difference_bps < 100.0:
+            if difference_bps < 1.0:
                 matching_count += 1
             else:
                 mismatched_count += 1
@@ -459,6 +466,113 @@ class CompareCollateralBalanceTask(Task):
         except Exception as e:
             logger.error(f"Failed to cleanup old test records: {e}")
 
+    def _fix_mismatched_balances(
+        self,
+        clickhouse_data: Dict[Tuple[str, str], float],
+        rpc_data: Dict[Tuple[str, str], float],
+        current_indices: Dict[str, float],
+    ) -> Dict[str, int]:
+        """
+        Fix mismatched collateral balances by un-scaling, correcting, and re-scaling.
+
+        Args:
+            clickhouse_data: Collateral balances from ClickHouse
+            rpc_data: Collateral balances from RPC
+            current_indices: Current liquidity indices by asset
+
+        Returns:
+            Dict with count of fixed records
+        """
+        RAY = 1e27
+        fixed_count = 0
+        updates = []
+
+        common_pairs = set(clickhouse_data.keys()) & set(rpc_data.keys())
+
+        for pair in common_pairs:
+            ch_balance = clickhouse_data[pair]
+            rpc_balance = rpc_data[pair]
+            user, asset = pair
+
+            # Skip if balances match within tolerance
+            if ch_balance == 0:
+                if rpc_balance == 0:
+                    continue
+
+            difference = abs(ch_balance - rpc_balance)
+            difference_bps = (difference / ch_balance) * 10000 if ch_balance > 0 else 0
+
+            # Only fix if difference >= 1 bps (10 in our scale)
+            if difference_bps < 1.0:
+                continue
+
+            # Get current liquidity index for this asset
+            current_index = current_indices.get(asset.lower(), 0)
+            if current_index == 0:
+                logger.warning(f"No liquidity index found for asset {asset}, skipping")
+                continue
+
+            # Calculate corrected scaled balance using RPC value
+            # scaled = floor((underlying * RAY) / liquidityIndex)
+            corrected_scaled_balance = int(floor(rpc_balance * RAY / current_index))
+
+            updates.append(
+                {
+                    "user": user,
+                    "asset": asset,
+                    "corrected_scaled_balance": corrected_scaled_balance,
+                }
+            )
+            fixed_count += 1
+
+            logger.info(
+                f"Fixing collateral for ({user},{asset}): "
+                f"CH={ch_balance:.2f} RPC={rpc_balance:.2f} "
+                f"new_scaled={corrected_scaled_balance}"
+            )
+
+        # Batch update ClickHouse
+        if updates:
+            self._batch_update_collateral_balances(updates)
+            logger.info(f"Fixed {fixed_count} mismatched collateral balances")
+        else:
+            logger.info("No collateral balances to fix")
+
+        return {"fixed_count": fixed_count}
+
+    def _batch_update_collateral_balances(self, updates: List[Dict[str, Any]]):
+        """
+        Batch update collateral scaled balances in LatestBalances_v2.
+
+        Args:
+            updates: List of dicts with user, asset, and corrected_scaled_balance
+        """
+        if not updates:
+            return
+
+        # Use ReplacingMergeTree behavior - insert new rows with updated_at = now
+        query = """
+        INSERT INTO aave_ethereum.LatestBalances_v2
+        (user, asset, collateral_scaled_balance, variable_debt_scaled_balance, updated_at)
+        SELECT
+            %(user)s as user,
+            %(asset)s as asset,
+            %(corrected_scaled_balance)s as collateral_scaled_balance,
+            variable_debt_scaled_balance,
+            now64() as updated_at
+        FROM aave_ethereum.LatestBalances_v2
+        WHERE user = %(user)s AND asset = %(asset)s
+        LIMIT 1
+        """
+
+        for update in updates:
+            try:
+                clickhouse_client.execute_query(query, parameters=update)
+            except Exception as e:
+                logger.error(
+                    f"Failed to update balance for {update['user']}, {update['asset']}: {e}"
+                )
+
 
 class CompareDebtBalanceTask(Task):
     """
@@ -470,30 +584,27 @@ class CompareDebtBalanceTask(Task):
     Match criteria: |difference| / rpc_balance < 0.0001 (1 bps)
     """
 
-    def run(self):
+    def run(self, csv_output_path: str = "/tmp", fix_errors: bool = False):
         """
-        Execute the debt balance comparison test.
+        Execute the debt balance comparison test using CSV export.
+
+        Args:
+            csv_output_path: Path to store the CSV file
+            fix_errors: If True, fix detected errors by un-scaling, correcting, and re-scaling
 
         Returns:
             Dict[str, Any]: Test results summary
         """
-        logger.info("Starting CompareDebtBalanceTask")
+        logger.info("Starting CompareDebtBalanceTask with CSV export method")
+        if fix_errors:
+            logger.info("Error correction is ENABLED - will fix mismatched balances")
         start_time = time.time()
 
         try:
-            # Get the offset for the next batch
-            batch_offset = self._get_last_batch_offset()
-
-            # Get user-asset pairs to test (only those with non-zero balances)
-            user_asset_pairs = self._get_user_asset_pairs_with_balances(batch_offset)
-            total_pairs = len(user_asset_pairs)
-            logger.info(
-                f"Retrieved {total_pairs} user-asset pairs to test "
-                f"(offset: {batch_offset})"
-            )
-
-            if total_pairs == 0:
-                logger.info("No user-asset pairs to test")
+            # Step 1: Export all user-asset pairs with debt to CSV
+            csv_filepath = self._export_debt_pairs_to_csv(csv_output_path)
+            if not csv_filepath:
+                logger.info("No user-asset pairs with debt to test")
                 return {
                     "status": "completed",
                     "test_duration": time.time() - start_time,
@@ -502,24 +613,17 @@ class CompareDebtBalanceTask(Task):
                     "mismatched_records": 0,
                 }
 
-            # Get ClickHouse computed balances
-            clickhouse_data = self._get_clickhouse_debt_balances(user_asset_pairs)
-            logger.info(
-                f"Retrieved {len(clickhouse_data)} debt balances from ClickHouse"
+            # Step 2: Read CSV and compare balances
+            logger.info(f"Reading user-asset pairs from {csv_filepath}")
+            comparison_results = self._compare_from_csv(
+                csv_filepath, fix_errors=fix_errors
             )
-
-            # Get RPC balances in batches of 100
-            rpc_data = self._get_rpc_balances_batched(user_asset_pairs, batch_size=100)
-            logger.info(f"Retrieved {len(rpc_data)} debt balances from RPC")
-
-            # Compare the balances
-            comparison_results = self._compare_debt_balances(clickhouse_data, rpc_data)
 
             # Calculate test duration
             test_duration = time.time() - start_time
 
             # Store results in ClickHouse
-            self._store_test_results(comparison_results, test_duration, batch_offset)
+            self._store_test_results(comparison_results, test_duration, 0)
 
             # Clean up old test records
             self._cleanup_old_test_records()
@@ -532,6 +636,13 @@ class CompareDebtBalanceTask(Task):
             # Send notification if mismatches found
             if comparison_results["mismatched_records"] > 0:
                 self._send_mismatch_notification(comparison_results)
+
+            # Clean up CSV file
+            try:
+                os.remove(csv_filepath)
+                logger.info(f"Cleaned up CSV file: {csv_filepath}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up CSV file: {e}")
 
             return {
                 "status": "completed",
@@ -548,144 +659,152 @@ class CompareDebtBalanceTask(Task):
 
             return {"status": "error", "error": error_msg}
 
-    def _get_last_batch_offset(self):
-        """Get the offset of the last successful test run."""
-        query = """
-        SELECT batch_offset
-        FROM aave_ethereum.DebtBalanceTestResults
-        WHERE test_status = 'completed'
-        ORDER BY test_timestamp DESC
-        LIMIT 1
+    def _export_debt_pairs_to_csv(self, output_path: str):
         """
-
-        result = clickhouse_client.execute_query(query)
-
-        if result.result_rows:
-            last_offset = result.result_rows[0][0]
-            # Return next offset (increment by batch size)
-            return last_offset + 10000
-        return 0
-
-    def _get_user_asset_pairs_with_balances(self, offset: int) -> List[Tuple[str, str]]:
-        """
-        Get list of (user, asset) pairs that have non-zero debt balance.
-
-        Args:
-            offset: Offset to start from for pagination
+        Export all user-asset pairs with non-zero debt from LatestBalances_v2 to CSV.
+        Includes scaled_balance and current_index for quick reference.
 
         Returns:
-            List[Tuple[str, str]]: List of (user, asset) tuples
+            CSV file path, or None if no pairs found
         """
-        # Query LatestBalances for pairs with non-zero debt
-        # Use deterministic ordering and pagination
-        query = """
-        SELECT toString(user) as user, toString(asset) as asset
-        FROM aave_ethereum.LatestBalances
-        GROUP BY user, asset
-        HAVING sumMerge(variable_debt_balance) > 0
-        ORDER BY user, asset
-        LIMIT 10000 OFFSET %(offset)s
-        """
-
         try:
-            result = clickhouse_client.execute_query(
-                query, parameters={"offset": offset}
-            )
+            logger.info("Exporting debt user-asset pairs to CSV")
 
-            if not result or not result.result_rows:
-                logger.warning("No user-asset pairs with debt balances found")
-                return []
+            csv_filename = f"debt_pairs_{int(time.time())}.csv"
+            csv_filepath = os.path.join(output_path, csv_filename)
 
-            pairs = [(str(row[0]), str(row[1])) for row in result.result_rows]
-            logger.info(f"Found {len(pairs)} user-asset pairs with debt balances")
-            return pairs
+            total_pairs = 0
+            batch_size = 1000
+            offset = 0
+
+            with open(csv_filepath, "w", newline="") as csvfile:
+                fieldnames = [
+                    "user",
+                    "asset",
+                    "scaled_balance",
+                    "current_index",
+                ]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+
+                while True:
+                    query = """
+                    SELECT
+                        user,
+                        asset,
+                        variable_debt_scaled_balance as scaled_balance,
+                        dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', asset, toUInt256(0)) as current_index
+                    FROM aave_ethereum.LatestBalances_v2
+                    WHERE variable_debt_scaled_balance > 0
+                    ORDER BY user, asset
+                    LIMIT %(batch_size)s OFFSET %(offset)s
+                    """
+
+                    result = clickhouse_client.execute_query(
+                        query, parameters={"batch_size": batch_size, "offset": offset}
+                    )
+
+                    if not result.result_rows:
+                        break
+
+                    for row in result.result_rows:
+                        writer.writerow(
+                            {
+                                "user": row[0],
+                                "asset": row[1],
+                                "scaled_balance": row[2],
+                                "current_index": row[3],
+                            }
+                        )
+
+                    total_pairs += len(result.result_rows)
+                    offset += batch_size
+                    logger.info(f"Exported {total_pairs} debt pairs so far...")
+
+                    if len(result.result_rows) < batch_size:
+                        break
+
+            if total_pairs == 0:
+                logger.info("No debt pairs found")
+                os.remove(csv_filepath)
+                return None
+
+            logger.info(f"Exported {total_pairs} debt pairs to {csv_filepath}")
+            return csv_filepath
 
         except Exception as e:
-            logger.error(f"Error fetching user-asset pairs: {e}", exc_info=True)
-            raise
+            logger.error(f"Error exporting debt pairs to CSV: {e}", exc_info=True)
+            return None
 
-    def _get_clickhouse_debt_balances(
-        self, user_asset_pairs: List[Tuple[str, str]]
-    ) -> Dict[Tuple[str, str], float]:
+    def _compare_from_csv(
+        self, csv_filepath: str, fix_errors: bool = False
+    ) -> Dict[str, Any]:
         """
-        Get scaled debt balances from ClickHouse.
-
-        Formula: sumMerge(variable_debt_balance) * (max_global_index / maxMerge(user_index))
+        Read user-asset pairs from CSV, calculate ClickHouse balances,
+        fetch RPC balances, and compare them.
 
         Args:
-            user_asset_pairs: List of (user, asset) tuples
+            csv_filepath: Path to CSV file with user-asset pairs
+            fix_errors: If True, fix detected errors by reinserting corrected values
 
         Returns:
-            Dict mapping (user, asset) to scaled balance
+            Dict containing comparison statistics
         """
-        if not user_asset_pairs:
-            return {}
+        try:
+            # Read all pairs from CSV
+            user_asset_pairs = []
+            clickhouse_data = {}
+            current_indices = {}
 
-        logger.info(
-            f"Querying ClickHouse for debt balances of {len(user_asset_pairs)} pairs"
-        )
+            with open(csv_filepath, "r") as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    user = row["user"].lower()
+                    asset = row["asset"].lower()
+                    pair = (user, asset)
+                    user_asset_pairs.append(pair)
 
-        debt_balances = {}
-        batch_size = 500
+                    # Calculate ClickHouse balance using ray math: underlying = ceil((scaled * liquidityIndex) / RAY)
+                    # where RAY = 1e27
+                    scaled_balance = float(row["scaled_balance"])
+                    current_index = float(row["current_index"])
+                    RAY = 1e27
 
-        for i in range(0, len(user_asset_pairs), batch_size):
-            batch = user_asset_pairs[i : i + batch_size]
-            logger.info(
-                f"Querying ClickHouse batch {i // batch_size + 1}/{(len(user_asset_pairs) + batch_size - 1) // batch_size} "
-                f"({len(batch)} pairs)"
-            )
-
-            users_in_batch = list(set([user for user, _ in batch]))
-            assets_in_batch = list(set([asset for _, asset in batch]))
-
-            # Query with scaling logic - JOIN with MaxLiquidityIndex instead of dictGet
-            query = """
-            SELECT
-                balances.user,
-                balances.asset,
-                balances.raw_balance,
-                balances.user_index,
-                max_idx.max_variable_debt_liquidityIndex as max_index
-            FROM (
-                SELECT
-                    toString(lb.user) as user,
-                    toString(lb.asset) as asset,
-                    sumMerge(lb.variable_debt_balance) as raw_balance,
-                    maxMerge(lb.variable_debt_liquidityIndex) as user_index
-                FROM aave_ethereum.LatestBalances lb
-                WHERE lb.user IN %(users)s AND lb.asset IN %(assets)s
-                GROUP BY toString(lb.user), toString(lb.asset)
-                HAVING sumMerge(lb.variable_debt_balance) > 0
-            ) AS balances
-            LEFT JOIN aave_ethereum.MaxLiquidityIndex max_idx
-                ON balances.asset = max_idx.asset
-            """
-
-            parameters = {"users": users_in_batch, "assets": assets_in_batch}
-            result = clickhouse_client.execute_query(query, parameters=parameters)
-
-            batch_set = set(batch)
-            for row in result.result_rows:
-                user = str(row[0]).lower()
-                asset = str(row[1]).lower()
-                pair = (user, asset)
-
-                if pair in batch_set or (row[0], row[1]) in batch_set:
-                    raw_balance = float(row[2])
-                    user_index = float(row[3])
-                    max_index = float(row[4])
-
-                    # Scale the balance: raw_balance * (max_index / user_index)
-                    if user_index > 0:
-                        scaled_balance = raw_balance * (max_index / user_index)
+                    if current_index > 0:
+                        underlying_balance = int(
+                            ceil(scaled_balance * current_index / RAY)
+                        )
                     else:
-                        scaled_balance = 0
+                        underlying_balance = 0
 
-                    debt_balances[pair] = scaled_balance
+                    clickhouse_data[pair] = underlying_balance
+                    current_indices[asset] = current_index
 
-        logger.info(f"Retrieved {len(debt_balances)} debt balances from ClickHouse")
+            logger.info(f"Loaded {len(user_asset_pairs)} user-asset pairs from CSV")
+            logger.info(f"Calculated {len(clickhouse_data)} ClickHouse balances")
 
-        return debt_balances
+            # Get RPC balances in batches of 100
+            rpc_data = self._get_rpc_balances_batched(user_asset_pairs, batch_size=100)
+            logger.info(f"Retrieved {len(rpc_data)} debt balances from RPC")
+
+            # Compare the balances
+            comparison_results = self._compare_debt_balances(clickhouse_data, rpc_data)
+
+            # Fix errors if requested
+            if fix_errors and comparison_results["mismatched_records"] > 0:
+                logger.info("Fixing mismatched debt balances...")
+                fix_results = self._fix_mismatched_balances(
+                    clickhouse_data, rpc_data, current_indices
+                )
+                comparison_results["fixed_count"] = fix_results["fixed_count"]
+            else:
+                comparison_results["fixed_count"] = 0
+
+            return comparison_results
+
+        except Exception as e:
+            logger.error(f"Error comparing from CSV: {e}", exc_info=True)
+            raise
 
     def _get_rpc_balances_batched(
         self, user_asset_pairs: List[Tuple[str, str]], batch_size: int = 100
@@ -761,19 +880,19 @@ class CompareDebtBalanceTask(Task):
             rpc_balance = rpc_data[pair]
 
             # Skip if RPC balance is zero (can't calculate percentage)
-            if rpc_balance == 0:
-                if ch_balance == 0:
+            if ch_balance == 0:
+                if rpc_balance == 0:
                     matching_count += 1
                 continue
 
             # Calculate difference in basis points
             difference = abs(ch_balance - rpc_balance)
-            difference_bps = (difference / rpc_balance) * 10000
+            difference_bps = (difference / ch_balance) * 10000
 
             differences_bps.append(difference_bps)
 
             # Match if difference < 1 bps
-            if difference_bps < 100.0:
+            if difference_bps < 1.0:
                 matching_count += 1
             else:
                 mismatched_count += 1
@@ -885,6 +1004,510 @@ class CompareDebtBalanceTask(Task):
         try:
             query = """
             ALTER TABLE aave_ethereum.DebtBalanceTestResults
+            DELETE WHERE test_timestamp < now() - INTERVAL 6 DAY
+            """
+
+            clickhouse_client.execute_query(query)
+            logger.info("Cleaned up test records older than 7 days")
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup old test records: {e}")
+
+    def _fix_mismatched_balances(
+        self,
+        clickhouse_data: Dict[Tuple[str, str], float],
+        rpc_data: Dict[Tuple[str, str], float],
+        current_indices: Dict[str, float],
+    ) -> Dict[str, int]:
+        """
+        Fix mismatched debt balances by un-scaling, correcting, and re-scaling.
+
+        Args:
+            clickhouse_data: Debt balances from ClickHouse
+            rpc_data: Debt balances from RPC
+            current_indices: Current liquidity indices by asset
+
+        Returns:
+            Dict with count of fixed records
+        """
+        RAY = 1e27
+        fixed_count = 0
+        updates = []
+
+        common_pairs = set(clickhouse_data.keys()) & set(rpc_data.keys())
+
+        for pair in common_pairs:
+            ch_balance = clickhouse_data[pair]
+            rpc_balance = rpc_data[pair]
+            user, asset = pair
+
+            # Skip if balances match within tolerance
+            if ch_balance == 0:
+                if rpc_balance == 0:
+                    continue
+
+            difference = abs(ch_balance - rpc_balance)
+            difference_bps = (difference / ch_balance) * 10000 if ch_balance > 0 else 0
+
+            # Only fix if difference >= 1 bps (10 in our scale)
+            if difference_bps < 1.0:
+                continue
+
+            # Get current liquidity index for this asset
+            current_index = current_indices.get(asset.lower(), 0)
+            if current_index == 0:
+                logger.warning(f"No liquidity index found for asset {asset}, skipping")
+                continue
+
+            # Calculate corrected scaled balance using RPC value
+            # For debt: scaled = ceil((underlying * RAY) / liquidityIndex)
+            corrected_scaled_balance = int(ceil(rpc_balance * RAY / current_index))
+
+            updates.append(
+                {
+                    "user": user,
+                    "asset": asset,
+                    "corrected_scaled_balance": corrected_scaled_balance,
+                }
+            )
+            fixed_count += 1
+
+            logger.info(
+                f"Fixing debt for ({user},{asset}): "
+                f"CH={ch_balance:.2f} RPC={rpc_balance:.2f} "
+                f"new_scaled={corrected_scaled_balance}"
+            )
+
+        # Batch update ClickHouse
+        if updates:
+            self._batch_update_debt_balances(updates)
+            logger.info(f"Fixed {fixed_count} mismatched debt balances")
+        else:
+            logger.info("No debt balances to fix")
+
+        return {"fixed_count": fixed_count}
+
+    def _batch_update_debt_balances(self, updates: List[Dict[str, Any]]):
+        """
+        Batch update debt scaled balances in LatestBalances_v2.
+
+        Args:
+            updates: List of dicts with user, asset, and corrected_scaled_balance
+        """
+        if not updates:
+            return
+
+        # Use ReplacingMergeTree behavior - insert new rows with updated_at = now
+        query = """
+        INSERT INTO aave_ethereum.LatestBalances_v2
+        (user, asset, collateral_scaled_balance, variable_debt_scaled_balance, updated_at)
+        SELECT
+            %(user)s as user,
+            %(asset)s as asset,
+            collateral_scaled_balance,
+            %(corrected_scaled_balance)s as variable_debt_scaled_balance,
+            now64() as updated_at
+        FROM aave_ethereum.LatestBalances_v2
+        WHERE user = %(user)s AND asset = %(asset)s
+        LIMIT 1
+        """
+
+        for update in updates:
+            try:
+                clickhouse_client.execute_query(query, parameters=update)
+            except Exception as e:
+                logger.error(
+                    f"Failed to update balance for {update['user']}, {update['asset']}: {e}"
+                )
+
+
+class CompareHealthFactorTask(Task):
+    """
+    Task to compare health factors between ClickHouse and RPC.
+
+    Fetches all users from view_user_health_factor and compares with
+    health factor from getUserAccountData RPC call.
+
+    Match criteria: Both health factors normalized to min(value, 999)
+    RPC health factor divided by 10**18 before comparison
+    """
+
+    def run(self, csv_output_path: str = "/tmp"):
+        """
+        Execute the health factor comparison test using CSV export.
+
+        Args:
+            csv_output_path: Path to store the CSV file
+
+        Returns:
+            Dict[str, Any]: Test results summary
+        """
+        logger.info("Starting CompareHealthFactorTask with CSV export method")
+        start_time = time.time()
+
+        try:
+            # Step 1: Export all users with health factor to CSV
+            csv_filepath = self._export_users_to_csv(csv_output_path)
+            if not csv_filepath:
+                logger.info("No users with health factor to test")
+                return {
+                    "status": "completed",
+                    "test_duration": time.time() - start_time,
+                    "total_users": 0,
+                    "matching_records": 0,
+                    "mismatched_records": 0,
+                }
+
+            # Step 2: Read CSV and compare health factors
+            logger.info(f"Reading users from {csv_filepath}")
+            comparison_results = self._compare_from_csv(csv_filepath)
+
+            # Calculate test duration
+            test_duration = time.time() - start_time
+
+            # Store results in ClickHouse
+            self._store_test_results(comparison_results, test_duration, 0)
+
+            # Clean up old test records
+            self._cleanup_old_test_records()
+
+            logger.info(f"Comparison completed in {test_duration:.2f} seconds")
+            logger.info(
+                f"Match percentage: {comparison_results['match_percentage']:.2f}%"
+            )
+
+            # Send notification if mismatches found
+            if comparison_results["mismatched_records"] > 0:
+                self._send_mismatch_notification(comparison_results)
+
+            # Clean up CSV file
+            try:
+                os.remove(csv_filepath)
+                logger.info(f"Cleaned up CSV file: {csv_filepath}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up CSV file: {e}")
+
+            return {
+                "status": "completed",
+                "test_duration": test_duration,
+                **comparison_results,
+            }
+
+        except Exception as e:
+            error_msg = f"Error during health factor comparison: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+
+            # Store error result
+            self._store_error_result(error_msg, time.time() - start_time)
+
+            return {"status": "error", "error": error_msg}
+
+    def _export_users_to_csv(self, output_path: str):
+        """
+        Export all users from view_user_health_factor to CSV.
+
+        Returns:
+            CSV file path, or None if no users found
+        """
+        try:
+            logger.info("Exporting users with health factor to CSV")
+
+            csv_filename = f"health_factor_users_{int(time.time())}.csv"
+            csv_filepath = os.path.join(output_path, csv_filename)
+
+            total_users = 0
+            batch_size = 1000
+            offset = 0
+
+            with open(csv_filepath, "w", newline="") as csvfile:
+                fieldnames = ["user", "health_factor"]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+
+                while True:
+                    query = """
+                    SELECT
+                        user,
+                        health_factor
+                    FROM aave_ethereum.view_user_health_factor
+                    WHERE effective_collateral > 10000 AND effective_debt > 10000
+                    ORDER BY user
+                    LIMIT %(batch_size)s OFFSET %(offset)s
+                    """
+
+                    result = clickhouse_client.execute_query(
+                        query, parameters={"batch_size": batch_size, "offset": offset}
+                    )
+
+                    if not result.result_rows:
+                        break
+
+                    for row in result.result_rows:
+                        writer.writerow(
+                            {
+                                "user": row[0],
+                                "health_factor": row[1],
+                            }
+                        )
+
+                    total_users += len(result.result_rows)
+                    offset += batch_size
+                    logger.info(f"Exported {total_users} users so far...")
+
+                    if len(result.result_rows) < batch_size:
+                        break
+
+            if total_users == 0:
+                logger.info("No users found")
+                os.remove(csv_filepath)
+                return None
+
+            logger.info(f"Exported {total_users} users to {csv_filepath}")
+            return csv_filepath
+
+        except Exception as e:
+            logger.error(f"Error exporting users to CSV: {e}", exc_info=True)
+            return None
+
+    def _compare_from_csv(self, csv_filepath: str) -> Dict[str, Any]:
+        """
+        Read users from CSV, fetch RPC health factors, and compare them.
+
+        Returns:
+            Dict containing comparison statistics
+        """
+        try:
+            # Read all users from CSV
+            users = []
+            clickhouse_data = {}
+
+            with open(csv_filepath, "r") as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    user = row["user"].lower()
+                    users.append(user)
+
+                    # Get ClickHouse health factor, cap at 999
+                    health_factor = float(row["health_factor"])
+                    if health_factor > 999.0:
+                        health_factor = 999.0
+                    clickhouse_data[user] = health_factor
+
+            logger.info(f"Loaded {len(users)} users from CSV")
+
+            # Get RPC health factors in batches of 100
+            rpc_data = self._get_rpc_health_factors_batched(users, batch_size=100)
+            logger.info(f"Retrieved {len(rpc_data)} health factors from RPC")
+
+            # Compare the health factors
+            comparison_results = self._compare_health_factors(clickhouse_data, rpc_data)
+
+            return comparison_results
+
+        except Exception as e:
+            logger.error(f"Error comparing from CSV: {e}", exc_info=True)
+            raise
+
+    def _get_rpc_health_factors_batched(
+        self, users: List[str], batch_size: int = 100
+    ) -> Dict[str, float]:
+        """
+        Get health factors from RPC in batches using Pool.getUserAccountData.
+
+        Args:
+            users: List of user addresses
+            batch_size: Number of users to query per batch
+
+        Returns:
+            Dict mapping user address to health factor (normalized to max 999)
+        """
+        from utils.interfaces.pool import PoolInterface
+
+        pool = PoolInterface()
+        rpc_health_factors = {}
+
+        for i in range(0, len(users), batch_size):
+            batch = users[i : i + batch_size]
+            logger.info(
+                f"Querying RPC for health factors batch {i // batch_size + 1} "
+                f"({len(batch)} users)"
+            )
+
+            try:
+                batch_results = pool.get_user_account_data(batch)
+
+                for user, result in batch_results.items():
+                    user_lower = user.lower()
+                    # Get healthFactor from result (6th element in tuple)
+                    # Result structure: (totalCollateralBase, totalDebtBase, availableBorrowsBase,
+                    #                   currentLiquidationThreshold, ltv, healthFactor)
+                    if isinstance(result, dict):
+                        health_factor_raw = float(result.get("healthFactor", 0))
+                    else:
+                        # If it's a tuple/list, health factor is the 6th element (index 5)
+                        health_factor_raw = float(result[5] if len(result) > 5 else 0)
+
+                    # Divide by 10**18 to normalize
+                    health_factor = health_factor_raw / (10**18)
+
+                    # Cap at 999
+                    if health_factor > 999.0:
+                        health_factor = 999.0
+
+                    rpc_health_factors[user_lower] = health_factor
+
+            except Exception as e:
+                logger.error(f"Error querying batch starting at index {i}: {e}")
+                raise
+
+        return rpc_health_factors
+
+    def _compare_health_factors(
+        self,
+        clickhouse_data: Dict[str, float],
+        rpc_data: Dict[str, float],
+    ) -> Dict[str, Any]:
+        """
+        Compare health factors from ClickHouse and RPC.
+
+        Match criteria: Values should be equal when both normalized to min(value, 999)
+
+        Args:
+            clickhouse_data: Health factors from ClickHouse
+            rpc_data: Health factors from RPC
+
+        Returns:
+            Dict containing comparison statistics
+        """
+        clickhouse_users = set(clickhouse_data.keys())
+        rpc_users = set(rpc_data.keys())
+
+        common_users = clickhouse_users & rpc_users
+
+        matching_count = 0
+        mismatched_count = 0
+        mismatches = []
+        differences = []
+
+        # Compare common users
+        for user in common_users:
+            ch_hf = clickhouse_data[user]
+            rpc_hf = rpc_data[user]
+
+            # Calculate absolute difference
+            difference = abs(ch_hf - rpc_hf)
+            differences.append(difference)
+
+            # Match if difference is less than 0.01 (allowing for small rounding errors)
+            if difference < 0.00001:
+                matching_count += 1
+            else:
+                mismatched_count += 1
+                mismatches.append(
+                    f"{user}: CH={ch_hf:.4f} RPC={rpc_hf:.4f} diff={difference:.4f}"
+                )
+
+        total_users = len(common_users)
+        match_percentage = (matching_count / total_users * 100) if total_users else 0
+        avg_difference = sum(differences) / len(differences) if differences else 0
+        max_difference = max(differences) if differences else 0
+
+        return {
+            "total_users": total_users,
+            "matching_records": matching_count,
+            "mismatched_records": mismatched_count,
+            "match_percentage": match_percentage,
+            "avg_difference": avg_difference,
+            "max_difference": max_difference,
+            "mismatches_detail": "; ".join(mismatches[:50]),
+        }
+
+    def _store_test_results(
+        self, results: Dict[str, Any], duration: float, batch_offset: int
+    ):
+        """Store test results in ClickHouse."""
+        query = """
+        INSERT INTO aave_ethereum.HealthFactorTestResults
+        (test_timestamp, batch_offset, total_users, matching_records, mismatched_records,
+         match_percentage, avg_difference, max_difference,
+         test_duration_seconds, test_status, mismatches_detail)
+        VALUES
+        (now64(), %(batch_offset)s, %(total_users)s, %(matching_records)s, %(mismatched_records)s,
+         %(match_percentage)s, %(avg_difference)s, %(max_difference)s,
+         %(test_duration_seconds)s, 'completed', %(mismatches_detail)s)
+        """
+
+        parameters = {
+            "batch_offset": batch_offset,
+            "total_users": results["total_users"],
+            "matching_records": results["matching_records"],
+            "mismatched_records": results["mismatched_records"],
+            "match_percentage": results["match_percentage"],
+            "avg_difference": results["avg_difference"],
+            "max_difference": results["max_difference"],
+            "test_duration_seconds": duration,
+            "mismatches_detail": results["mismatches_detail"],
+        }
+
+        clickhouse_client.execute_query(query, parameters=parameters)
+        logger.info(
+            f"Test results stored successfully in ClickHouse (offset: {batch_offset})"
+        )
+
+    def _store_error_result(self, error_message: str, duration: float):
+        """Store error result in ClickHouse."""
+        query = """
+        INSERT INTO aave_ethereum.HealthFactorTestResults
+        (test_timestamp, total_users, matching_records, mismatched_records,
+         match_percentage, avg_difference, max_difference,
+         test_duration_seconds, test_status, error_message)
+        VALUES
+        (now64(), 0, 0, 0, 0, 0, 0, %(test_duration_seconds)s, 'error', %(error_message)s)
+        """
+
+        parameters = {"test_duration_seconds": duration, "error_message": error_message}
+
+        try:
+            clickhouse_client.execute_query(query, parameters=parameters)
+        except Exception as e:
+            logger.error(f"Failed to store error result: {e}")
+
+    def _send_mismatch_notification(self, results: Dict[str, Any]):
+        """Send notification when mismatches found."""
+        try:
+            from utils.simplepush import send_simplepush_notification
+
+            mismatch_count = results["mismatched_records"]
+            total_count = results["total_users"]
+            match_percentage = results["match_percentage"]
+            avg_diff = results["avg_difference"]
+            max_diff = results["max_difference"]
+
+            title = "⚠️ Health Factor Mismatch Detected"
+            message = (
+                f"Found {mismatch_count} mismatch{'es' if mismatch_count != 1 else ''} "
+                f"out of {total_count} users.\n"
+                f"Match rate: {match_percentage:.2f}%\n"
+                f"Avg difference: {avg_diff:.4f}\n"
+                f"Max difference: {max_diff:.4f}"
+            )
+
+            send_simplepush_notification(
+                title=title, message=message, event="health_factor_mismatch"
+            )
+
+            logger.info(
+                f"Sent mismatch notification: {mismatch_count} mismatches found"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to send mismatch notification: {e}")
+
+    def _cleanup_old_test_records(self):
+        """Delete test records older than 7 days."""
+        try:
+            query = """
+            ALTER TABLE aave_ethereum.HealthFactorTestResults
             DELETE WHERE test_timestamp < now() - INTERVAL 6 DAY
             """
 
