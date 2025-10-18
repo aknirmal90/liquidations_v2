@@ -485,6 +485,69 @@
             </div>
         </div>
     </div>
+
+    <!-- Health Factor Test Card -->
+    <div class="col-12 col-lg-6 mb-4">
+        <div class="card test-type-card" onclick="window.location.href='{% url 'dashboard:health_factor_tests' %}'">
+            <div class="card-body py-4">
+                <div class="d-flex align-items-center">
+                    <div class="test-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                        <i class="fas fa-heartbeat"></i>
+                    </div>
+                    <div class="test-info">
+                        <div class="test-name">Health Factor</div>
+                        <div class="test-description">
+                            Validates health factors between ClickHouse and Pool contract (normalized to max 999)
+                        </div>
+                        {% if health_factor_summary %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Last Run</div>
+                                <div class="test-meta-value">{{ health_factor_summary.test_timestamp|date:"M d, H:i" }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Match Rate</div>
+                                <div class="test-meta-value match-percentage {% if health_factor_summary.match_percentage >= 99 %}match-high{% elif health_factor_summary.match_percentage >= 95 %}match-medium{% else %}match-low{% endif %}">
+                                    {{ health_factor_summary.match_percentage|floatformat:2 }}%
+                                </div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Total Users</div>
+                                <div class="test-meta-value">{{ health_factor_summary.total_users }}</div>
+                            </div>
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Avg Diff</div>
+                                <div class="test-meta-value">{{ health_factor_summary.avg_difference|floatformat:4 }}</div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="test-meta">
+                            <div class="test-meta-item">
+                                <div class="test-meta-label">Status</div>
+                                <div class="test-meta-value text-muted">No tests run yet</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if health_factor_summary %}
+                    <span class="status-badge status-{{ health_factor_summary.test_status }}">
+                        {% if health_factor_summary.test_status == 'completed' %}
+                            <i class="fas fa-check-circle me-1"></i>
+                        {% else %}
+                            <i class="fas fa-exclamation-circle me-1"></i>
+                        {% endif %}
+                        {{ health_factor_summary.test_status }}
+                    </span>
+                    {% else %}
+                    <span class="status-badge status-pending">
+                        <i class="fas fa-clock me-1"></i>
+                        Pending
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
