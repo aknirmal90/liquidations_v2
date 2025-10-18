@@ -4374,3 +4374,145 @@ def debt_metrics(request):
     except Exception as e:
         logger.error(f"Error fetching debt metrics: {e}")
         return JsonResponse({"error": str(e)}, status=500)
+
+
+def liquidation_candidates(request):
+    """Liquidation candidates dashboard page"""
+    return render(request, "dashboard/liquidation_candidates.html")
+
+
+def liquidation_candidates_api(request):
+    """API endpoint to get liquidation candidates at risk"""
+    try:
+        # Whitelisted debt assets
+        debt_asset_whitelist = [
+            "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",  # WETH
+            "0xdac17f958d2ee523a2206206994597c13d831ec7",  # USDT
+            "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",  # USDC
+            "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",  # wstETH
+            "0x4c9edd5852cd905f086c759e8383e09bff1e68b3",  # USDe
+            "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",  # WBTC
+        ]
+
+        assets_str = ", ".join([f"'{asset.lower()}'" for asset in debt_asset_whitelist])
+
+        query = f"""
+        WITH
+        -- Get current underlying balances by applying liquidity index to scaled balances
+        current_balances AS (
+            SELECT
+                lb.user,
+                lb.asset,
+                -- Convert scaled balance to underlying: floor((scaled * liquidityIndex) / RAY)
+                floor((toInt256(lb.collateral_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS collateral_balance,
+                floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance
+            FROM aave_ethereum.LatestBalances_v2_Memory AS lb
+        ),
+        -- Filter users who have debt in whitelisted assets
+        users_with_whitelisted_debt AS (
+            SELECT DISTINCT user
+            FROM current_balances
+            WHERE debt_balance > 0
+            AND lower(asset) IN ({assets_str})
+        ),
+        -- Calculate effective collateral and debt per user
+        user_metrics AS (
+            SELECT
+                cb.user,
+                -- Get user's eMode status
+                dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', toString(cb.user), toInt8(0)) AS is_in_emode,
+
+                -- Effective Collateral
+                sumIf(
+                    CAST(cb.collateral_balance AS Float64) *
+                    CAST(
+                        if(
+                            dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', cb.user, toInt8(0)) = 1,
+                            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationThreshold', cb.asset, toUInt256(0)),
+                            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationThreshold', cb.asset, toUInt256(0))
+                        ) AS Float64
+                    ) / 10000.0 *
+                    CAST(dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(cb.user, cb.asset), toInt8(0)) AS Float64) *
+                    CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
+                    CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64),
+                    cb.collateral_balance > 0
+                ) AS effective_collateral,
+
+                -- Effective Debt
+                sum(
+                    CAST(cb.debt_balance AS Float64) *
+                    CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
+                    CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64)
+                ) AS effective_debt
+            FROM current_balances AS cb
+            WHERE cb.user IN (SELECT user FROM users_with_whitelisted_debt)
+            AND (cb.collateral_balance != 0 OR cb.debt_balance != 0)
+            GROUP BY cb.user
+        )
+        SELECT
+            user,
+            is_in_emode,
+            effective_collateral,
+            effective_debt,
+            -- Health Factor
+            if(
+                effective_debt = 0,
+                999.9,
+                effective_collateral / effective_debt
+            ) AS health_factor
+        FROM user_metrics
+        WHERE effective_debt > 10000
+        AND effective_collateral > 10000
+        AND health_factor >= 0.95
+        AND health_factor <= 1.25
+        ORDER BY effective_debt DESC
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        candidates = []
+        for row in result.result_rows:
+            candidates.append(
+                {
+                    "user": row[0],
+                    "is_in_emode": int(row[1]) if row[1] else 0,
+                    "effective_collateral": float(row[2]) if row[2] else 0,
+                    "effective_debt": float(row[3]) if row[3] else 0,
+                    "health_factor": float(row[4]) if row[4] else 0,
+                }
+            )
+
+        # Calculate summary statistics
+        if candidates:
+            total_debt = sum(c["effective_debt"] for c in candidates)
+            total_collateral = sum(c["effective_collateral"] for c in candidates)
+            avg_health_factor = sum(c["health_factor"] for c in candidates) / len(
+                candidates
+            )
+            min_health_factor = min(c["health_factor"] for c in candidates)
+            max_health_factor = max(c["health_factor"] for c in candidates)
+            users_in_emode = sum(1 for c in candidates if c["is_in_emode"] == 1)
+        else:
+            total_debt = 0
+            total_collateral = 0
+            avg_health_factor = 0
+            min_health_factor = 0
+            max_health_factor = 0
+            users_in_emode = 0
+
+        return JsonResponse(
+            {
+                "total_candidates": len(candidates),
+                "total_debt": total_debt,
+                "total_collateral": total_collateral,
+                "avg_health_factor": avg_health_factor,
+                "min_health_factor": min_health_factor,
+                "max_health_factor": max_health_factor,
+                "users_in_emode": users_in_emode,
+                "candidates": candidates,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error fetching liquidation candidates: {e}", exc_info=True)
+        return JsonResponse({"error": str(e)}, status=500)

@@ -108,4 +108,14 @@ urlpatterns = [
     ),
     path("debt/", views.debt, name="debt"),
     path("api/debt-metrics/", views.debt_metrics, name="debt_metrics"),
+    path(
+        "liquidation-candidates/",
+        views.liquidation_candidates,
+        name="liquidation_candidates",
+    ),
+    path(
+        "api/liquidation-candidates/",
+        views.liquidation_candidates_api,
+        name="liquidation_candidates_api",
+    ),
 ]
