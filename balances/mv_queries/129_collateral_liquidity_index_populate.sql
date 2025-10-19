@@ -5,5 +5,7 @@ TO aave_ethereum.CollateralLiquidityIndex
 AS SELECT
     reserve as asset,
     liquidityIndex,
+    blockNumber as updated_at_block,
+    liquidityRate as interest_rate,
     (blockNumber * 1000000000 + transactionIndex * 10000 + logIndex) AS version
 FROM aave_ethereum.ReserveDataUpdated;

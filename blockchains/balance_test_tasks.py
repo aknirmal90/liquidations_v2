@@ -545,7 +545,7 @@ class CompareDebtBalanceTask(Task):
 
                 # Calculate ClickHouse balance (using ceil for debt)
                 if current_index > 0:
-                    underlying_balance = int(ceil(scaled_balance * current_index / RAY))
+                    underlying_balance = int((scaled_balance * current_index // RAY))
                 else:
                     underlying_balance = 0
 

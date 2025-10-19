@@ -5,5 +5,7 @@ TO aave_ethereum.DebtLiquidityIndex
 AS SELECT
     reserve as asset,
     variableBorrowIndex as liquidityIndex,
+    blockNumber as updated_at_block,
+    variableBorrowRate as interest_rate,
     (blockNumber * 1000000000 + transactionIndex * 10000 + logIndex) AS version
 FROM aave_ethereum.ReserveDataUpdated;

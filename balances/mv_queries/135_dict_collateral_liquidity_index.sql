@@ -3,7 +3,9 @@
 CREATE DICTIONARY IF NOT EXISTS aave_ethereum.dict_collateral_liquidity_index
 (
     asset String,
-    liquidityIndex UInt256
+    liquidityIndex UInt256,
+    updated_at_block UInt64,
+    interest_rate UInt256
 )
 PRIMARY KEY asset
 SOURCE(CLICKHOUSE(

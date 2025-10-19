@@ -3,6 +3,8 @@
 CREATE VIEW IF NOT EXISTS aave_ethereum.view_debt_liquidity_index AS
 SELECT
     asset,
-    liquidityIndex
+    liquidityIndex,
+    updated_at_block,
+    interest_rate
 FROM aave_ethereum.DebtLiquidityIndex
 FINAL;

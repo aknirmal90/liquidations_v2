@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS aave_ethereum.CollateralLiquidityIndex
 (
     asset String,
     liquidityIndex UInt256,
+    updated_at_block UInt64,
+    interest_rate UInt256,
     version UInt256  -- Use blockNumber or timestamp as version
 )
 ENGINE = ReplacingMergeTree(version)
