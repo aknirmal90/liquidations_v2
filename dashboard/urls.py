@@ -116,6 +116,16 @@ urlpatterns = [
         views.variable_borrow_index_tests,
         name="variable_borrow_index_tests",
     ),
+    path(
+        "tests/collateral-interest-rate/",
+        views.collateral_interest_rate_tests,
+        name="collateral_interest_rate_tests",
+    ),
+    path(
+        "tests/debt-interest-rate/",
+        views.debt_interest_rate_tests,
+        name="debt_interest_rate_tests",
+    ),
     path("debt/", views.debt, name="debt"),
     path("api/debt-metrics/", views.debt_metrics, name="debt_metrics"),
     path(

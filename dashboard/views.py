@@ -3998,6 +3998,82 @@ def tests(request):
                 "error_message": row[9],
             }
 
+        # Get the latest collateral interest rate test summary
+        collateral_interest_rate_query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message
+        FROM aave_ethereum.CollateralInterestRateTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        collateral_interest_rate_result = clickhouse_client.execute_query(
+            collateral_interest_rate_query
+        )
+
+        collateral_interest_rate_summary = None
+        if collateral_interest_rate_result.result_rows:
+            row = collateral_interest_rate_result.result_rows[0]
+            collateral_interest_rate_summary = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+            }
+
+        # Get the latest debt interest rate test summary
+        debt_interest_rate_query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message
+        FROM aave_ethereum.DebtInterestRateTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        debt_interest_rate_result = clickhouse_client.execute_query(
+            debt_interest_rate_query
+        )
+
+        debt_interest_rate_summary = None
+        if debt_interest_rate_result.result_rows:
+            row = debt_interest_rate_result.result_rows[0]
+            debt_interest_rate_summary = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+            }
+
         context = {
             "reserve_test_summary": reserve_test_summary,
             "emode_test_summary": emode_test_summary,
@@ -4007,6 +4083,8 @@ def tests(request):
             "health_factor_summary": health_factor_summary,
             "liquidity_index_summary": liquidity_index_summary,
             "variable_borrow_index_summary": variable_borrow_index_summary,
+            "collateral_interest_rate_summary": collateral_interest_rate_summary,
+            "debt_interest_rate_summary": debt_interest_rate_summary,
         }
 
         return render(request, "dashboard/tests.html", context)
@@ -4468,6 +4546,122 @@ def variable_borrow_index_tests(request):
         }
 
         return render(request, "dashboard/variable_borrow_index_tests.html", context)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET"])
+def collateral_interest_rate_tests(request):
+    """Collateral interest rate test detail page with history"""
+    try:
+        # Get the latest test results
+        query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message,
+            mismatches_detail
+        FROM aave_ethereum.CollateralInterestRateTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 50
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        test_results = []
+        for row in result.result_rows:
+            test = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+                "mismatches_detail": row[10],
+            }
+            test_results.append(test)
+
+        # Get latest test summary
+        latest_test = test_results[0] if test_results else None
+
+        context = {
+            "test_results": test_results,
+            "latest_test": latest_test,
+        }
+
+        return render(request, "dashboard/collateral_interest_rate_tests.html", context)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET"])
+def debt_interest_rate_tests(request):
+    """Debt interest rate test detail page with history"""
+    try:
+        # Get the latest test results
+        query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message,
+            mismatches_detail
+        FROM aave_ethereum.DebtInterestRateTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 50
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        test_results = []
+        for row in result.result_rows:
+            test = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+                "mismatches_detail": row[10],
+            }
+            test_results.append(test)
+
+        # Get latest test summary
+        latest_test = test_results[0] if test_results else None
+
+        context = {
+            "test_results": test_results,
+            "latest_test": latest_test,
+        }
+
+        return render(request, "dashboard/debt_interest_rate_tests.html", context)
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
