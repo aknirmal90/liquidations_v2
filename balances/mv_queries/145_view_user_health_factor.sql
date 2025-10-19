@@ -48,31 +48,35 @@ user_metrics AS (
         -- For eMode users: use eModeLiquidationThreshold
         -- For non-eMode users: use collateralLiquidationThreshold
         -- Includes interest accrual factor
-        sumIf(
-            CAST(cb.collateral_balance AS Float64) *
-            CAST(
-                if(
-                    dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', cb.user, toInt8(0)) = 1,
-                    dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationThreshold', cb.asset, toUInt256(0)),
-                    dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationThreshold', cb.asset, toUInt256(0))
-                ) AS Float64
-            ) / 10000.0 *
-            CAST(dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(cb.user, cb.asset), toInt8(0)) AS Float64) *
-            CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
-            CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64) *
-            -- Interest accrual factor for collateral: 1 + (interest_rate / RAY / seconds_in_year * (latest_block - updated_at_block) * 12)
-            (1.0 + (CAST(cb.collateral_interest_rate AS Float64) / 1e27 / 31536000.0 * CAST((SELECT latest_block_number FROM network_info) - cb.collateral_updated_at_block AS Float64) * 12.0)),
-            cb.collateral_balance > 0
+        floor(
+            sumIf(
+                CAST(cb.collateral_balance AS Float64) *
+                CAST(
+                    if(
+                        dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', cb.user, toInt8(0)) = 1,
+                        dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationThreshold', cb.asset, toUInt256(0)),
+                        dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationThreshold', cb.asset, toUInt256(0))
+                    ) AS Float64
+                ) / 10000.0 *
+                CAST(dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(cb.user, cb.asset), toInt8(0)) AS Float64) *
+                CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
+                CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64) *
+                -- Interest accrual factor for collateral: 1 + (interest_rate / RAY / seconds_in_year * (latest_block - updated_at_block) * 12)
+                (1.0 + (CAST(cb.collateral_interest_rate AS Float64) / 1e27 / 31536000.0 * CAST((SELECT latest_block_number FROM network_info) - cb.collateral_updated_at_block AS Float64) * 12.0)),
+                cb.collateral_balance > 0
+            )
         ) AS effective_collateral,
 
         -- Effective Debt: sum of all debt balances divided by decimals and multiplied by price
         -- Includes interest accrual factor
-        sum(
-            CAST(cb.debt_balance AS Float64) *
-            CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
-            CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64) *
-            -- Interest accrual factor for debt: 1 + (interest_rate / RAY / seconds_in_year * (latest_block - updated_at_block) * 12)
-            (1.0 + (CAST(cb.debt_interest_rate AS Float64) / 1e27 / 31536000.0 * CAST((SELECT latest_block_number FROM network_info) - cb.debt_updated_at_block AS Float64) * 12.0))
+        ceil(
+            sum(
+                CAST(cb.debt_balance AS Float64) *
+                CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
+                CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64) *
+                -- Interest accrual factor for debt: 1 + (interest_rate / RAY / seconds_in_year * (latest_block - updated_at_block) * 12)
+                (1.0 + (CAST(cb.debt_interest_rate AS Float64) / 1e27 / 31536000.0 * CAST((SELECT latest_block_number FROM network_info) - cb.debt_updated_at_block AS Float64) * 12.0))
+            )
         ) AS effective_debt
 
     FROM current_balances AS cb
