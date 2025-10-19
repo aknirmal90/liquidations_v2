@@ -2,10 +2,10 @@
 Balance validation tasks for comparing ClickHouse computed balances against RPC data.
 
 These tasks validate:
-1. Effective collateral (from view_user_health_factor)
-2. Effective debt (from view_user_health_factor)
+1. Collateral balances per user-asset (from view_user_asset_effective_balances)
+2. Debt balances per user-asset (from view_user_asset_effective_balances)
 
-Against getUserAccountData RPC calls.
+Against getUserReserveData RPC calls.
 """
 
 import logging
@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 
 class CompareCollateralBalanceTask(Task):
     """
-    Task to compare effective collateral between ClickHouse and RPC.
+    Task to compare collateral balances between ClickHouse and RPC.
 
-    Queries effective_collateral from view_user_health_factor (aggregated by user)
-    and compares with totalCollateralBase from getUserAccountData RPC call.
+    Queries collateral_balance per user and asset from view_user_asset_effective_balances
+    and compares with currentATokenBalance from getUserReserveData RPC call.
 
     Match criteria: |difference| / ch_balance < 0.0001 (1 bps)
     """
@@ -99,23 +99,23 @@ class CompareCollateralBalanceTask(Task):
         Compare collateral balances in batches to minimize timing differences.
 
         For each batch:
-        1. Fetch users from view_user_health_factor with effective_collateral
-        2. Immediately fetch RPC data for those users
-        3. Compare effective collateral values
+        1. Fetch user-asset pairs from view_user_asset_effective_balances with collateral_balance
+        2. Immediately fetch RPC data for those user-asset pairs
+        3. Compare collateral balance values
 
         Args:
-            batch_size: Number of users to process per batch
-            fix_errors: If True, fix detected errors (not implemented for aggregated values)
+            batch_size: Number of user-asset pairs to process per batch
+            fix_errors: If True, fix detected errors
 
         Returns:
             Dict containing comparison statistics
         """
-        from utils.interfaces.pool import PoolInterface
+        from utils.interfaces.dataprovider import DataProviderInterface
 
-        pool = PoolInterface()
+        data_provider = DataProviderInterface()
 
         # Accumulators for results
-        total_users = 0
+        total_user_assets = 0
         matching_count = 0
         mismatched_count = 0
         mismatches = []
@@ -124,14 +124,15 @@ class CompareCollateralBalanceTask(Task):
         offset = 0
 
         while True:
-            # Step 1: Fetch batch from ClickHouse using effective_collateral from view
+            # Step 1: Fetch batch from ClickHouse using collateral_balance from view
             query = """
             SELECT
                 user,
-                effective_collateral
-            FROM aave_ethereum.view_user_health_factor
-            WHERE effective_collateral > 0
-            ORDER BY user
+                asset,
+                collateral_balance
+            FROM aave_ethereum.view_user_asset_effective_balances
+            WHERE collateral_balance > 0
+            ORDER BY user, asset
             LIMIT %(batch_size)s OFFSET %(offset)s
             """
 
@@ -143,55 +144,56 @@ class CompareCollateralBalanceTask(Task):
                 break
 
             logger.info(
-                f"Processing batch at offset {offset} with {len(result.result_rows)} users"
+                f"Processing batch at offset {offset} with {len(result.result_rows)} user-asset pairs"
             )
 
-            # Step 2: Extract ClickHouse data and prepare user list for RPC query
-            users = []
+            # Step 2: Extract ClickHouse data and prepare user-asset list for RPC query
+            user_assets = []
             clickhouse_data = {}
 
             for row in result.result_rows:
                 user = row[0].lower()
-                effective_collateral = float(row[1])
+                asset = row[1].lower()
+                collateral_balance = float(row[2])
 
-                users.append(user)
-                clickhouse_data[user] = effective_collateral
+                user_assets.append((user, asset))
+                clickhouse_data[(user, asset)] = collateral_balance
 
             # Step 3: Immediately fetch RPC data for this batch
-            logger.info(f"Fetching RPC data for {len(users)} users")
+            logger.info(f"Fetching RPC data for {len(user_assets)} user-asset pairs")
             try:
-                batch_results = pool.get_user_account_data(users)
+                batch_results = data_provider.get_user_reserve_data(user_assets)
 
                 rpc_data = {}
-                for user, result_data in batch_results.items():
+                for (user, asset), result_data in batch_results.items():
                     user_lower = user.lower()
+                    asset_lower = asset.lower()
 
-                    # Get totalCollateralBase from result (1st element in tuple)
-                    # This is already in USD (scaled by 1e8)
+                    # Get currentATokenBalance from result
                     if isinstance(result_data, dict):
-                        total_collateral_base = float(
+                        current_atoken_balance = float(
                             result_data.get("currentATokenBalance", 0)
                         )
                     else:
-                        total_collateral_base = float(
+                        current_atoken_balance = float(
                             result_data[0] if len(result_data) > 0 else 0
                         )
 
-                    rpc_data[user_lower] = total_collateral_base
+                    rpc_data[(user_lower, asset_lower)] = current_atoken_balance
 
             except Exception as e:
                 logger.error(f"Error querying RPC for batch at offset {offset}: {e}")
                 raise
 
             # Step 4: Compare this batch
-            for user in clickhouse_data.keys():
-                if user not in rpc_data:
+            for user, asset in clickhouse_data.keys():
+                if (user, asset) not in rpc_data:
                     continue
 
-                ch_collateral = clickhouse_data[user]
-                rpc_collateral = rpc_data[user]
+                ch_collateral = clickhouse_data[(user, asset)]
+                rpc_collateral = rpc_data[(user, asset)]
 
-                total_users += 1
+                total_user_assets += 1
 
                 # Skip if CH collateral is zero
                 if ch_collateral == 0:
@@ -211,7 +213,7 @@ class CompareCollateralBalanceTask(Task):
                 else:
                     mismatched_count += 1
                     mismatches.append(
-                        f"{user}: CH={ch_collateral:.2f} RPC={rpc_collateral:.2f} diff={difference_bps:.2f}bps"
+                        f"{user},{asset}: CH={ch_collateral:.2f} RPC={rpc_collateral:.2f} diff={difference_bps:.2f}bps"
                     )
 
             offset += batch_size
@@ -220,14 +222,16 @@ class CompareCollateralBalanceTask(Task):
                 break
 
         # Calculate summary statistics
-        match_percentage = (matching_count / total_users * 100) if total_users else 0
+        match_percentage = (
+            (matching_count / total_user_assets * 100) if total_user_assets else 0
+        )
         avg_difference_bps = (
             sum(differences_bps) / len(differences_bps) if differences_bps else 0
         )
         max_difference_bps = max(differences_bps) if differences_bps else 0
 
         return {
-            "total_user_assets": total_users,
+            "total_user_assets": total_user_assets,
             "matching_records": matching_count,
             "mismatched_records": mismatched_count,
             "match_percentage": match_percentage,
@@ -368,10 +372,10 @@ class CompareCollateralBalanceTask(Task):
 
 class CompareDebtBalanceTask(Task):
     """
-    Task to compare effective debt between ClickHouse and RPC.
+    Task to compare debt balances between ClickHouse and RPC.
 
-    Queries effective_debt from view_user_health_factor (aggregated by user)
-    and compares with totalDebtBase from getUserAccountData RPC call.
+    Queries debt_balance per user and asset from view_user_asset_effective_balances
+    and compares with currentVariableDebt from getUserReserveData RPC call.
 
     Match criteria: |difference| / ch_balance < 0.0001 (1 bps)
     """
@@ -444,23 +448,23 @@ class CompareDebtBalanceTask(Task):
         Compare debt balances in batches to minimize timing differences.
 
         For each batch:
-        1. Fetch users from view_user_health_factor with effective_debt
-        2. Immediately fetch RPC data for those users
-        3. Compare effective debt values
+        1. Fetch user-asset pairs from view_user_asset_effective_balances with debt_balance
+        2. Immediately fetch RPC data for those user-asset pairs
+        3. Compare debt balance values
 
         Args:
-            batch_size: Number of users to process per batch
-            fix_errors: If True, fix detected errors (not implemented for aggregated values)
+            batch_size: Number of user-asset pairs to process per batch
+            fix_errors: If True, fix detected errors
 
         Returns:
             Dict containing comparison statistics
         """
-        from utils.interfaces.pool import PoolInterface
+        from utils.interfaces.dataprovider import DataProviderInterface
 
-        pool = PoolInterface()
+        data_provider = DataProviderInterface()
 
         # Accumulators for results
-        total_users = 0
+        total_user_assets = 0
         matching_count = 0
         mismatched_count = 0
         mismatches = []
@@ -469,14 +473,15 @@ class CompareDebtBalanceTask(Task):
         offset = 0
 
         while True:
-            # Step 1: Fetch batch from ClickHouse using effective_debt from view
+            # Step 1: Fetch batch from ClickHouse using debt_balance from view
             query = """
             SELECT
                 user,
-                effective_debt
-            FROM aave_ethereum.view_user_health_factor
-            WHERE effective_debt > 0
-            ORDER BY user
+                asset,
+                debt_balance
+            FROM aave_ethereum.view_user_asset_effective_balances
+            WHERE debt_balance > 0
+            ORDER BY user, asset
             LIMIT %(batch_size)s OFFSET %(offset)s
             """
 
@@ -488,55 +493,56 @@ class CompareDebtBalanceTask(Task):
                 break
 
             logger.info(
-                f"Processing batch at offset {offset} with {len(result.result_rows)} users"
+                f"Processing batch at offset {offset} with {len(result.result_rows)} user-asset pairs"
             )
 
-            # Step 2: Extract ClickHouse data and prepare user list for RPC query
-            users = []
+            # Step 2: Extract ClickHouse data and prepare user-asset list for RPC query
+            user_assets = []
             clickhouse_data = {}
 
             for row in result.result_rows:
                 user = row[0].lower()
-                effective_debt = float(row[1])
+                asset = row[1].lower()
+                debt_balance = float(row[2])
 
-                users.append(user)
-                clickhouse_data[user] = effective_debt
+                user_assets.append((user, asset))
+                clickhouse_data[(user, asset)] = debt_balance
 
             # Step 3: Immediately fetch RPC data for this batch
-            logger.info(f"Fetching RPC data for {len(users)} users")
+            logger.info(f"Fetching RPC data for {len(user_assets)} user-asset pairs")
             try:
-                batch_results = pool.get_user_account_data(users)
+                batch_results = data_provider.get_user_reserve_data(user_assets)
 
                 rpc_data = {}
-                for user, result_data in batch_results.items():
+                for (user, asset), result_data in batch_results.items():
                     user_lower = user.lower()
+                    asset_lower = asset.lower()
 
-                    # Get totalDebtBase from result (2nd element in tuple)
-                    # This is already in USD (scaled by 1e8)
+                    # Get currentVariableDebt from result
                     if isinstance(result_data, dict):
-                        total_debt_base = float(
+                        current_variable_debt = float(
                             result_data.get("currentVariableDebt", 0)
                         )
                     else:
-                        total_debt_base = float(
+                        current_variable_debt = float(
                             result_data[1] if len(result_data) > 1 else 0
                         )
 
-                    rpc_data[user_lower] = total_debt_base
+                    rpc_data[(user_lower, asset_lower)] = current_variable_debt
 
             except Exception as e:
                 logger.error(f"Error querying RPC for batch at offset {offset}: {e}")
                 raise
 
             # Step 4: Compare this batch
-            for user in clickhouse_data.keys():
-                if user not in rpc_data:
+            for user, asset in clickhouse_data.keys():
+                if (user, asset) not in rpc_data:
                     continue
 
-                ch_debt = clickhouse_data[user]
-                rpc_debt = rpc_data[user]
+                ch_debt = clickhouse_data[(user, asset)]
+                rpc_debt = rpc_data[(user, asset)]
 
-                total_users += 1
+                total_user_assets += 1
 
                 # Skip if CH debt is zero
                 if ch_debt == 0:
@@ -556,7 +562,7 @@ class CompareDebtBalanceTask(Task):
                 else:
                     mismatched_count += 1
                     mismatches.append(
-                        f"{user}: CH={ch_debt:.2f} RPC={rpc_debt:.2f} diff={difference_bps:.2f}bps"
+                        f"{user},{asset}: CH={ch_debt:.2f} RPC={rpc_debt:.2f} diff={difference_bps:.2f}bps"
                     )
 
             offset += batch_size
@@ -565,14 +571,16 @@ class CompareDebtBalanceTask(Task):
                 break
 
         # Calculate summary statistics
-        match_percentage = (matching_count / total_users * 100) if total_users else 0
+        match_percentage = (
+            (matching_count / total_user_assets * 100) if total_user_assets else 0
+        )
         avg_difference_bps = (
             sum(differences_bps) / len(differences_bps) if differences_bps else 0
         )
         max_difference_bps = max(differences_bps) if differences_bps else 0
 
         return {
-            "total_user_assets": total_users,
+            "total_user_assets": total_user_assets,
             "matching_records": matching_count,
             "mismatched_records": mismatched_count,
             "match_percentage": match_percentage,
