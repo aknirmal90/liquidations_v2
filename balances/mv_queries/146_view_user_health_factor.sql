@@ -29,6 +29,6 @@ SELECT
     if(
         ceil(total_effective_debt) = 0,
         999.9,
-        (total_effective_collateral) / (total_effective_debt)
+        floor(total_effective_collateral) / floor(total_effective_debt)
     ) AS health_factor
 FROM user_totals;
