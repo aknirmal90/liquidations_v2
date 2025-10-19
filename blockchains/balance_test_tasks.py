@@ -201,19 +201,20 @@ class CompareCollateralBalanceTask(Task):
                         matching_count += 1
                     continue
 
-                # Calculate difference in basis points
+                # Calculate difference in basis points and absolute value
                 difference = abs(ch_collateral - rpc_collateral)
                 difference_bps = (difference / ch_collateral) * 10000
 
                 differences_bps.append(difference_bps)
 
-                # Match if difference < 1 bps
-                if difference_bps < 1.0:
+                # Match if difference < 1 bps OR absolute difference <= 1
+                # Mismatch only if BOTH: difference >= 1 bps AND absolute difference > 1
+                if difference_bps < 1.0 or difference <= 1.0:
                     matching_count += 1
                 else:
                     mismatched_count += 1
                     mismatches.append(
-                        f"{user},{asset}: CH={ch_collateral:.2f} RPC={rpc_collateral:.2f} diff={difference_bps:.2f}bps"
+                        f"{user},{asset}: CH={ch_collateral:.2f} RPC={rpc_collateral:.2f} diff={difference:.2f} ({difference_bps:.2f}bps)"
                     )
 
             offset += batch_size
@@ -550,19 +551,20 @@ class CompareDebtBalanceTask(Task):
                         matching_count += 1
                     continue
 
-                # Calculate difference in basis points
+                # Calculate difference in basis points and absolute value
                 difference = abs(ch_debt - rpc_debt)
                 difference_bps = (difference / ch_debt) * 10000
 
                 differences_bps.append(difference_bps)
 
-                # Match if difference < 1 bps
-                if difference_bps < 1.0:
+                # Match if difference < 1 bps OR absolute difference <= 1
+                # Mismatch only if BOTH: difference >= 1 bps AND absolute difference > 1
+                if difference_bps < 1.0 or difference <= 1.0:
                     matching_count += 1
                 else:
                     mismatched_count += 1
                     mismatches.append(
-                        f"{user},{asset}: CH={ch_debt:.2f} RPC={rpc_debt:.2f} diff={difference_bps:.2f}bps"
+                        f"{user},{asset}: CH={ch_debt:.2f} RPC={rpc_debt:.2f} diff={difference:.2f} ({difference_bps:.2f}bps)"
                     )
 
             offset += batch_size
