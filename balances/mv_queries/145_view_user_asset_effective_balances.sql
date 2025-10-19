@@ -3,11 +3,15 @@
 -- Used as input for view_user_health_factor
 --
 -- Effective Collateral calculation (per asset):
--- - balance * liquidation_threshold / 10000 / decimals_places * is_collateral_enabled * price * interest_accrual_factor
--- - liquidation_threshold depends on eMode status (eModeLiquidationThreshold vs collateralLiquidationThreshold)
+-- - floor(numerator) / floor(denominator), where
+--     numerator = balance * liquidation_threshold * is_collateral_enabled * price * interest_accrual_factor
+--     denominator = 10000 * decimals_places
+--     liquidation_threshold depends on eMode status (eModeLiquidationThreshold vs collateralLiquidationThreshold)
 --
 -- Effective Debt calculation (per asset):
--- - debt_balance * price / decimals_places * interest_accrual_factor
+-- - floor(numerator) / floor(denominator), where
+--     numerator = debt_balance * price * interest_accrual_factor
+--     denominator = decimals_places
 --
 -- Interest Accrual Factor:
 -- - Accounts for interest accrued between last index update and latest block
@@ -86,48 +90,57 @@ SELECT
         )
     ) AS debt_interest_accrual_factor,
 
-    -- Effective Collateral (per asset) using Float64 to avoid Decimal128 overflows:
-    floor(
-        CAST(cb.collateral_balance AS Float64)
-        *
-        CAST(
-            if(
-                dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', cb.user, toInt8(0)) = 1,
-                dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationThreshold', cb.asset, toUInt256(0)),
-                dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationThreshold', cb.asset, toUInt256(0))
-            ) AS Float64
-        )
-        / 10000.0
-        *
-        CAST(dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(cb.user, cb.asset), toInt8(0)) AS Float64)
-        *
-        CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64)
-        /
-        CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64)
-        *
-        (
-            1.0 +
-            (
-                CAST(cb.collateral_interest_rate AS Float64) / 1e27 / 31536000.0 *
-                GREATEST(CAST((SELECT latest_block_number FROM network_info) - cb.collateral_updated_at_block AS Float64), 0.0) * 12.0
+    -- Effective Collateral (per asset) calculated as: floor(numerator) / floor(denominator)
+    (
+        floor(
+            CAST(cb.collateral_balance AS Float64)
+            *
+            CAST(
+                if(
+                    dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', cb.user, toInt8(0)) = 1,
+                    dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationThreshold', cb.asset, toUInt256(0)),
+                    dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationThreshold', cb.asset, toUInt256(0))
+                ) AS Float64
             )
+            *
+            CAST(dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(cb.user, cb.asset), toInt8(0)) AS Float64)
+            *
+            CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64)
+            *
+            (
+                1.0 +
+                (
+                    CAST(cb.collateral_interest_rate AS Float64) / 1e27 / 31536000.0 *
+                    GREATEST(CAST((SELECT latest_block_number FROM network_info) - cb.collateral_updated_at_block AS Float64), 0.0) * 12.0
+                )
+            )
+        )
+        /
+        floor(
+            10000.0
+            *
+            CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64)
         )
     ) AS effective_collateral,
 
-    -- Effective Debt (per asset), using Float64:
-    ceil(
-        CAST(cb.debt_balance AS Float64)
-        *
-        CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64)
-        /
-        CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64)
-        *
-        (
-            1.0 +
+    -- Effective Debt (per asset) calculated as: floor(numerator) / floor(denominator)
+    (
+        ceil(
+            CAST(cb.debt_balance AS Float64)
+            *
+            CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64)
+            *
             (
-                CAST(cb.debt_interest_rate AS Float64) / 1e27 / 31536000.0 *
-                GREATEST(CAST((SELECT latest_block_number FROM network_info) - cb.debt_updated_at_block AS Float64), 0.0) * 12.0
+                1.0 +
+                (
+                    CAST(cb.debt_interest_rate AS Float64) / 1e27 / 31536000.0 *
+                    GREATEST(CAST((SELECT latest_block_number FROM network_info) - cb.debt_updated_at_block AS Float64), 0.0) * 12.0
+                )
             )
+        )
+        /
+        floor(
+            CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64)
         )
     ) AS effective_debt
 
