@@ -87,7 +87,7 @@ SELECT
     ) AS debt_interest_accrual_factor,
 
     -- Effective Collateral (using Float64 for calculations to avoid overflow)
-    floor(
+    (
         toFloat64(cb.collateral_balance)
         *
         toFloat64(
@@ -122,7 +122,7 @@ SELECT
     ) AS effective_collateral,
 
     -- Effective Debt (using Float64 for calculations to avoid overflow)
-    floor(
+    (
         toFloat64(cb.debt_balance)
         *
         dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0))

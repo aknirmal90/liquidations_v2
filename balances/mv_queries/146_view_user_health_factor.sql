@@ -21,8 +21,8 @@ WITH user_totals AS (
 SELECT
     user,
     is_in_emode,
-    floor(total_effective_collateral) AS effective_collateral,
-    ceil(total_effective_debt) AS effective_debt,
+    (total_effective_collateral) AS effective_collateral,
+    (total_effective_debt) AS effective_debt,
     -- Health Factor = Effective Collateral / Effective Debt
     -- If debt is 0, health factor is infinite (represented as 999.9 for practical purposes)
     -- If collateral is 0 and debt > 0, health factor is 0 (liquidatable)
