@@ -34,7 +34,7 @@ current_balances AS (
         lb.asset,
         -- Convert scaled balance to underlying: floor((scaled * liquidityIndex) / RAY), using Int256 to avoid overflow
         floor((toInt256(lb.collateral_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS collateral_balance,
-        ceil((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance,
+        floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance,
         dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'interest_rate', lb.asset, toUInt256(0)) AS collateral_interest_rate,
         dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'updated_at_block', lb.asset, toUInt64(0)) AS collateral_updated_at_block,
         dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'interest_rate', lb.asset, toUInt256(0)) AS debt_interest_rate,
@@ -87,7 +87,7 @@ SELECT
     ) AS debt_interest_accrual_factor,
 
     -- Effective Collateral (using Float64 for calculations to avoid overflow)
-    (
+    floor(
         toFloat64(cb.collateral_balance)
         *
         toFloat64(
@@ -122,7 +122,7 @@ SELECT
     ) AS effective_collateral,
 
     -- Effective Debt (using Float64 for calculations to avoid overflow)
-    (
+    floor(
         toFloat64(cb.debt_balance)
         *
         dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0))
