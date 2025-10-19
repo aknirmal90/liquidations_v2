@@ -32,6 +32,7 @@ current_balances AS (
     SELECT
         lb.user,
         lb.asset,
+        -- Convert scaled balance to underlying: floor((scaled * liquidityIndex) / RAY), using Int256 to avoid overflow
         floor((toInt256(lb.collateral_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS collateral_balance,
         floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance,
         dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'interest_rate', lb.asset, toUInt256(0)) AS collateral_interest_rate,
@@ -49,9 +50,8 @@ SELECT
 
     dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', toString(cb.user), toInt8(0)) AS is_in_emode,
 
-    -- The decimals_places and price are always cast to Float64 below to avoid illegal multiplication of Float64 * UInt/Decimal128
-    toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1))) AS decimals_places,
-    toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toUInt256(0))) AS price,
+    dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS decimals_places,
+    dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toDecimal128(0,18)) AS price,
     dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(cb.user, cb.asset), toInt8(0)) AS is_collateral_enabled,
 
     dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationThreshold', cb.asset, toUInt256(0)) AS emode_liquidation_threshold,
@@ -61,7 +61,7 @@ SELECT
     cb.collateral_updated_at_block,
     (SELECT latest_block_number FROM network_info) AS latest_block_number,
 
-    -- Collateral interest accrual factor (as Float64)
+    -- Collateral interest accrual factor (as Float64):
     (
         1 +
         (
@@ -75,7 +75,7 @@ SELECT
     cb.debt_interest_rate,
     cb.debt_updated_at_block,
 
-    -- Debt interest accrual factor (as Float64)
+    -- Debt interest accrual factor (as Float64):
     (
         1 +
         (
@@ -86,8 +86,8 @@ SELECT
         )
     ) AS debt_interest_accrual_factor,
 
-    -- Effective Collateral (all factors cast to Float64 to avoid illegal multiply in ClickHouse)
-    toInt256(floor(
+    -- Effective Collateral (using Float64 for calculations to avoid overflow)
+    (
         toFloat64(cb.collateral_balance)
         *
         toFloat64(
@@ -98,51 +98,47 @@ SELECT
             )
         )
         *
-        toFloat64(dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(cb.user, cb.asset), toInt8(0)))
+        toFloat64(
+            dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(cb.user, cb.asset), toInt8(0))
+        )
         *
-        toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toUInt256(0)))
+        dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0))
         *
         (
+            1 +
             (
-                1 +
-                (
-                    toFloat64(cb.collateral_interest_rate) / 1e27
-                    / 31536000
-                    * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.collateral_updated_at_block, 0))
-                    * 12
-                )
+                toFloat64(cb.collateral_interest_rate) / 1e27
+                / 31536000
+                * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.collateral_updated_at_block, 0))
+                * 12
             )
         )
         /
         (
-            10000.0
+            10000
             *
             toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)))
         )
-    )) AS effective_collateral,
+    ) AS effective_collateral,
 
-    -- Effective Debt (all factors cast to Float64 to avoid illegal multiply in ClickHouse)
-    toInt256(ceil(
+    -- Effective Debt (using Float64 for calculations to avoid overflow)
+    (
         toFloat64(cb.debt_balance)
         *
-        toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toUInt256(0)))
+        dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0))
         *
         (
+            1 +
             (
-                1 +
-                (
-                    toFloat64(cb.debt_interest_rate) / 1e27
-                    / 31536000
-                    * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.debt_updated_at_block, 0))
-                    * 12
-                )
+                toFloat64(cb.debt_interest_rate) / 1e27
+                / 31536000
+                * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.debt_updated_at_block, 0))
+                * 12
             )
         )
         /
-        (
-            toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)))
-        )
-    )) AS effective_debt
+        toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)))
+    ) AS effective_debt
 
 FROM current_balances AS cb
 WHERE cb.collateral_balance != 0 OR cb.debt_balance != 0;
