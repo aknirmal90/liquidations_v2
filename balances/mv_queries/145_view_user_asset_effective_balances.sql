@@ -86,11 +86,12 @@ SELECT
         )
     ) AS debt_interest_accrual_factor,
 
-    -- Effective Collateral (using Float64 for calculations to avoid overflow)
+    -- Effective Collateral (separate numerator and denominator with integer multiplication)
     floor(
-        toFloat64(cb.collateral_balance)
+        -- Numerator: balance * liquidation_threshold * is_collateral_enabled * price * interest_accrual_factor
+        toInt256(cb.collateral_balance)
         *
-        toFloat64(
+        toInt256(
             if(
                 dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', cb.user, toInt8(0)) = 1,
                 dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationThreshold', cb.asset, toUInt256(0)),
@@ -98,46 +99,59 @@ SELECT
             )
         )
         *
-        toFloat64(
+        toInt256(
             dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(cb.user, cb.asset), toInt8(0))
         )
         *
-        dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0))
+        toInt256(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toUInt256(0)))
         *
-        (
-            1 +
+        toInt256(
             (
-                toFloat64(cb.collateral_interest_rate) / 1e27
-                / 31536000
-                * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.collateral_updated_at_block, 0))
-                * 12
-            )
+                1 +
+                (
+                    toFloat64(cb.collateral_interest_rate) / 1e27
+                    / 31536000
+                    * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.collateral_updated_at_block, 0))
+                    * 12
+                )
+            ) * 1e18
         )
         /
+        -- Denominator: 10000 * decimals_places * 1e18 (for interest accrual factor precision)
         (
-            10000
+            toInt256(10000)
             *
-            toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)))
+            toInt256(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)))
+            *
+            toInt256(1000000000000000000) -- 1e18 for interest accrual factor precision
         )
     ) AS effective_collateral,
 
-    -- Effective Debt (using Float64 for calculations to avoid overflow)
-    floor(
-        toFloat64(cb.debt_balance)
+    -- Effective Debt (separate numerator and denominator with integer multiplication)
+    ceil(
+        -- Numerator: debt_balance * price * interest_accrual_factor
+        toInt256(cb.debt_balance)
         *
-        dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0))
+        toInt256(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toUInt256(0)))
         *
-        (
-            1 +
+        toInt256(
             (
-                toFloat64(cb.debt_interest_rate) / 1e27
-                / 31536000
-                * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.debt_updated_at_block, 0))
-                * 12
-            )
+                1 +
+                (
+                    toFloat64(cb.debt_interest_rate) / 1e27
+                    / 31536000
+                    * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.debt_updated_at_block, 0))
+                    * 12
+                )
+            ) * 1e18
         )
         /
-        toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)))
+        -- Denominator: decimals_places * 1e18 (for interest accrual factor precision)
+        (
+            toInt256(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)))
+            *
+            toInt256(1000000000000000000) -- 1e18 for interest accrual factor precision
+        )
     ) AS effective_debt
 
 FROM current_balances AS cb
