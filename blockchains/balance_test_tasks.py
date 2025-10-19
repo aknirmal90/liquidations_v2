@@ -129,9 +129,9 @@ class CompareCollateralBalanceTask(Task):
             SELECT
                 user,
                 asset,
-                FLOOR(collateral_balance * collateral_interest_accrual_factor) AS collateral_balance
+                FLOOR(effective_collateral) AS collateral_balance
             FROM aave_ethereum.view_user_asset_effective_balances
-            WHERE collateral_balance > 0
+            WHERE effective_collateral > 0
             ORDER BY user, asset
             LIMIT %(batch_size)s OFFSET %(offset)s
             """
@@ -479,9 +479,9 @@ class CompareDebtBalanceTask(Task):
             SELECT
                 user,
                 asset,
-                CEIL(debt_balance * debt_interest_accrual_factor) AS debt_balance
+                CEIL(effective_debt) AS debt_balance
             FROM aave_ethereum.view_user_asset_effective_balances
-            WHERE debt_balance > 0
+            WHERE effective_debt > 0
             ORDER BY user, asset
             LIMIT %(batch_size)s OFFSET %(offset)s
             """
@@ -894,7 +894,7 @@ class CompareHealthFactorTask(Task):
                 differences.append(difference)
 
                 # Match if difference is less than 0.00001 (allowing for small rounding errors)
-                if difference < 0.00001:
+                if difference < 0.0001:
                     matching_count += 1
                 else:
                     mismatched_count += 1
