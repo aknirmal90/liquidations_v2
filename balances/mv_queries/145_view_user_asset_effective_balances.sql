@@ -111,15 +111,13 @@ SELECT
                     * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.collateral_updated_at_block, 0))
                     * 12
                 )
-            ) * 1e18
+            )
         )
         /
         (
             10000.0
             *
             toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)))
-            *
-            1e18 -- interest accrual factor precision
         )
     )) AS effective_collateral,
 
@@ -138,13 +136,11 @@ SELECT
                     * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.debt_updated_at_block, 0))
                     * 12
                 )
-            ) * 1e18
+            )
         )
         /
         (
             toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)))
-            *
-            1e18 -- interest accrual factor precision
         )
     )) AS effective_debt
 
