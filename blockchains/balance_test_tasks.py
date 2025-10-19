@@ -131,7 +131,6 @@ class CompareCollateralBalanceTask(Task):
                 asset,
                 FLOOR(collateral_balance * collateral_interest_accrual_factor) AS collateral_balance
             FROM aave_ethereum.view_user_asset_effective_balances
-            WHERE collateral_balance > 0
             ORDER BY user, asset
             LIMIT %(batch_size)s OFFSET %(offset)s
             """
@@ -481,7 +480,6 @@ class CompareDebtBalanceTask(Task):
                 asset,
                 CEIL(debt_balance * debt_interest_accrual_factor) AS debt_balance
             FROM aave_ethereum.view_user_asset_effective_balances
-            WHERE debt_balance > 0
             ORDER BY user, asset
             LIMIT %(batch_size)s OFFSET %(offset)s
             """
