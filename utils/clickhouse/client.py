@@ -239,7 +239,7 @@ class ClickHouseClient:
             "TokenMetadata",
             "AssetSourceTokenMetadata",
             "NetworkBlockInfo",
-            "Balances",
+            "Balances_v2",
         ]:
 
             def operation(client):
@@ -262,6 +262,19 @@ class ClickHouseClient:
             def operation(client):
                 return client.command(
                     f"OPTIMIZE TABLE {self.db_name}.PriceLatest{table_name} FINAL;"
+                )
+
+            self._execute_with_retry(operation)
+            logger.info(f"Optimized table {table_name} in database {self.db_name}")
+
+        if table_name in [
+            "CollateralLiquidityIndex",
+            "DebtLiquidityIndex",
+        ]:
+
+            def operation(client):
+                return client.command(
+                    f"OPTIMIZE TABLE {self.db_name}.{table_name} FINAL;"
                 )
 
             self._execute_with_retry(operation)
