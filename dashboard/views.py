@@ -4770,120 +4770,35 @@ def liquidation_candidates(request):
 def liquidation_candidates_api(request):
     """API endpoint to get liquidation candidates at risk"""
     try:
-        # Whitelisted debt assets
-        debt_asset_whitelist = [
-            "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",  # WETH
-            "0xdac17f958d2ee523a2206206994597c13d831ec7",  # USDT
-            "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",  # USDC
-            "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",  # wstETH
-            "0x4c9edd5852cd905f086c759e8383e09bff1e68b3",  # USDe
-            "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",  # WBTC
-        ]
-
-        assets_str = ", ".join([f"'{asset.lower()}'" for asset in debt_asset_whitelist])
-
-        query = f"""
+        # Query directly from the LiquidationCandidates_Memory table
+        # This table is populated by RefreshLiquidationCandidatesTask
+        # Filter by profit > $100 and sort by health factor (lowest first)
+        query = """
         WITH
-        -- Get current underlying balances by applying liquidity index to scaled balances
-        current_balances AS (
-            SELECT
-                lb.user,
-                lb.asset,
-                -- Convert scaled balance to underlying: floor((scaled * liquidityIndex) / RAY)
-                floor((toInt256(lb.collateral_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS collateral_balance,
-                floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance
-            FROM aave_ethereum.LatestBalances_v2_Memory AS lb
-        ),
-        -- Filter users who have debt in whitelisted assets
-        users_with_whitelisted_debt AS (
-            SELECT DISTINCT user
-            FROM current_balances
-            WHERE debt_balance > 0
-            AND lower(asset) IN ({assets_str})
-        ),
-        -- Calculate collateral value in USD per user per asset
-        user_asset_collateral_usd AS (
-            SELECT
-                cb.user,
-                cb.asset,
-                CAST(cb.collateral_balance AS Float64) *
-                CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
-                CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64) AS collateral_usd,
-                dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', toString(cb.user), toInt8(0)) AS is_in_emode,
-                dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationBonus', cb.asset, toUInt256(0)) AS collateral_liquidation_bonus,
-                dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationBonus', cb.asset, toUInt256(0)) AS emode_liquidation_bonus
-            FROM current_balances AS cb
-            WHERE cb.user IN (SELECT user FROM users_with_whitelisted_debt)
-            AND cb.collateral_balance > 0
-        ),
-        -- Calculate max profit per user across all their collateral assets
-        user_max_profit AS (
+        -- Aggregate candidates by user to get totals
+        user_aggregates AS (
             SELECT
                 user,
-                max(
-                    if(
-                        is_in_emode = 1,
-                        (CAST(emode_liquidation_bonus AS Float64) / 10000.0 - 1.0) * collateral_usd,
-                        (CAST(collateral_liquidation_bonus AS Float64) / 10000.0 - 1.0) * collateral_usd
-                    )
-                ) AS max_profit
-            FROM user_asset_collateral_usd
+                sum(profit) AS total_profit,
+                min(health_factor) AS health_factor,
+                max(effective_collateral) AS effective_collateral,
+                max(effective_debt) AS effective_debt,
+                max(is_priority_debt) AS has_priority_debt,
+                max(is_priority_collateral) AS has_priority_collateral
+            FROM aave_ethereum.LiquidationCandidates_Memory
+            WHERE profit > 100
             GROUP BY user
-        ),
-        -- Calculate effective collateral and debt per user
-        user_metrics AS (
-            SELECT
-                cb.user,
-                -- Get user's eMode status
-                dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', toString(cb.user), toInt8(0)) AS is_in_emode,
-
-                -- Effective Collateral
-                sumIf(
-                    CAST(cb.collateral_balance AS Float64) *
-                    CAST(
-                        if(
-                            dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', cb.user, toInt8(0)) = 1,
-                            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationThreshold', cb.asset, toUInt256(0)),
-                            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationThreshold', cb.asset, toUInt256(0))
-                        ) AS Float64
-                    ) / 10000.0 *
-                    CAST(dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(cb.user, cb.asset), toInt8(0)) AS Float64) *
-                    CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
-                    CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64),
-                    cb.collateral_balance > 0
-                ) AS effective_collateral,
-
-                -- Effective Debt
-                sum(
-                    CAST(cb.debt_balance AS Float64) *
-                    CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
-                    CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64)
-                ) AS effective_debt
-            FROM current_balances AS cb
-            WHERE cb.user IN (SELECT user FROM users_with_whitelisted_debt)
-            AND (cb.collateral_balance != 0 OR cb.debt_balance != 0)
-            GROUP BY cb.user
         )
         SELECT
-            um.user,
-            um.is_in_emode,
-            um.effective_collateral,
-            um.effective_debt,
-            -- Health Factor
-            if(
-                um.effective_debt = 0,
-                999.9,
-                um.effective_collateral / um.effective_debt
-            ) AS health_factor,
-            -- Max Profit
-            coalesce(ump.max_profit, 0) AS max_profit
-        FROM user_metrics AS um
-        LEFT JOIN user_max_profit AS ump ON um.user = ump.user
-        WHERE um.effective_debt > 10000
-        AND um.effective_collateral > 10000
-        AND health_factor >= 0.95
-        AND health_factor <= 1.25
-        ORDER BY um.effective_debt DESC
+            user,
+            -- Get eMode status for the user
+            dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', toString(user), toInt8(0)) AS is_in_emode,
+            effective_collateral,
+            effective_debt,
+            health_factor,
+            total_profit AS max_profit
+        FROM user_aggregates
+        ORDER BY health_factor ASC
         """
 
         result = clickhouse_client.execute_query(query)
