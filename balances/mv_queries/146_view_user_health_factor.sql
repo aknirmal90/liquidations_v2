@@ -73,6 +73,8 @@ user_totals AS (
 SELECT
     user,
     is_in_emode,
+    total_accrued_collateral_balance,
+    total_accrued_debt_balance,
     total_effective_collateral AS effective_collateral,
     total_effective_debt AS effective_debt,
     -- Health Factor = Effective Collateral / Effective Debt
