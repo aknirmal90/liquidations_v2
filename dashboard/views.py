@@ -4438,6 +4438,68 @@ def health_factor_tests(request):
 @login_required
 @csrf_exempt
 @require_http_methods(["GET"])
+def liquidation_candidates_tests(request):
+    """Liquidation candidates test detail page with history"""
+    try:
+        # Get the latest test results
+        query = """
+        SELECT
+            test_timestamp,
+            total_candidates,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_collateral_difference_bps,
+            max_collateral_difference_bps,
+            avg_debt_difference_bps,
+            max_debt_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message,
+            mismatches_detail
+        FROM aave_ethereum.LiquidationCandidatesTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 50
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        test_results = []
+        for row in result.result_rows:
+            test = {
+                "test_timestamp": row[0],
+                "total_candidates": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_collateral_difference_bps": row[5],
+                "max_collateral_difference_bps": row[6],
+                "avg_debt_difference_bps": row[7],
+                "max_debt_difference_bps": row[8],
+                "test_duration_seconds": row[9],
+                "test_status": row[10],
+                "error_message": row[11],
+                "mismatches_detail": row[12],
+            }
+            test_results.append(test)
+
+        # Get latest test summary
+        latest_test = test_results[0] if test_results else None
+
+        context = {
+            "test_results": test_results,
+            "latest_test": latest_test,
+        }
+
+        return render(request, "dashboard/liquidation_candidates_tests.html", context)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET"])
 def liquidity_index_tests(request):
     """Collateral liquidity index test detail page with history"""
     try:
