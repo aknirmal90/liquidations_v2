@@ -63,6 +63,8 @@ user_totals AS (
     SELECT
         user,
         is_in_emode,
+        sum(accrued_collateral_balance) AS total_accrued_collateral_balance,
+        sum(accrued_debt_balance) AS total_accrued_debt_balance,
         sum(effective_collateral) AS total_effective_collateral,
         sum(effective_debt) AS total_effective_debt
     FROM effective_balances
