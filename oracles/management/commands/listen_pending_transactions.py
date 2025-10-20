@@ -176,7 +176,11 @@ class Command(WebsocketCommand, BaseCommand):
                 return False
 
             # Check if transaction is to a known transmitter
-            to_address = tx_data.get("to", "").lower()
+            to_address = tx_data.get("to", "")
+            if to_address is None:
+                return False
+
+            to_address = to_address.lower()
             # Must be to a known transmitter
             if to_address not in allowed_transmitters:
                 return False
