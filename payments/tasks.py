@@ -92,13 +92,24 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             num_users = len(set([c[0] for c in liquidation_candidates]))
             total_profit = sum([float(c[6]) for c in liquidation_candidates])
 
+            # Get detection timestamp for execution tracking
+            detection_timestamp = int(datetime.now().timestamp())
+
             # Step 5: Send SimplePush notification
             self._send_notification(liquidation_candidates, updated_assets)
+
+            # Step 6: Trigger liquidation execution
+            from payments.liquidation_executor import ExecuteLiquidationsTask
+
+            ExecuteLiquidationsTask.delay(
+                detection_timestamp=detection_timestamp, updated_assets=updated_assets
+            )
 
             logger.warning(
                 f"[LIQUIDATION_DETECTED] *** LIQUIDATION OPPORTUNITIES FOUND *** "
                 f"Users: {num_users} | Opportunities: {len(liquidation_candidates)} | "
-                f"Potential Profit: ${total_profit:,.2f}"
+                f"Potential Profit: ${total_profit:,.2f} | "
+                f"Execution triggered for timestamp: {detection_timestamp}"
             )
 
         except Exception as e:
