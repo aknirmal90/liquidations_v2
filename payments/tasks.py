@@ -143,10 +143,11 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 -- Asset configuration
                 dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', uaeb.asset, toUInt256(1)) AS decimals_places,
                 -- Use predicted_transaction_price for updated assets, historical_event_price for others
+                -- Cast predicted_transaction_price (UInt256) to Float64 for type compatibility
                 if(
                     uaeb.asset IN ({assets_str}),
-                    dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'predicted_transaction_price', uaeb.asset, toFloat64(0)),
-                    dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', uaeb.asset, toFloat64(0))
+                    toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'predicted_transaction_price', uaeb.asset, toUInt256(0))),
+                    toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', uaeb.asset, toFloat64(0)))
                 ) AS price,
                 dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(uaeb.user, uaeb.asset), toInt8(0)) AS is_collateral_enabled,
                 -- Liquidation thresholds
@@ -164,12 +165,10 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 -- Effective Collateral: apply liquidation threshold based on eMode, collateral status, and price
                 cast(floor(
                     toFloat64(accrued_collateral_balance)
-                    * toFloat64(
-                        if(
-                            is_in_emode = 1,
-                            emode_liquidation_threshold,
-                            collateral_liquidation_threshold
-                        )
+                    * if(
+                        is_in_emode = 1,
+                        toFloat64(emode_liquidation_threshold),
+                        toFloat64(collateral_liquidation_threshold)
                     )
                     * toFloat64(is_collateral_enabled)
                     * price
