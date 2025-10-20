@@ -19,7 +19,8 @@ SELECT
     aave_ethereum.LatestTokenMetadata.decimals AS decimals,
     aave_ethereum.LatestTokenMetadata.decimals_places AS decimals_places,
 
-    aave_ethereum.LatestPriceEvent.historical_price_usd AS historical_event_price,
+    aave_ethereum.LatestPriceEvent.historical_price AS historical_event_price,
+    aave_ethereum.LatestPriceEvent.historical_price_usd AS historical_event_price_usd,
     aave_ethereum.LatestPriceTransaction.predicted_price AS predicted_transaction_price,
     aave_ethereum.LatestPriceTransaction.predicted_price_usd AS predicted_transaction_price_usd,
 

@@ -3,6 +3,9 @@
 -- Candidates are users with health factors between 0.9 and 1.25
 -- and significant positions (>$10,000 in both collateral and debt)
 -- This table is populated by a Celery task that runs periodically
+--
+-- IMPORTANT: collateral_balance and debt_balance are ACCRUED values (with interest applied)
+-- to match on-chain currentATokenBalance and currentVariableDebt
 
 CREATE TABLE IF NOT EXISTS aave_ethereum.LiquidationCandidates_Memory
 (

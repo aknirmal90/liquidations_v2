@@ -108,14 +108,9 @@
                         <div class="col-md-9">
                             <div class="mb-3">
                                 <label for="user_address" class="form-label text-white">User Address</label>
-                                <input
-                                    type="text"
-                                    class="form-control"
-                                    id="user_address"
-                                    name="user_address"
+                                <input type="text" class="form-control" id="user_address" name="user_address"
                                     placeholder="Enter Ethereum address (0x...)"
-                                    style="background: rgba(255, 255, 255, 0.9);"
-                                    required
+                                    style="background: rgba(255, 255, 255, 0.9);" required
                                     value="{{ user_address|default:'' }}">
                             </div>
                         </div>
@@ -176,7 +171,7 @@
                             </div>
                             <div class="balance-item">
                                 <div class="balance-label">Historical Event Price (USD)</div>
-                                <div class="balance-value">${{ balance.historical_event_price|floatformat:2 }}</div>
+                                <div class="balance-value">${{ balance.historical_event_price_usd|floatformat:2 }}</div>
                             </div>
                             <div class="balance-item">
                                 <div class="balance-label">Collateral Enabled</div>

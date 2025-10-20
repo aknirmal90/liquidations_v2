@@ -3606,7 +3606,7 @@ def users(request):
                 SELECT
                     asset,
                     decimals,
-                    historical_event_price,
+                    historical_event_price_usd,
                     collateralLiquidationThreshold,
                     collateralLiquidationBonus,
                     eModeLiquidationThreshold,
@@ -3620,7 +3620,7 @@ def users(request):
                 for config_row in config_result.result_rows:
                     asset_config_map[config_row[0]] = {
                         "decimals": int(config_row[1]) if config_row[1] else 18,
-                        "historical_event_price": float(config_row[2])
+                        "historical_event_price_usd": float(config_row[2])
                         if config_row[2]
                         else 0,
                         "liquidation_threshold": float(config_row[3]) / 10000
@@ -3653,7 +3653,9 @@ def users(request):
                     ] / (10**decimals)
 
                     # Add configuration data
-                    balance["historical_event_price"] = config["historical_event_price"]
+                    balance["historical_event_price_usd"] = config[
+                        "historical_event_price_usd"
+                    ]
                     balance["liquidation_threshold"] = config["liquidation_threshold"]
                     balance["liquidation_bonus"] = config["liquidation_bonus"]
                     balance["emode_liquidation_threshold"] = config[
@@ -3665,7 +3667,7 @@ def users(request):
                 else:
                     balance["collateral_balance"] = 0
                     balance["variable_debt_balance"] = 0
-                    balance["historical_event_price"] = 0
+                    balance["historical_event_price_usd"] = 0
                     balance["liquidation_threshold"] = 0
                     balance["liquidation_bonus"] = 0
                     balance["emode_liquidation_threshold"] = 0
@@ -4773,23 +4775,23 @@ def debt_metrics(request):
             ac.name AS asset_name,
             ac.symbol AS asset_symbol,
             ac.decimals_places AS decimals_places,
-            ac.historical_event_price AS price_usd,
+            ac.historical_event_price_usd AS price_usd,
             sum(cb.debt_balance) AS total_debt_balance,
             sum(
                 CAST(cb.debt_balance AS Float64) /
                 CAST(ac.decimals_places AS Float64) *
-                CAST(ac.historical_event_price AS Float64)
+                CAST(ac.historical_event_price_usd AS Float64)
             ) AS total_debt_usd,
             sum(cb.collateral_balance) AS total_collateral_balance,
             sum(
                 CAST(cb.collateral_balance AS Float64) /
                 CAST(ac.decimals_places AS Float64) *
-                CAST(ac.historical_event_price AS Float64)
+                CAST(ac.historical_event_price_usd AS Float64)
             ) AS total_collateral_usd,
             COUNT(DISTINCT cb.user) AS users_count
         FROM current_balances AS cb
         LEFT JOIN aave_ethereum.view_LatestAssetConfiguration AS ac ON cb.asset = ac.asset
-        GROUP BY cb.asset, ac.name, ac.symbol, ac.decimals_places, ac.historical_event_price
+        GROUP BY cb.asset, ac.name, ac.symbol, ac.decimals_places, ac.historical_event_price_usd
         ORDER BY total_debt_usd DESC
         """
 

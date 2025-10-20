@@ -17,7 +17,9 @@ CREATE DICTIONARY IF NOT EXISTS aave_ethereum.dict_latest_asset_configuration
     decimals UInt8,
     decimals_places UInt256,
     historical_event_price Float64,
+    historical_event_price_usd Float64,
     predicted_transaction_price UInt256,
+    predicted_transaction_price_usd Float64,
     max_collateral_liquidityIndex UInt256,
     max_variable_debt_liquidityIndex UInt256
 )

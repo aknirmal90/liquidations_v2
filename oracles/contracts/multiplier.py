@@ -249,5 +249,5 @@ def get_multiplier(asset: str, asset_source: str, event=None, transaction=None) 
         asset_source_type,
         get_timestamp(event, transaction),
         get_blockNumber(event, transaction),
-        multiplier,
+        int(multiplier),
     ]
