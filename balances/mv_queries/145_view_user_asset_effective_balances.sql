@@ -63,12 +63,12 @@ SELECT
 
     -- Collateral interest accrual factor (as Float64):
     (
-        1 +
-        (
-            toFloat64(cb.collateral_interest_rate) / 1e27
-            / 31536000
+        toFloat64(1.00) +
+        toFloat64(
+            toFloat64(cb.collateral_interest_rate) / toFloat64(1e27)
+            / toFloat64(31536000.00)
             * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.collateral_updated_at_block, 0))
-            * 12
+            * toFloat64(12.00)
         )
     ) AS collateral_interest_accrual_factor,
 
@@ -77,12 +77,12 @@ SELECT
 
     -- Debt interest accrual factor (as Float64):
     (
-        1 +
-        (
-            toFloat64(cb.debt_interest_rate) / 1e27
-            / 31536000
+        toFloat64(1.00) +
+        toFloat64(
+            toFloat64(cb.debt_interest_rate) / toFloat64(1e27)
+            / toFloat64(31536000.00)
             * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.debt_updated_at_block, 0))
-            * 12
+            * toFloat64(12.00)
         )
     ) AS debt_interest_accrual_factor,
 
@@ -105,17 +105,17 @@ SELECT
         dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0))
         *
         (
-            1 +
-            (
-                toFloat64(cb.collateral_interest_rate) / 1e27
-                / 31536000
+            toFloat64(1.00) +
+            toFloat64(
+                toFloat64(cb.collateral_interest_rate) / toFloat64(1e27)
+                / toFloat64(31536000.00)
                 * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.collateral_updated_at_block, 0))
-                * 12
+                * toFloat64(12.00)
             )
         )
         /
         (
-            10000
+            toFloat64(10000.00)
             *
             toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)))
         )
@@ -128,12 +128,12 @@ SELECT
         dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0))
         *
         (
-            1 +
-            (
-                toFloat64(cb.debt_interest_rate) / 1e27
-                / 31536000
+            toFloat64(1.00) +
+            toFloat64(
+                toFloat64(cb.debt_interest_rate) / toFloat64(1e27)
+                / toFloat64(31536000.00)
                 * toFloat64(GREATEST((SELECT latest_block_number FROM network_info) - cb.debt_updated_at_block, 0))
-                * 12
+                * toFloat64(12.00)
             )
         )
         /
