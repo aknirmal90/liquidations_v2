@@ -18,6 +18,9 @@ from blockchains.interest_rate_test_tasks import (
     CompareCollateralInterestRateTask,
     CompareDebtInterestRateTask,
 )
+from blockchains.liquidation_candidates_test_tasks import (
+    CompareLiquidationCandidatesTask,
+)
 from blockchains.liquidity_index_test_tasks import (
     CompareLiquidityIndexTask,
     CompareVariableBorrowIndexTask,
@@ -1810,3 +1813,8 @@ compare_collateral_interest_rate_task = app.register_task(
     CompareCollateralInterestRateTask()
 )
 compare_debt_interest_rate_task = app.register_task(CompareDebtInterestRateTask())
+
+# Register liquidation candidate test tasks
+compare_liquidation_candidates_task = app.register_task(
+    CompareLiquidationCandidatesTask()
+)
