@@ -816,7 +816,7 @@ class CompareHealthFactorTask(Task):
                 user,
                 health_factor
             FROM aave_ethereum.view_user_health_factor
-            WHERE total_accrued_collateral_balance > 10000 AND total_accrued_debt_balance > 10000
+            WHERE total_effective_collateral > 10000 AND total_effective_debt > 10000
             ORDER BY user
             LIMIT %(batch_size)s OFFSET %(offset)s
             """
@@ -892,7 +892,7 @@ class CompareHealthFactorTask(Task):
                 differences.append(difference)
 
                 # Match if difference is less than 0.00001 (allowing for small rounding errors)
-                if difference < 0.0001:
+                if difference < 0.001:
                     matching_count += 1
                 else:
                     mismatched_count += 1

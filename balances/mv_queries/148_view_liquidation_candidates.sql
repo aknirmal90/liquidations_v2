@@ -4,6 +4,12 @@
 -- 2. Effective collateral and debt > $10,000
 -- 3. Priority debt assets (WETH, USDT, USDC, wstETH, USDe, WBTC)
 -- 4. Selects best collateral asset based on profit calculation
+--
+-- This view uses accrued balances from view_user_asset_effective_balances (query 145)
+-- and calculates effective values inline using asset metadata from dictionaries
+--
+-- IMPORTANT: collateral_balance and debt_balance are ACCRUED values (with interest applied)
+-- to match on-chain currentATokenBalance and currentVariableDebt for accurate comparisons
 
 CREATE VIEW IF NOT EXISTS aave_ethereum.view_liquidation_candidates AS
 WITH
@@ -42,12 +48,15 @@ user_positions AS (
         eb.asset,
         eb.collateral_balance,
         eb.debt_balance,
-        eb.effective_collateral,
-        eb.effective_debt,
-        eb.price,
-        eb.decimals_places,
-        eb.is_collateral_enabled,
-        eb.is_in_emode,
+        eb.accrued_collateral_balance,
+        eb.accrued_debt_balance,
+        -- Fetch asset metadata from dictionaries
+        dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', toString(eb.user), toInt8(0)) AS is_in_emode,
+        dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', eb.asset, toUInt256(1)) AS decimals_places,
+        dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', eb.asset, toFloat64(0)) AS price,
+        dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(eb.user, eb.asset), toInt8(0)) AS is_collateral_enabled,
+        dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationThreshold', eb.asset, toUInt256(0)) AS emode_liquidation_threshold,
+        dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationThreshold', eb.asset, toUInt256(0)) AS collateral_liquidation_threshold,
         ar.health_factor,
         ar.effective_collateral AS total_effective_collateral,
         ar.effective_debt AS total_effective_debt
@@ -62,7 +71,21 @@ collateral_opportunities AS (
         up.user,
         up.asset AS collateral_asset,
         up.collateral_balance,
-        up.effective_collateral AS collateral_effective_value,
+        up.accrued_collateral_balance,
+        -- Calculate effective collateral value using accrued balance
+        cast(floor(
+            toFloat64(up.accrued_collateral_balance)
+            * toFloat64(
+                if(
+                    up.is_in_emode = 1,
+                    up.emode_liquidation_threshold,
+                    up.collateral_liquidation_threshold
+                )
+            )
+            * toFloat64(up.is_collateral_enabled)
+            * up.price
+            / (10000 * toFloat64(up.decimals_places))
+        ) as UInt256) AS collateral_effective_value,
         up.price AS collateral_price,
         up.decimals_places AS collateral_decimals,
         up.health_factor,
@@ -80,7 +103,7 @@ collateral_opportunities AS (
         -- Check if this is a priority asset
         if(up.asset IN (SELECT asset FROM priority_debt_assets), 1, 0) AS is_priority_asset,
 
-        -- Calculate profit: (liquidation_bonus / 10000.0 - 1) * collateral_balance * price / decimals
+        -- Calculate profit: (liquidation_bonus / 10000.0 - 1) * accrued_collateral_balance * price / decimals
         (
             (toFloat64(
                 if(
@@ -89,7 +112,7 @@ collateral_opportunities AS (
                     dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationBonus', up.asset, toUInt256(10000))
                 )
             ) / 10000.0 - 1.0)
-            * toFloat64(up.collateral_balance)
+            * toFloat64(up.accrued_collateral_balance)
             * up.price
             / toFloat64(up.decimals_places)
         ) AS profit
@@ -105,7 +128,13 @@ debt_positions AS (
         up.user,
         up.asset AS debt_asset,
         up.debt_balance,
-        up.effective_debt AS debt_effective_value,
+        up.accrued_debt_balance,
+        -- Calculate effective debt value using accrued balance
+        cast(floor(
+            toFloat64(up.accrued_debt_balance)
+            * up.price
+            / toFloat64(up.decimals_places)
+        ) as UInt256) AS debt_effective_value,
         up.price AS debt_price,
         up.decimals_places AS debt_decimals,
         if(up.asset IN (SELECT asset FROM priority_debt_assets), 1, 0) AS is_priority_debt
@@ -119,8 +148,8 @@ liquidation_pairs AS (
         co.user,
         co.collateral_asset,
         dp.debt_asset,
-        co.collateral_balance,
-        dp.debt_balance,
+        co.accrued_collateral_balance,
+        dp.accrued_debt_balance,
         co.collateral_price,
         dp.debt_price,
         co.collateral_decimals,
@@ -133,8 +162,8 @@ liquidation_pairs AS (
         co.is_priority_asset AS is_priority_collateral,
         dp.is_priority_debt,
 
-        -- Calculate maximum debt that can be covered (50% of total debt)
-        dp.debt_balance * 0.5 AS max_debt_to_cover,
+        -- Calculate maximum debt that can be covered (50% of total accrued debt)
+        dp.accrued_debt_balance * 0.5 AS max_debt_to_cover,
 
         -- Rank collateral assets for each user-debt pair
         -- Priority: 1) Priority collateral assets, 2) Highest profit
@@ -160,8 +189,8 @@ SELECT
     health_factor,
     total_effective_collateral AS effective_collateral,
     total_effective_debt AS effective_debt,
-    collateral_balance,
-    debt_balance,
+    accrued_collateral_balance AS collateral_balance,
+    accrued_debt_balance AS debt_balance,
     liquidation_bonus,
     collateral_price,
     debt_price,
