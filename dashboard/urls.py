@@ -107,6 +107,11 @@ urlpatterns = [
         name="health_factor_tests",
     ),
     path(
+        "tests/liquidation-candidates/",
+        views.liquidation_candidates_tests,
+        name="liquidation_candidates_tests",
+    ),
+    path(
         "tests/liquidity-index/",
         views.liquidity_index_tests,
         name="liquidity_index_tests",

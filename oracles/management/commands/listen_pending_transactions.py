@@ -171,26 +171,29 @@ class Command(WebsocketCommand, BaseCommand):
                 logger.warning("No transmitters or authorized senders in cache")
                 return False
 
-            # Check if transaction is to a known transmitter
-            to_address = tx_data.get("to", "").lower()
-            from_address = tx_data.get("from", "").lower()
+            # Must have input data (for forwarder calls)
+            if not tx_data.get("input") or len(tx_data["input"]) < 10:
+                return False
 
+            # Check if transaction is to a known transmitter
+            to_address = tx_data.get("to", "")
+            if to_address is None:
+                return False
+
+            to_address = to_address.lower()
             # Must be to a known transmitter
             if to_address not in allowed_transmitters:
                 return False
 
+            from_address = tx_data.get("from", "").lower()
             # Must be from an authorized sender
             if from_address not in authorized_senders:
-                return False
-
-            # Must have input data (for forwarder calls)
-            if not tx_data.get("input") or len(tx_data["input"]) < 10:
                 return False
 
             return True
 
         except Exception as e:
-            logger.error(f"Error filtering transaction: {e}")
+            logger.error(f"Error filtering transaction: {e}. {tx_data}")
             return False
 
     async def _record_unconfirmed_transaction(self, tx_hash: str, oracle_address: str):

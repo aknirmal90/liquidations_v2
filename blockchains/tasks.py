@@ -18,6 +18,9 @@ from blockchains.interest_rate_test_tasks import (
     CompareCollateralInterestRateTask,
     CompareDebtInterestRateTask,
 )
+from blockchains.liquidation_candidates_test_tasks import (
+    CompareLiquidationCandidatesTask,
+)
 from blockchains.liquidity_index_test_tasks import (
     CompareLiquidityIndexTask,
     CompareVariableBorrowIndexTask,
@@ -1101,21 +1104,12 @@ class CompareUserEModeTask(Task):
         Returns:
             List[str]: List of user addresses
         """
-        if since_timestamp:
-            query = """
-            SELECT DISTINCT user
-            FROM aave_ethereum.UserEModeSet
-            WHERE blockTimestamp > %(since_timestamp)s
-            ORDER BY user
-            """
-            parameters = {"since_timestamp": since_timestamp}
-        else:
-            query = """
-            SELECT DISTINCT user
-            FROM aave_ethereum.UserEModeSet
-            ORDER BY user
-            """
-            parameters = {}
+        query = """
+        SELECT DISTINCT user
+        FROM aave_ethereum.UserEModeSet
+        ORDER BY user
+        """
+        parameters = {}
 
         result = clickhouse_client.execute_query(query, parameters=parameters)
 
@@ -1500,34 +1494,14 @@ class CompareUserCollateralTask(Task):
             List[tuple]: List of (user, asset) tuples
         """
         # Use a simpler approach with subquery to ensure proper type handling
-        if since_timestamp:
-            query = """
-            SELECT user, asset
-            FROM (
-                SELECT toString(user) as user, toString(reserve) as asset
-                FROM aave_ethereum.ReserveUsedAsCollateralEnabled
-                WHERE blockTimestamp > %(since_timestamp)s
-                UNION ALL
-                SELECT toString(user) as user, toString(reserve) as asset
-                FROM aave_ethereum.ReserveUsedAsCollateralDisabled
-                WHERE blockTimestamp > %(since_timestamp)s
-            ) AS combined
-            GROUP BY user, asset
-            """
-            parameters = {"since_timestamp": since_timestamp}
-        else:
-            query = """
-            SELECT user, asset
-            FROM (
-                SELECT toString(user) as user, toString(reserve) as asset
-                FROM aave_ethereum.ReserveUsedAsCollateralEnabled
-                UNION ALL
-                SELECT toString(user) as user, toString(reserve) as asset
-                FROM aave_ethereum.ReserveUsedAsCollateralDisabled
-            ) AS combined
-            GROUP BY user, asset
-            """
-            parameters = {}
+        query = """
+        SELECT user, reserve as asset
+        FROM aave_ethereum.ReserveUsedAsCollateralEnabled
+        UNION DISTINCT
+        SELECT user, reserve as asset
+        FROM aave_ethereum.ReserveUsedAsCollateralDisabled
+        """
+        parameters = {}
 
         try:
             result = clickhouse_client.execute_query(query, parameters=parameters)
@@ -1839,3 +1813,8 @@ compare_collateral_interest_rate_task = app.register_task(
     CompareCollateralInterestRateTask()
 )
 compare_debt_interest_rate_task = app.register_task(CompareDebtInterestRateTask())
+
+# Register liquidation candidate test tasks
+compare_liquidation_candidates_task = app.register_task(
+    CompareLiquidationCandidatesTask()
+)
