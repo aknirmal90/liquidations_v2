@@ -37,16 +37,25 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 Each log contains: [asset, asset_source, name, blockTimestamp, blockNumber, numerator]
         """
         try:
-            logger.info("Starting EstimateFutureLiquidationCandidatesTask")
+            logger.info(
+                "[LIQUIDATION_DETECTION] Starting EstimateFutureLiquidationCandidatesTask"
+            )
 
             # Step 1: Extract updated assets from the logs
             updated_assets = self._extract_updated_assets(parsed_numerator_logs)
             if not updated_assets:
-                logger.info("No assets to process, skipping task")
+                logger.info(
+                    "[LIQUIDATION_DETECTION] No assets to process, skipping task"
+                )
                 return
 
             logger.info(
-                f"Processing {len(updated_assets)} updated assets: {updated_assets}"
+                f"[LIQUIDATION_DETECTION] Processing {len(updated_assets)} updated assets: {', '.join(updated_assets[:5])}"
+                + (
+                    f" ... and {len(updated_assets) - 5} more"
+                    if len(updated_assets) > 5
+                    else ""
+                )
             )
 
             # Step 2: Get users with current health_factor > 1 from view 146
@@ -56,10 +65,14 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             )
 
             if not at_risk_users:
-                logger.info("No at-risk users found")
+                logger.info(
+                    "[LIQUIDATION_DETECTION] No at-risk users found - all health factors remain safe"
+                )
                 return
 
-            logger.info(f"Found {len(at_risk_users)} at-risk users")
+            logger.warning(
+                f"[LIQUIDATION_ALERT] Found {len(at_risk_users)} at-risk users with predicted HF < 1.0"
+            )
 
             # Step 3: Get liquidation candidates from LiquidationCandidates_Memory for these users
             liquidation_candidates = self._get_liquidation_candidates_from_memory(
@@ -67,22 +80,31 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             )
 
             if not liquidation_candidates:
-                logger.info("No liquidation candidates found in memory table")
+                logger.info(
+                    "[LIQUIDATION_DETECTION] No liquidation candidates found in memory table"
+                )
                 return
 
             # Step 4: Append results to ClickHouse LiquidationDetections log table
             self._append_liquidation_detections(liquidation_candidates)
 
+            # Calculate summary statistics
+            num_users = len(set([c[0] for c in liquidation_candidates]))
+            total_profit = sum([float(c[6]) for c in liquidation_candidates])
+
             # Step 5: Send SimplePush notification
             self._send_notification(liquidation_candidates, updated_assets)
 
-            logger.info(
-                f"Successfully processed {len(liquidation_candidates)} predicted liquidation candidates"
+            logger.warning(
+                f"[LIQUIDATION_DETECTED] *** LIQUIDATION OPPORTUNITIES FOUND *** "
+                f"Users: {num_users} | Opportunities: {len(liquidation_candidates)} | "
+                f"Potential Profit: ${total_profit:,.2f}"
             )
 
         except Exception as e:
             logger.error(
-                f"Error in EstimateFutureLiquidationCandidatesTask: {e}", exc_info=True
+                f"[LIQUIDATION_DETECTION_ERROR] Error in EstimateFutureLiquidationCandidatesTask: {e}",
+                exc_info=True,
             )
 
     def _extract_updated_assets(self, parsed_numerator_logs: List[Any]) -> List[str]:
@@ -196,19 +218,37 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             at_risk_users = []
 
             if result.result_rows:
+                logger.info(
+                    f"[LIQUIDATION_DETECTION] Query returned {len(result.result_rows)} users with declining health factors"
+                )
+
                 for row in result.result_rows:
+                    user = row[0]
+                    current_hf = float(row[1])
+                    predicted_hf = float(row[2])
+
                     at_risk_users.append(
                         {
-                            "user": row[0],
-                            "current_health_factor": float(row[1]),
-                            "predicted_health_factor": float(row[2]),
+                            "user": user,
+                            "current_health_factor": current_hf,
+                            "predicted_health_factor": predicted_hf,
                         }
+                    )
+
+                    # Log individual user at risk with health factor change
+                    logger.info(
+                        f"[LIQUIDATION_USER_RISK] User: {user} | "
+                        f"Current HF: {current_hf:.4f} → Predicted HF: {predicted_hf:.4f} | "
+                        f"Change: {((predicted_hf - current_hf) / current_hf * 100):.2f}%"
                     )
 
             return at_risk_users
 
         except Exception as e:
-            logger.error(f"Error calculating at-risk users: {e}", exc_info=True)
+            logger.error(
+                f"[LIQUIDATION_DETECTION_ERROR] Error calculating at-risk users: {e}",
+                exc_info=True,
+            )
             return []
 
     def _get_liquidation_candidates_from_memory(
@@ -262,20 +302,27 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             candidates = []
 
             if result.result_rows:
+                logger.info(
+                    f"[LIQUIDATION_DETECTION] Retrieved {len(result.result_rows)} liquidation opportunities from memory table"
+                )
+
                 for row in result.result_rows:
                     user = row[0]
+                    collateral_asset = row[1]
+                    debt_asset = row[2]
+                    profit = float(row[4])
                     current_hf, predicted_hf = health_factor_map.get(user, (0.0, 0.0))
 
                     # Format row for insertion into LiquidationDetections log table
                     candidates.append(
                         [
                             user,  # user
-                            row[1],  # collateral_asset
-                            row[2],  # debt_asset
+                            collateral_asset,  # collateral_asset
+                            debt_asset,  # debt_asset
                             current_hf,  # current_health_factor
                             predicted_hf,  # predicted_health_factor
                             row[3],  # debt_to_cover
-                            row[4],  # profit
+                            profit,  # profit
                             row[5],  # effective_collateral
                             row[6],  # effective_debt
                             row[7],  # collateral_balance
@@ -294,10 +341,20 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                         ]
                     )
 
+                    # Log individual liquidation opportunity
+                    logger.warning(
+                        f"[LIQUIDATION_OPPORTUNITY] User: {user[:10]}... | "
+                        f"Collateral: {collateral_asset[:10]}... | Debt: {debt_asset[:10]}... | "
+                        f"Profit: ${profit:,.2f} | HF: {current_hf:.4f} → {predicted_hf:.4f}"
+                    )
+
             return candidates
 
         except Exception as e:
-            logger.error(f"Error getting liquidation candidates: {e}", exc_info=True)
+            logger.error(
+                f"[LIQUIDATION_DETECTION_ERROR] Error getting liquidation candidates: {e}",
+                exc_info=True,
+            )
             return []
 
     def _append_liquidation_detections(self, candidates: List[List[Any]]):
@@ -307,11 +364,14 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             self.clickhouse_client.insert_rows("LiquidationDetections", candidates)
 
             logger.info(
-                f"Appended {len(candidates)} liquidation detections to log table"
+                f"[LIQUIDATION_DETECTION] Successfully appended {len(candidates)} liquidation detections to log table"
             )
 
         except Exception as e:
-            logger.error(f"Error appending liquidation detections: {e}", exc_info=True)
+            logger.error(
+                f"[LIQUIDATION_DETECTION_ERROR] Error appending liquidation detections: {e}",
+                exc_info=True,
+            )
 
     def _send_notification(
         self, candidates: List[List[Any]], updated_assets: List[str]
@@ -335,10 +395,16 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 title=title, message=message, event="predicted_liquidation_alert"
             )
 
-            logger.info(f"Sent SimplePush notification: {title}")
+            logger.info(
+                f"[LIQUIDATION_NOTIFICATION_SENT] SimplePush notification sent | "
+                f"Users: {num_users} | Opportunities: {num_candidates} | Profit: ${total_profit:,.2f}"
+            )
 
         except Exception as e:
-            logger.error(f"Error sending notification: {e}", exc_info=True)
+            logger.error(
+                f"[LIQUIDATION_DETECTION_ERROR] Error sending notification: {e}",
+                exc_info=True,
+            )
 
 
 EstimateFutureLiquidationCandidatesTask = app.register_task(
