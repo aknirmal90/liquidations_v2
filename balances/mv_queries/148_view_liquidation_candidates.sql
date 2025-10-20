@@ -163,7 +163,7 @@ liquidation_pairs AS (
         dp.is_priority_debt,
 
         -- Calculate maximum debt that can be covered (50% of total accrued debt)
-        dp.accrued_debt_balance * 0.5 AS max_debt_to_cover,
+        toFloat64(dp.accrued_debt_balance) * 0.5 AS max_debt_to_cover,
 
         -- Rank collateral assets for each user-debt pair
         -- Priority: 1) Priority collateral assets, 2) Highest profit
@@ -189,8 +189,8 @@ SELECT
     health_factor,
     total_effective_collateral AS effective_collateral,
     total_effective_debt AS effective_debt,
-    accrued_collateral_balance AS collateral_balance,
-    accrued_debt_balance AS debt_balance,
+    toFloat64(accrued_collateral_balance) AS collateral_balance,
+    toFloat64(accrued_debt_balance) AS debt_balance,
     liquidation_bonus,
     collateral_price,
     debt_price,

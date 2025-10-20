@@ -816,7 +816,7 @@ class CompareHealthFactorTask(Task):
                 user,
                 health_factor
             FROM aave_ethereum.view_user_health_factor
-            WHERE total_effective_collateral > 10000 AND total_effective_debt > 10000
+            WHERE effective_collateral > 10000 AND effective_debt > 10000
             ORDER BY user
             LIMIT %(batch_size)s OFFSET %(offset)s
             """
