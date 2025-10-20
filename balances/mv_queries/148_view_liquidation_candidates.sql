@@ -47,10 +47,10 @@ user_positions AS (
         eb.price,
         eb.decimals_places,
         eb.is_collateral_enabled,
+        eb.is_in_emode,
         ar.health_factor,
         ar.effective_collateral AS total_effective_collateral,
-        ar.effective_debt AS total_effective_debt,
-        ar.is_in_emode
+        ar.effective_debt AS total_effective_debt
     FROM aave_ethereum.view_user_asset_effective_balances AS eb
     INNER JOIN at_risk_users AS ar ON eb.user = ar.user
     WHERE eb.collateral_balance > 0 OR eb.debt_balance > 0
