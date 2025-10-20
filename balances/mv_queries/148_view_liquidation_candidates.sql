@@ -53,7 +53,7 @@ user_positions AS (
         -- Fetch asset metadata from dictionaries
         dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', toString(eb.user), toInt8(0)) AS is_in_emode,
         dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', eb.asset, toUInt256(1)) AS decimals_places,
-        dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', eb.asset, toFloat64(0)) AS price,
+        dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price_usd', eb.asset, toFloat64(0)) AS price,
         dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(eb.user, eb.asset), toInt8(0)) AS is_collateral_enabled,
         dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationThreshold', eb.asset, toUInt256(0)) AS emode_liquidation_threshold,
         dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationThreshold', eb.asset, toUInt256(0)) AS collateral_liquidation_threshold,

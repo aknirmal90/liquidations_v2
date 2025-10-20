@@ -190,7 +190,6 @@ class Command(BaseCommand):
             asset_info = self._get_asset_info(asset)
             if asset_info:
                 symbol = asset_info["symbol"]
-                decimals_places = asset_info["decimals_places"]
                 current_predicted = asset_info["predicted_transaction_price"]
                 current_historical = asset_info["historical_event_price"]
 
@@ -199,7 +198,7 @@ class Command(BaseCommand):
                     f"    Current Historical Price: ${current_historical:.2f}"
                 )
                 self.stdout.write(
-                    f"    Current Predicted Price:  ${current_predicted / decimals_places:.2f}"
+                    f"    Current Predicted Price:  ${current_predicted:.2f}"
                 )
                 self.stdout.write(f"    New Test Price:           ${price:.2f}")
             else:
