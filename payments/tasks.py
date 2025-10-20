@@ -201,6 +201,9 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 user,
                 health_factor AS current_health_factor
             FROM aave_ethereum.view_user_health_factor
+            WHERE
+                effective_collateral > 10000
+                AND effective_debt > 100000
         )
         SELECT
             phf.user,
@@ -209,7 +212,7 @@ class EstimateFutureLiquidationCandidatesTask(Task):
         FROM predicted_health_factors AS phf
         INNER JOIN current_health_factors AS chf ON phf.user = chf.user
         WHERE chf.current_health_factor > 1.0
-            AND phf.predicted_health_factor < 1.0
+            AND phf.predicted_health_factor <= 1.0
             AND phf.total_effective_collateral > 10000
             AND phf.total_effective_debt > 10000
         """
