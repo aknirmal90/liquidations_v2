@@ -690,6 +690,14 @@ class InsertTransactionNumeratorTask(BasePriceMixin, Task):
             table_name="TransactionRawNumerator", logs=parsed_multiplier_logs
         )
 
+        # Import here to avoid circular dependency
+        from payments.tasks import EstimateFutureLiquidationCandidatesTask
+
+        # Trigger the future liquidation candidates estimation task
+        EstimateFutureLiquidationCandidatesTask.delay(
+            parsed_numerator_logs=parsed_multiplier_logs
+        )
+
 
 InsertTransactionNumeratorTask = app.register_task(InsertTransactionNumeratorTask())
 
