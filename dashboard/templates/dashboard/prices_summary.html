@@ -217,6 +217,10 @@
                     <i class="fas fa-dollar-sign me-2"></i>
                     Prices
                 </a>
+                <a class="nav-link" href="{% url 'dashboard:debt' %}">
+                    <i class="fas fa-money-bill-wave me-2"></i>
+                    Debt
+                </a>
                 <a class="nav-link" href="{% url 'dashboard:liquidations' %}">
                     <i class="fas fa-exclamation-triangle me-2"></i>
                     Liquidations
@@ -568,79 +572,81 @@
                                         </div>
                                     </div>
 
-                                    <!-- Coverage Summary Cards -->
-                                    <div class="row mb-4">
-                                        <div class="col-md-4">
-                                            <div class="card bg-primary text-white">
-                                                <div class="card-body text-center">
-                                                    <h4 id="eventOnlyCount" class="mb-2">-</h4>
-                                                    <p class="mb-0">Event Only</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <div class="card bg-warning text-white">
-                                                <div class="card-body text-center">
-                                                    <h4 id="transactionOnlyCount" class="mb-2">-</h4>
-                                                    <p class="mb-0">Transaction Only</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <div class="card bg-success text-white">
-                                                <div class="card-body text-center">
-                                                    <h4 id="bothTypesCount" class="mb-2">-</h4>
-                                                    <p class="mb-0">Both Types</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Timestamp Difference Table -->
+                                    <!-- Detection Timing Histogram -->
                                     <div class="row">
                                         <div class="col-12">
                                             <div class="card">
                                                 <div class="card-header">
                                                     <h6 class="mb-0">
-                                                        <i class="fas fa-clock me-2"></i>
-                                                        Timestamp Differences (Transaction - Event) by Asset/Source
+                                                        <i class="fas fa-chart-bar me-2"></i>
+                                                        Websocket Detection Lead Time Distribution
+                                                        <span class="badge bg-info ms-2" id="histogramRecordCount">0 records</span>
                                                     </h6>
                                                 </div>
                                                 <div class="card-body">
-                                                    <div id="timestampDiffContainer">
-                                                        <div id="timestampDiffLoading" class="text-center py-5">
+                                                    <div id="histogramContainer">
+                                                        <div id="histogramLoading" class="text-center py-5">
                                                             <div class="spinner-border text-primary" role="status">
                                                                 <span class="visually-hidden">Loading...</span>
                                                             </div>
-                                                            <p class="mt-3 text-muted">Loading timestamp difference
-                                                                analysis...</p>
+                                                            <p class="mt-3 text-muted">Loading detection timing histogram...</p>
                                                         </div>
-                                                        <div id="timestampDiffTable" class="table-responsive"
+                                                        <div id="histogramChart" style="display: none; height: 400px;">
+                                                            <canvas id="detectionTimingChart"></canvas>
+                                                        </div>
+                                                        <div id="histogramError" class="text-center py-5"
                                                             style="display: none;">
+                                                            <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                                                            <h5 class="text-muted">Error Loading Data</h5>
+                                                            <p class="text-muted" id="histogramErrorMessage">Failed
+                                                                to load histogram data.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Asset Source Statistics Table -->
+                                    <div class="row mt-4">
+                                        <div class="col-12">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">
+                                                        <i class="fas fa-table me-2"></i>
+                                                        Asset Source Detection Statistics
+                                                    </h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div id="assetSourceStatsContainer">
+                                                        <div id="assetSourceStatsLoading" class="text-center py-5">
+                                                            <div class="spinner-border text-primary" role="status">
+                                                                <span class="visually-hidden">Loading...</span>
+                                                            </div>
+                                                            <p class="mt-3 text-muted">Loading asset source statistics...</p>
+                                                        </div>
+                                                        <div id="assetSourceStatsTable" class="table-responsive" style="display: none;">
                                                             <table class="table table-striped table-hover">
                                                                 <thead>
                                                                     <tr>
                                                                         <th>#</th>
-                                                                        <th>Asset</th>
                                                                         <th>Name</th>
-                                                                        <th>Count</th>
-                                                                        <th>Min (seconds)</th>
-                                                                        <th>Max (seconds)</th>
-                                                                        <th>Average (seconds)</th>
+                                                                        <th>Asset Source</th>
+                                                                        <th>Total Records</th>
+                                                                        <th>Min Lead Time (s)</th>
+                                                                        <th>Avg Lead Time (s)</th>
+                                                                        <th>Max Lead Time (s)</th>
                                                                     </tr>
                                                                 </thead>
-                                                                <tbody id="timestampDiffTableBody">
+                                                                <tbody id="assetSourceStatsTableBody">
                                                                     <!-- Data will be populated by JavaScript -->
                                                                 </tbody>
                                                             </table>
                                                         </div>
-                                                        <div id="timestampDiffError" class="text-center py-5"
-                                                            style="display: none;">
-                                                            <i
-                                                                class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                                                        <div id="assetSourceStatsError" class="text-center py-5" style="display: none;">
+                                                            <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
                                                             <h5 class="text-muted">Error Loading Data</h5>
-                                                            <p class="text-muted" id="timestampDiffErrorMessage">Failed
-                                                                to load timestamp difference data.</p>
+                                                            <p class="text-muted" id="assetSourceStatsErrorMessage">Failed to load asset source statistics.</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -953,71 +959,168 @@
             function updateCoverageData() {
                 const timeWindow = document.getElementById('coverageTimeWindow').value;
 
-                // Update coverage metrics
-                updateCoverageMetrics(timeWindow);
+                // Update detection timing histogram
+                updateDetectionTimingHistogram(timeWindow);
 
-                // Update timestamp differences chart
-                updateTimestampDifferences(timeWindow);
+                // Update asset source statistics
+                updateAssetSourceStats(timeWindow);
             }
 
-            // Function to update coverage metrics (summary cards)
-            function updateCoverageMetrics(timeWindow) {
-                fetch(`/api/transaction-coverage-metrics/?time_window=${timeWindow}`)
+            // Initialize detection timing histogram chart
+            let detectionTimingChart = null;
+
+            // Function to update detection timing histogram
+            function updateDetectionTimingHistogram(timeWindow) {
+                // Show loading state
+                document.getElementById('histogramLoading').style.display = 'block';
+                document.getElementById('histogramChart').style.display = 'none';
+                document.getElementById('histogramError').style.display = 'none';
+
+                fetch(`/api/transaction-detection-timing-histogram/?time_window=${timeWindow}`)
                     .then(response => response.json())
                     .then(data => {
                         if (data.error) {
-                            console.error('Error fetching coverage metrics:', data.error);
-                            document.getElementById('eventOnlyCount').textContent = 'Error';
-                            document.getElementById('transactionOnlyCount').textContent = 'Error';
-                            document.getElementById('bothTypesCount').textContent = 'Error';
+                            console.error('Error fetching histogram:', data.error);
+                            showHistogramError(data.error);
                             return;
                         }
 
-                        // Update the summary cards
-                        document.getElementById('eventOnlyCount').textContent = data.event_only.toLocaleString();
-                        document.getElementById('transactionOnlyCount').textContent = data.transaction_only.toLocaleString();
-                        document.getElementById('bothTypesCount').textContent = data.both_types.toLocaleString();
+                        // Update record count badge
+                        document.getElementById('histogramRecordCount').textContent =
+                            `${data.total_records.toLocaleString()} records`;
+
+                        // Create or update the histogram chart
+                        createDetectionTimingHistogram(data.data);
+
+                        // Hide loading and show chart
+                        document.getElementById('histogramLoading').style.display = 'none';
+                        document.getElementById('histogramChart').style.display = 'block';
                     })
                     .catch(error => {
-                        console.error('Error fetching coverage metrics:', error);
-                        document.getElementById('eventOnlyCount').textContent = 'Error';
-                        document.getElementById('transactionOnlyCount').textContent = 'Error';
-                        document.getElementById('bothTypesCount').textContent = 'Error';
+                        console.error('Error fetching histogram:', error);
+                        showHistogramError('Failed to fetch data from server');
                     });
             }
 
-            // Function to update timestamp differences visualization
-            function updateTimestampDifferences(timeWindow) {
-                // Show loading state
-                document.getElementById('timestampDiffLoading').style.display = 'block';
-                document.getElementById('timestampDiffTable').style.display = 'none';
-                document.getElementById('timestampDiffError').style.display = 'none';
+            // Function to create the histogram chart
+            function createDetectionTimingHistogram(data) {
+                const ctx = document.getElementById('detectionTimingChart').getContext('2d');
 
-                fetch(`/api/transaction-timestamp-differences/?time_window=${timeWindow}`)
+                // Destroy existing chart if it exists
+                if (detectionTimingChart) {
+                    detectionTimingChart.destroy();
+                }
+
+                if (data.length === 0) {
+                    showHistogramError('No data available for the selected time period');
+                    return;
+                }
+
+                // Extract labels and counts
+                const labels = data.map(item => item.time_diff_seconds);
+                const counts = data.map(item => item.count);
+
+                detectionTimingChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Number of Transactions',
+                            data: counts,
+                            backgroundColor: 'rgba(99, 102, 241, 0.6)',
+                            borderColor: 'rgba(99, 102, 241, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Number of Transactions'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Detection Lead Time (seconds)'
+                                },
+                                ticks: {
+                                    maxRotation: 45,
+                                    minRotation: 45
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Distribution of Time Between Websocket Detection and On-Chain Confirmation'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `Transactions: ${context.parsed.y}`;
+                                    },
+                                    afterLabel: function(context) {
+                                        return `Lead time: ${context.label}s`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Function to show histogram error
+            function showHistogramError(errorMessage) {
+                document.getElementById('histogramLoading').style.display = 'none';
+                document.getElementById('histogramChart').style.display = 'none';
+                document.getElementById('histogramError').style.display = 'block';
+                document.getElementById('histogramErrorMessage').textContent = errorMessage;
+            }
+
+            // Function to update asset source statistics
+            function updateAssetSourceStats(timeWindow) {
+                // Show loading state
+                document.getElementById('assetSourceStatsLoading').style.display = 'block';
+                document.getElementById('assetSourceStatsTable').style.display = 'none';
+                document.getElementById('assetSourceStatsError').style.display = 'none';
+
+                fetch(`/api/asset-source-timing-stats/?time_window=${timeWindow}`)
                     .then(response => response.json())
                     .then(data => {
                         if (data.error) {
-                            console.error('Error fetching timestamp differences:', data.error);
-                            showTimestampDiffError(data.error);
+                            console.error('Error fetching asset source stats:', data.error);
+                            showAssetSourceStatsError(data.error);
                             return;
                         }
 
                         // Populate the table
-                        populateTimestampDifferenceTable(data.data);
+                        populateAssetSourceStatsTable(data.data);
 
                         // Hide loading and show table
-                        document.getElementById('timestampDiffLoading').style.display = 'none';
-                        document.getElementById('timestampDiffTable').style.display = 'block';
+                        document.getElementById('assetSourceStatsLoading').style.display = 'none';
+                        document.getElementById('assetSourceStatsTable').style.display = 'block';
                     })
                     .catch(error => {
-                        console.error('Error fetching timestamp differences:', error);
-                        showTimestampDiffError('Failed to fetch data from server');
+                        console.error('Error fetching asset source stats:', error);
+                        showAssetSourceStatsError('Failed to fetch data from server');
                     });
             }
 
-            // Function to populate timestamp difference table
-            function populateTimestampDifferenceTable(data) {
-                const tbody = document.getElementById('timestampDiffTableBody');
+            // Function to populate asset source statistics table
+            function populateAssetSourceStatsTable(data) {
+                const tbody = document.getElementById('assetSourceStatsTableBody');
                 tbody.innerHTML = ''; // Clear existing data
 
                 if (data.length === 0) {
@@ -1032,34 +1135,36 @@
                     tr.innerHTML = `
                     <td>${index + 1}</td>
                     <td>
-                        <span class="fw-medium">${row.asset.substring(0, 8)}...${row.asset.substring(row.asset.length - 6)}</span>
-                        <br>
-                        <small class="text-muted">${row.asset_source.substring(0, 8)}...${row.asset_source.substring(row.asset_source.length - 6)}</small>
-                    </td>
-                    <td><strong>${row.name}</strong></td>
-                    <td>
-                        <span class="badge bg-primary">${row.count_transactions.toLocaleString()}</span>
+                        <strong>${row.asset_source_name}</strong>
                     </td>
                     <td>
-                        <span class="text-${row.min_diff < 0 ? 'danger' : 'success'}">${row.min_diff.toFixed(3)}s</span>
+                        <span class="text-muted text-truncate" style="max-width: 150px; display: inline-block; font-family: monospace; font-size: 0.85rem;" title="${row.asset_source}">
+                            ${row.asset_source.substring(0, 10)}...${row.asset_source.substring(row.asset_source.length - 8)}
+                        </span>
                     </td>
                     <td>
-                        <span class="text-${row.max_diff < 0 ? 'danger' : 'success'}">${row.max_diff.toFixed(3)}s</span>
+                        <span class="badge bg-primary">${row.total_records.toLocaleString()}</span>
                     </td>
                     <td>
-                        <span class="text-${row.avg_diff < 0 ? 'danger' : 'success'}">${row.avg_diff.toFixed(3)}s</span>
+                        <span class="text-success">${row.min_lead_time}s</span>
+                    </td>
+                    <td>
+                        <span class="text-info fw-bold">${row.avg_lead_time.toFixed(2)}s</span>
+                    </td>
+                    <td>
+                        <span class="text-warning">${row.max_lead_time}s</span>
                     </td>
                 `;
                     tbody.appendChild(tr);
                 });
             }
 
-            // Function to show timestamp difference error
-            function showTimestampDiffError(errorMessage) {
-                document.getElementById('timestampDiffLoading').style.display = 'none';
-                document.getElementById('timestampDiffTable').style.display = 'none';
-                document.getElementById('timestampDiffError').style.display = 'block';
-                document.getElementById('timestampDiffErrorMessage').textContent = errorMessage;
+            // Function to show asset source stats error
+            function showAssetSourceStatsError(errorMessage) {
+                document.getElementById('assetSourceStatsLoading').style.display = 'none';
+                document.getElementById('assetSourceStatsTable').style.display = 'none';
+                document.getElementById('assetSourceStatsError').style.display = 'block';
+                document.getElementById('assetSourceStatsErrorMessage').textContent = errorMessage;
             }
 
             // Initialize mismatch counts chart when page loads

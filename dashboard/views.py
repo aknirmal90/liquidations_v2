@@ -1,3 +1,5 @@
+import logging
+import time
 from datetime import datetime
 
 from bokeh.embed import components
@@ -15,6 +17,8 @@ from utils.constants import NETWORK_ID, NETWORK_NAME
 from utils.event_parser import parse_transaction_logs
 from utils.rpc import rpc_adapter
 from utils.simulation import get_simulated_health_factor
+
+logger = logging.getLogger(__name__)
 
 
 def get_simple_explorer_url(address_id: str):
@@ -1879,6 +1883,155 @@ def transaction_timestamp_differences(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
+def transaction_detection_timing_histogram(request):
+    """API endpoint to get histogram data for websocket detection timing"""
+    try:
+        time_window = request.GET.get("time_window", "1_hour")
+
+        # Convert time window to seconds for filtering
+        interval_seconds_map = {
+            "1_hour": 3600,
+            "1_day": 86400,
+            "1_week": 604800,
+            "1_month": 2592000,
+        }
+
+        interval_seconds = interval_seconds_map.get(time_window, 3600)
+        current_timestamp = int(time.time())
+        cutoff_timestamp = current_timestamp - interval_seconds
+
+        # Query to get histogram of time differences between unconfirmed and confirmed timestamps
+        # Only include transactions where both timestamps exist and confirmed > unconfirmed
+        histogram_query = f"""
+        WITH time_diffs AS (
+            SELECT
+                txn_id,
+                anyMerge(asset_source) as asset_source,
+                maxMerge(unconfirmed_tx_ts) as unconfirmed_ts,
+                maxMerge(confirmed_tx_ts) as confirmed_ts,
+                maxMerge(confirmed_tx_ts) - maxMerge(unconfirmed_tx_ts) as time_diff_seconds
+            FROM aave_ethereum.TransactionTimingTracking
+            GROUP BY txn_id
+            HAVING confirmed_ts > 0
+                AND unconfirmed_ts > 0
+                AND time_diff_seconds > 0
+                AND unconfirmed_ts >= {cutoff_timestamp}
+        )
+        SELECT
+            time_diff_seconds,
+            COUNT(*) as count
+        FROM time_diffs
+        GROUP BY time_diff_seconds
+        ORDER BY time_diff_seconds
+        """
+
+        result = clickhouse_client.execute_query(histogram_query)
+
+        # Convert to histogram data
+        histogram_data = []
+        total_records = 0
+        for row in result.result_rows:
+            time_diff = int(row[0])
+            count = int(row[1])
+            histogram_data.append({"time_diff_seconds": time_diff, "count": count})
+            total_records += count
+
+        return JsonResponse(
+            {
+                "data": histogram_data,
+                "total_records": total_records,
+                "time_window": time_window,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error fetching transaction detection timing histogram: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def asset_source_timing_stats(request):
+    """API endpoint to get timing statistics by asset source"""
+    try:
+        time_window = request.GET.get("time_window", "1_hour")
+
+        # Convert time window to seconds for filtering
+        interval_seconds_map = {
+            "1_hour": 3600,
+            "1_day": 86400,
+            "1_week": 604800,
+            "1_month": 2592000,
+        }
+
+        interval_seconds = interval_seconds_map.get(time_window, 3600)
+        current_timestamp = int(time.time())
+        cutoff_timestamp = current_timestamp - interval_seconds
+
+        # Query to get statistics by asset source
+        stats_query = f"""
+        WITH time_diffs AS (
+            SELECT
+                anyMerge(asset_source) as asset_source,
+                maxMerge(unconfirmed_tx_ts) as unconfirmed_ts,
+                maxMerge(confirmed_tx_ts) as confirmed_ts,
+                maxMerge(confirmed_tx_ts) - maxMerge(unconfirmed_tx_ts) as time_diff_seconds
+            FROM aave_ethereum.TransactionTimingTracking
+            GROUP BY txn_id
+            HAVING confirmed_ts > 0
+                AND unconfirmed_ts > 0
+                AND time_diff_seconds > 0
+                AND unconfirmed_ts >= {cutoff_timestamp}
+        )
+        SELECT
+            asset_source,
+            COUNT(*) as total_records,
+            MIN(time_diff_seconds) as min_lead_time,
+            AVG(time_diff_seconds) as avg_lead_time,
+            MAX(time_diff_seconds) as max_lead_time
+        FROM time_diffs
+        WHERE asset_source != ''
+        GROUP BY asset_source
+        ORDER BY total_records DESC
+        """
+
+        result = clickhouse_client.execute_query(stats_query)
+
+        # Get asset source names from Django ORM
+        from oracles.models import PriceEvent
+
+        asset_source_names = {}
+        for price_event in PriceEvent.objects.filter(is_active=True).values(
+            "asset_source", "asset_source_name"
+        ):
+            asset_source_names[price_event["asset_source"].lower()] = price_event[
+                "asset_source_name"
+            ]
+
+        # Convert to list of dictionaries
+        stats_data = []
+        for row in result.result_rows:
+            asset_source = row[0]
+            stats_data.append(
+                {
+                    "asset_source": asset_source,
+                    "asset_source_name": asset_source_names.get(
+                        asset_source.lower(), "Unknown"
+                    ),
+                    "total_records": int(row[1]),
+                    "min_lead_time": int(row[2]),
+                    "avg_lead_time": float(row[3]),
+                    "max_lead_time": int(row[4]),
+                }
+            )
+
+        return JsonResponse({"data": stats_data, "time_window": time_window})
+
+    except Exception as e:
+        logger.error(f"Error fetching asset source timing stats: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
 def create_box_plots(box_plot_data):
     """Create 3 interactive box plots for price verification errors by type"""
     plots = {}
@@ -3385,7 +3538,156 @@ def health_factor_analytics(request):
 
 @login_required
 def users(request):
-    """Users page with search functionality"""
+    """Users page - form to search for user balances from LatestBalances_v2"""
+    if request.method == "POST":
+        user_address = request.POST.get("user_address", "").strip().lower()
+
+        if not user_address:
+            return render(
+                request,
+                "dashboard/users.html",
+                {"error": "Please enter a user address"},
+            )
+
+        # Validate Ethereum address format
+        if not user_address.startswith("0x") or len(user_address) != 42:
+            return render(
+                request,
+                "dashboard/users.html",
+                {
+                    "error": "Invalid Ethereum address format. Address must start with 0x and be 42 characters long."
+                },
+            )
+
+        try:
+            # Query LatestBalances_v2 for all balances held by the user
+            # Using FINAL to get the latest version from ReplacingMergeTree
+            query = """
+            SELECT
+                user,
+                asset,
+                collateral_scaled_balance,
+                variable_debt_scaled_balance,
+                dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', (user, asset), 0) as collateral_enabled,
+                dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', user, 0) as is_in_emode
+            FROM aave_ethereum.LatestBalances_v2 FINAL
+            WHERE user = %(user_address)s
+              AND (collateral_scaled_balance > 0 OR variable_debt_scaled_balance > 0)
+            ORDER BY asset
+            """
+
+            result = clickhouse_client.execute_query(
+                query, {"user_address": user_address}
+            )
+
+            balances = []
+            user_assets = []
+            is_in_emode = False
+
+            for row in result.result_rows:
+                balance = {
+                    "user": row[0],
+                    "asset": row[1],
+                    "collateral_scaled_balance": float(row[2]) if row[2] else 0,
+                    "variable_debt_scaled_balance": float(row[3]) if row[3] else 0,
+                    "collateral_enabled": bool(row[4]) if len(row) > 4 else False,
+                    "is_in_emode": bool(row[5]) if len(row) > 5 else False,
+                }
+                balances.append(balance)
+                user_assets.append(row[1])
+                if not is_in_emode and len(row) > 5:
+                    is_in_emode = bool(row[5])
+
+            # Query asset configuration separately
+            asset_config_map = {}
+            if user_assets:
+                assets_str = ",".join([f"'{asset}'" for asset in user_assets])
+                config_query = f"""
+                SELECT
+                    asset,
+                    decimals,
+                    historical_event_price,
+                    collateralLiquidationThreshold,
+                    collateralLiquidationBonus,
+                    eModeLiquidationThreshold,
+                    eModeLiquidationBonus
+                FROM aave_ethereum.view_LatestAssetConfiguration
+                WHERE asset IN ({assets_str})
+                """
+
+                config_result = clickhouse_client.execute_query(config_query)
+
+                for config_row in config_result.result_rows:
+                    asset_config_map[config_row[0]] = {
+                        "decimals": int(config_row[1]) if config_row[1] else 18,
+                        "historical_event_price": float(config_row[2])
+                        if config_row[2]
+                        else 0,
+                        "liquidation_threshold": float(config_row[3]) / 10000
+                        if config_row[3]
+                        else 0,
+                        "liquidation_bonus": (float(config_row[4]) / 10000 - 1)
+                        if config_row[4]
+                        else 0,
+                        "emode_liquidation_threshold": float(config_row[5]) / 10000
+                        if config_row[5]
+                        else 0,
+                        "emode_liquidation_bonus": (float(config_row[6]) / 10000 - 1)
+                        if config_row[6]
+                        else 0,
+                    }
+
+            # Enrich balances with configuration data
+            for balance in balances:
+                asset = balance["asset"]
+                if asset in asset_config_map:
+                    config = asset_config_map[asset]
+                    decimals = config["decimals"]
+
+                    # Normalize balances by decimals
+                    balance["collateral_balance"] = balance[
+                        "collateral_scaled_balance"
+                    ] / (10**decimals)
+                    balance["variable_debt_balance"] = balance[
+                        "variable_debt_scaled_balance"
+                    ] / (10**decimals)
+
+                    # Add configuration data
+                    balance["historical_event_price"] = config["historical_event_price"]
+                    balance["liquidation_threshold"] = config["liquidation_threshold"]
+                    balance["liquidation_bonus"] = config["liquidation_bonus"]
+                    balance["emode_liquidation_threshold"] = config[
+                        "emode_liquidation_threshold"
+                    ]
+                    balance["emode_liquidation_bonus"] = config[
+                        "emode_liquidation_bonus"
+                    ]
+                else:
+                    balance["collateral_balance"] = 0
+                    balance["variable_debt_balance"] = 0
+                    balance["historical_event_price"] = 0
+                    balance["liquidation_threshold"] = 0
+                    balance["liquidation_bonus"] = 0
+                    balance["emode_liquidation_threshold"] = 0
+                    balance["emode_liquidation_bonus"] = 0
+
+            return render(
+                request,
+                "dashboard/users.html",
+                {
+                    "user_address": user_address,
+                    "balances": balances,
+                    "is_in_emode": is_in_emode,
+                },
+            )
+
+        except Exception as e:
+            return render(
+                request,
+                "dashboard/users.html",
+                {"error": f"Error querying database: {str(e)}"},
+            )
+
     return render(request, "dashboard/users.html")
 
 
@@ -3584,12 +3886,205 @@ def tests(request):
                 "error_message": row[10],
             }
 
+        # Get the latest health factor test summary
+        health_factor_query = """
+        SELECT
+            test_timestamp,
+            batch_offset,
+            total_users,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference,
+            max_difference,
+            test_duration_seconds,
+            test_status,
+            error_message
+        FROM aave_ethereum.HealthFactorTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        health_factor_result = clickhouse_client.execute_query(health_factor_query)
+
+        health_factor_summary = None
+        if health_factor_result.result_rows:
+            row = health_factor_result.result_rows[0]
+            health_factor_summary = {
+                "test_timestamp": row[0],
+                "batch_offset": row[1],
+                "total_users": row[2],
+                "matching_records": row[3],
+                "mismatched_records": row[4],
+                "match_percentage": row[5],
+                "avg_difference": row[6],
+                "max_difference": row[7],
+                "test_duration_seconds": row[8],
+                "test_status": row[9],
+                "error_message": row[10],
+            }
+
+        # Get the latest liquidity index test summary
+        liquidity_index_query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message
+        FROM aave_ethereum.LiquidityIndexTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        liquidity_index_result = clickhouse_client.execute_query(liquidity_index_query)
+
+        liquidity_index_summary = None
+        if liquidity_index_result.result_rows:
+            row = liquidity_index_result.result_rows[0]
+            liquidity_index_summary = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+            }
+
+        # Get the latest variable borrow index test summary
+        variable_borrow_index_query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message
+        FROM aave_ethereum.VariableBorrowIndexTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        variable_borrow_index_result = clickhouse_client.execute_query(
+            variable_borrow_index_query
+        )
+
+        variable_borrow_index_summary = None
+        if variable_borrow_index_result.result_rows:
+            row = variable_borrow_index_result.result_rows[0]
+            variable_borrow_index_summary = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+            }
+
+        # Get the latest collateral interest rate test summary
+        collateral_interest_rate_query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message
+        FROM aave_ethereum.CollateralInterestRateTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        collateral_interest_rate_result = clickhouse_client.execute_query(
+            collateral_interest_rate_query
+        )
+
+        collateral_interest_rate_summary = None
+        if collateral_interest_rate_result.result_rows:
+            row = collateral_interest_rate_result.result_rows[0]
+            collateral_interest_rate_summary = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+            }
+
+        # Get the latest debt interest rate test summary
+        debt_interest_rate_query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message
+        FROM aave_ethereum.DebtInterestRateTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 1
+        """
+
+        debt_interest_rate_result = clickhouse_client.execute_query(
+            debt_interest_rate_query
+        )
+
+        debt_interest_rate_summary = None
+        if debt_interest_rate_result.result_rows:
+            row = debt_interest_rate_result.result_rows[0]
+            debt_interest_rate_summary = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+            }
+
         context = {
             "reserve_test_summary": reserve_test_summary,
             "emode_test_summary": emode_test_summary,
             "collateral_test_summary": collateral_test_summary,
             "collateral_balance_summary": collateral_balance_summary,
             "debt_balance_summary": debt_balance_summary,
+            "health_factor_summary": health_factor_summary,
+            "liquidity_index_summary": liquidity_index_summary,
+            "variable_borrow_index_summary": variable_borrow_index_summary,
+            "collateral_interest_rate_summary": collateral_interest_rate_summary,
+            "debt_interest_rate_summary": debt_interest_rate_summary,
         }
 
         return render(request, "dashboard/tests.html", context)
@@ -3885,45 +4380,56 @@ def debt_balance_tests(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-@login_required
-@csrf_exempt
-@require_http_methods(["GET"])
-def user_balances_api(request, user_address):
-    """API endpoint to get user balances"""
+def health_factor_tests(request):
+    """Health factor test detail page with history"""
     try:
+        # Get the latest test results
         query = """
         SELECT
-            lb.user,
-            lb.asset,
-            COALESCE(csd.is_enabled_as_collateral, 0) as is_enabled_as_collateral_total,
-            sumMerge(lb.collateral_balance) as collateral_balance_total,
-            maxMerge(lb.collateral_liquidityIndex) as collateral_liquidityIndex_total,
-            sumMerge(lb.variable_debt_balance) as variable_debt_balance_total,
-            maxMerge(lb.variable_debt_liquidityIndex) as variable_debt_liquidityIndex
-        FROM aave_ethereum.LatestBalances lb
-        LEFT JOIN aave_ethereum.CollateralStatusDictionary csd
-            ON lb.user = csd.user AND lb.asset = csd.asset
-        WHERE lb.user = %(user_address)s
-        GROUP BY lb.user, lb.asset, csd.is_enabled_as_collateral
-        ORDER BY lb.asset
+            test_timestamp,
+            total_users,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference,
+            max_difference,
+            test_duration_seconds,
+            test_status,
+            error_message,
+            mismatches_detail
+        FROM aave_ethereum.HealthFactorTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 50
         """
 
-        result = clickhouse_client.execute_query(query, {"user_address": user_address})
+        result = clickhouse_client.execute_query(query)
 
-        balances = []
+        test_results = []
         for row in result.result_rows:
-            balance = {
-                "user": row[0],
-                "asset": row[1],
-                "is_enabled_as_collateral": int(row[2]) if row[2] else 0,
-                "collateral_balance": float(row[3]) if row[3] else 0,
-                "collateral_liquidityIndex": int(row[4]) if row[4] else 0,
-                "variable_debt_balance": float(row[5]) if row[5] else 0,
-                "variable_debt_liquidityIndex": int(row[6]) if row[6] else 0,
+            test = {
+                "test_timestamp": row[0],
+                "total_users": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference": row[5],
+                "max_difference": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+                "mismatches_detail": row[10],
             }
-            balances.append(balance)
+            test_results.append(test)
 
-        return JsonResponse({"balances": balances})
+        # Get latest test summary
+        latest_test = test_results[0] if test_results else None
+
+        context = {
+            "test_results": test_results,
+            "latest_test": latest_test,
+        }
+
+        return render(request, "dashboard/health_factor_tests.html", context)
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
@@ -3932,122 +4438,503 @@ def user_balances_api(request, user_address):
 @login_required
 @csrf_exempt
 @require_http_methods(["GET"])
-def user_events_api(request, user_address, asset):
-    """API endpoint to get user events for a specific asset"""
+def liquidity_index_tests(request):
+    """Collateral liquidity index test detail page with history"""
     try:
-        # Get BalanceTransfer events
-        balance_transfer_query = """
+        # Get the latest test results
+        query = """
         SELECT
-            'BalanceTransfer' as event_type,
-            blockNumber,
-            blockTimestamp,
-            transactionHash,
-            _from,
-            _to,
-            value,
-            index,
-            type
-        FROM aave_ethereum.BalanceTransfer
-        WHERE ((_from = %(user_address)s) OR (_to = %(user_address)s)) AND asset = %(asset)s
-        ORDER BY blockTimestamp DESC
-        LIMIT 100
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message,
+            mismatches_detail
+        FROM aave_ethereum.LiquidityIndexTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 50
         """
 
-        # Get Mint events
-        mint_query = """
-        SELECT
-            'Mint' as event_type,
-            blockNumber,
-            blockTimestamp,
-            transactionHash,
-            onBehalfOf,
-            '' as _to,
-            value,
-            index,
-            type
-        FROM aave_ethereum.Mint
-        WHERE onBehalfOf = %(user_address)s AND asset = %(asset)s
-        ORDER BY blockTimestamp DESC
-        LIMIT 100
-        """
+        result = clickhouse_client.execute_query(query)
 
-        # Get Burn events
-        burn_query = """
-        SELECT
-            'Burn' as event_type,
-            blockNumber,
-            blockTimestamp,
-            transactionHash,
-            from,
-            '' as _to,
-            value,
-            index,
-            type
-        FROM aave_ethereum.Burn
-        WHERE from = %(user_address)s AND asset = %(asset)s
-        ORDER BY blockTimestamp DESC
-        LIMIT 100
-        """
-
-        params = {"user_address": user_address, "asset": asset}
-
-        balance_transfers = clickhouse_client.execute_query(
-            balance_transfer_query, params
-        )
-        mints = clickhouse_client.execute_query(mint_query, params)
-        burns = clickhouse_client.execute_query(burn_query, params)
-
-        events = []
-
-        # Process BalanceTransfer events
-        for row in balance_transfers.result_rows:
-            event = {
-                "event_type": row[0],
-                "block_number": row[1],
-                "block_timestamp": row[2].isoformat() if row[2] else None,
-                "transaction_hash": row[3],
-                "from": row[4],
-                "to": row[5],
-                "value": float(row[6]) if row[6] else 0,
-                "index": int(row[7]) if row[7] else 0,
-                "type": row[8],
+        test_results = []
+        for row in result.result_rows:
+            test = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+                "mismatches_detail": row[10],
             }
-            events.append(event)
+            test_results.append(test)
 
-        # Process Mint events
-        for row in mints.result_rows:
-            event = {
-                "event_type": row[0],
-                "block_number": row[1],
-                "block_timestamp": row[2].isoformat() if row[2] else None,
-                "transaction_hash": row[3],
-                "from": "",
-                "to": row[4],
-                "value": float(row[6]) if row[6] else 0,
-                "index": int(row[7]) if row[7] else 0,
-                "type": row[8],
-            }
-            events.append(event)
+        # Get latest test summary
+        latest_test = test_results[0] if test_results else None
 
-        # Process Burn events
-        for row in burns.result_rows:
-            event = {
-                "event_type": row[0],
-                "block_number": row[1],
-                "block_timestamp": row[2].isoformat() if row[2] else None,
-                "transaction_hash": row[3],
-                "from": row[4],
-                "to": "",
-                "value": float(row[6]) if row[6] else 0,
-                "index": int(row[7]) if row[7] else 0,
-                "type": row[8],
-            }
-            events.append(event)
+        context = {
+            "test_results": test_results,
+            "latest_test": latest_test,
+        }
 
-        # Sort all events by timestamp
-        events.sort(key=lambda x: x["block_timestamp"] or "", reverse=True)
-
-        return JsonResponse({"events": events})
+        return render(request, "dashboard/liquidity_index_tests.html", context)
 
     except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET"])
+def variable_borrow_index_tests(request):
+    """Variable borrow index test detail page with history"""
+    try:
+        # Get the latest test results
+        query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message,
+            mismatches_detail
+        FROM aave_ethereum.VariableBorrowIndexTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 50
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        test_results = []
+        for row in result.result_rows:
+            test = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+                "mismatches_detail": row[10],
+            }
+            test_results.append(test)
+
+        # Get latest test summary
+        latest_test = test_results[0] if test_results else None
+
+        context = {
+            "test_results": test_results,
+            "latest_test": latest_test,
+        }
+
+        return render(request, "dashboard/variable_borrow_index_tests.html", context)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET"])
+def collateral_interest_rate_tests(request):
+    """Collateral interest rate test detail page with history"""
+    try:
+        # Get the latest test results
+        query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message,
+            mismatches_detail
+        FROM aave_ethereum.CollateralInterestRateTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 50
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        test_results = []
+        for row in result.result_rows:
+            test = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+                "mismatches_detail": row[10],
+            }
+            test_results.append(test)
+
+        # Get latest test summary
+        latest_test = test_results[0] if test_results else None
+
+        context = {
+            "test_results": test_results,
+            "latest_test": latest_test,
+        }
+
+        return render(request, "dashboard/collateral_interest_rate_tests.html", context)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET"])
+def debt_interest_rate_tests(request):
+    """Debt interest rate test detail page with history"""
+    try:
+        # Get the latest test results
+        query = """
+        SELECT
+            test_timestamp,
+            total_assets,
+            matching_records,
+            mismatched_records,
+            match_percentage,
+            avg_difference_bps,
+            max_difference_bps,
+            test_duration_seconds,
+            test_status,
+            error_message,
+            mismatches_detail
+        FROM aave_ethereum.DebtInterestRateTestResults
+        ORDER BY test_timestamp DESC
+        LIMIT 50
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        test_results = []
+        for row in result.result_rows:
+            test = {
+                "test_timestamp": row[0],
+                "total_assets": row[1],
+                "matching_records": row[2],
+                "mismatched_records": row[3],
+                "match_percentage": row[4],
+                "avg_difference_bps": row[5],
+                "max_difference_bps": row[6],
+                "test_duration_seconds": row[7],
+                "test_status": row[8],
+                "error_message": row[9],
+                "mismatches_detail": row[10],
+            }
+            test_results.append(test)
+
+        # Get latest test summary
+        latest_test = test_results[0] if test_results else None
+
+        context = {
+            "test_results": test_results,
+            "latest_test": latest_test,
+        }
+
+        return render(request, "dashboard/debt_interest_rate_tests.html", context)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+def debt(request):
+    """Debt dashboard page - displays debt metrics"""
+    return render(request, "dashboard/debt.html")
+
+
+def debt_metrics(request):
+    """API endpoint to get debt metrics"""
+    try:
+        # Query 1: Number of users who have borrowed debt
+        users_query = """
+        WITH current_balances AS (
+            SELECT
+                lb.user,
+                lb.asset,
+                floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance
+            FROM aave_ethereum.LatestBalances_v2_Memory AS lb
+            WHERE lb.variable_debt_scaled_balance > 0
+        )
+        SELECT
+            COUNT(DISTINCT user) as total_users_with_debt
+        FROM current_balances
+        WHERE debt_balance > 0
+        """
+
+        users_result = clickhouse_client.execute_query(users_query)
+        total_users = users_result.result_rows[0][0] if users_result.result_rows else 0
+
+        # Query 2: Breakdown of assets with debt and collateral amounts in USD per asset
+        # Using JOIN with view instead of dictionary lookups for better price data
+        assets_query = """
+        WITH current_balances AS (
+            SELECT
+                lb.user,
+                lb.asset,
+                floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance,
+                floor((toInt256(lb.collateral_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS collateral_balance
+            FROM aave_ethereum.LatestBalances_v2_Memory AS lb
+            WHERE lb.variable_debt_scaled_balance > 0 OR lb.collateral_scaled_balance > 0
+        )
+        SELECT
+            cb.asset,
+            ac.name AS asset_name,
+            ac.symbol AS asset_symbol,
+            ac.decimals_places AS decimals_places,
+            ac.historical_event_price AS price_usd,
+            sum(cb.debt_balance) AS total_debt_balance,
+            sum(
+                CAST(cb.debt_balance AS Float64) /
+                CAST(ac.decimals_places AS Float64) *
+                CAST(ac.historical_event_price AS Float64)
+            ) AS total_debt_usd,
+            sum(cb.collateral_balance) AS total_collateral_balance,
+            sum(
+                CAST(cb.collateral_balance AS Float64) /
+                CAST(ac.decimals_places AS Float64) *
+                CAST(ac.historical_event_price AS Float64)
+            ) AS total_collateral_usd,
+            COUNT(DISTINCT cb.user) AS users_count
+        FROM current_balances AS cb
+        LEFT JOIN aave_ethereum.view_LatestAssetConfiguration AS ac ON cb.asset = ac.asset
+        GROUP BY cb.asset, ac.name, ac.symbol, ac.decimals_places, ac.historical_event_price
+        ORDER BY total_debt_usd DESC
+        """
+
+        assets_result = clickhouse_client.execute_query(assets_query)
+
+        assets_breakdown = []
+        for row in assets_result.result_rows:
+            assets_breakdown.append(
+                {
+                    "asset_address": row[0],
+                    "asset_name": row[1] if row[1] else "Unknown",
+                    "asset_symbol": row[2] if row[2] else "Unknown",
+                    "decimals_places": float(row[3]) if row[3] else 1,
+                    "price_usd": float(row[4]) if row[4] else 0,
+                    "total_debt_balance": float(row[5]) if row[5] else 0,
+                    "total_debt_usd": float(row[6]) if row[6] else 0,
+                    "total_collateral_balance": float(row[7]) if row[7] else 0,
+                    "total_collateral_usd": float(row[8]) if row[8] else 0,
+                    "users_count": int(row[9]) if row[9] else 0,
+                }
+            )
+
+        return JsonResponse(
+            {
+                "total_users_with_debt": total_users,
+                "assets_breakdown": assets_breakdown,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error fetching debt metrics: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+def liquidation_candidates(request):
+    """Liquidation candidates dashboard page"""
+    return render(request, "dashboard/liquidation_candidates.html")
+
+
+def liquidation_candidates_api(request):
+    """API endpoint to get liquidation candidates at risk"""
+    try:
+        # Whitelisted debt assets
+        debt_asset_whitelist = [
+            "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",  # WETH
+            "0xdac17f958d2ee523a2206206994597c13d831ec7",  # USDT
+            "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",  # USDC
+            "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",  # wstETH
+            "0x4c9edd5852cd905f086c759e8383e09bff1e68b3",  # USDe
+            "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",  # WBTC
+        ]
+
+        assets_str = ", ".join([f"'{asset.lower()}'" for asset in debt_asset_whitelist])
+
+        query = f"""
+        WITH
+        -- Get current underlying balances by applying liquidity index to scaled balances
+        current_balances AS (
+            SELECT
+                lb.user,
+                lb.asset,
+                -- Convert scaled balance to underlying: floor((scaled * liquidityIndex) / RAY)
+                floor((toInt256(lb.collateral_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS collateral_balance,
+                floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance
+            FROM aave_ethereum.LatestBalances_v2_Memory AS lb
+        ),
+        -- Filter users who have debt in whitelisted assets
+        users_with_whitelisted_debt AS (
+            SELECT DISTINCT user
+            FROM current_balances
+            WHERE debt_balance > 0
+            AND lower(asset) IN ({assets_str})
+        ),
+        -- Calculate collateral value in USD per user per asset
+        user_asset_collateral_usd AS (
+            SELECT
+                cb.user,
+                cb.asset,
+                CAST(cb.collateral_balance AS Float64) *
+                CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
+                CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64) AS collateral_usd,
+                dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', toString(cb.user), toInt8(0)) AS is_in_emode,
+                dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationBonus', cb.asset, toUInt256(0)) AS collateral_liquidation_bonus,
+                dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationBonus', cb.asset, toUInt256(0)) AS emode_liquidation_bonus
+            FROM current_balances AS cb
+            WHERE cb.user IN (SELECT user FROM users_with_whitelisted_debt)
+            AND cb.collateral_balance > 0
+        ),
+        -- Calculate max profit per user across all their collateral assets
+        user_max_profit AS (
+            SELECT
+                user,
+                max(
+                    if(
+                        is_in_emode = 1,
+                        (CAST(emode_liquidation_bonus AS Float64) / 10000.0 - 1.0) * collateral_usd,
+                        (CAST(collateral_liquidation_bonus AS Float64) / 10000.0 - 1.0) * collateral_usd
+                    )
+                ) AS max_profit
+            FROM user_asset_collateral_usd
+            GROUP BY user
+        ),
+        -- Calculate effective collateral and debt per user
+        user_metrics AS (
+            SELECT
+                cb.user,
+                -- Get user's eMode status
+                dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', toString(cb.user), toInt8(0)) AS is_in_emode,
+
+                -- Effective Collateral
+                sumIf(
+                    CAST(cb.collateral_balance AS Float64) *
+                    CAST(
+                        if(
+                            dictGetOrDefault('aave_ethereum.dict_emode_status', 'is_enabled_in_emode', cb.user, toInt8(0)) = 1,
+                            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationThreshold', cb.asset, toUInt256(0)),
+                            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationThreshold', cb.asset, toUInt256(0))
+                        ) AS Float64
+                    ) / 10000.0 *
+                    CAST(dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(cb.user, cb.asset), toInt8(0)) AS Float64) *
+                    CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
+                    CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64),
+                    cb.collateral_balance > 0
+                ) AS effective_collateral,
+
+                -- Effective Debt
+                sum(
+                    CAST(cb.debt_balance AS Float64) *
+                    CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', cb.asset, toFloat64(0)) AS Float64) /
+                    CAST(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'decimals_places', cb.asset, toUInt256(1)) AS Float64)
+                ) AS effective_debt
+            FROM current_balances AS cb
+            WHERE cb.user IN (SELECT user FROM users_with_whitelisted_debt)
+            AND (cb.collateral_balance != 0 OR cb.debt_balance != 0)
+            GROUP BY cb.user
+        )
+        SELECT
+            um.user,
+            um.is_in_emode,
+            um.effective_collateral,
+            um.effective_debt,
+            -- Health Factor
+            if(
+                um.effective_debt = 0,
+                999.9,
+                um.effective_collateral / um.effective_debt
+            ) AS health_factor,
+            -- Max Profit
+            coalesce(ump.max_profit, 0) AS max_profit
+        FROM user_metrics AS um
+        LEFT JOIN user_max_profit AS ump ON um.user = ump.user
+        WHERE um.effective_debt > 10000
+        AND um.effective_collateral > 10000
+        AND health_factor >= 0.95
+        AND health_factor <= 1.25
+        ORDER BY um.effective_debt DESC
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        candidates = []
+        for row in result.result_rows:
+            candidates.append(
+                {
+                    "user": row[0],
+                    "is_in_emode": int(row[1]) if row[1] else 0,
+                    "effective_collateral": float(row[2]) if row[2] else 0,
+                    "effective_debt": float(row[3]) if row[3] else 0,
+                    "health_factor": float(row[4]) if row[4] else 0,
+                    "max_profit": float(row[5]) if row[5] else 0,
+                }
+            )
+
+        # Calculate summary statistics
+        if candidates:
+            total_debt = sum(c["effective_debt"] for c in candidates)
+            total_collateral = sum(c["effective_collateral"] for c in candidates)
+            total_max_profit = sum(c["max_profit"] for c in candidates)
+            avg_health_factor = sum(c["health_factor"] for c in candidates) / len(
+                candidates
+            )
+            min_health_factor = min(c["health_factor"] for c in candidates)
+            max_health_factor = max(c["health_factor"] for c in candidates)
+            users_in_emode = sum(1 for c in candidates if c["is_in_emode"] == 1)
+        else:
+            total_debt = 0
+            total_collateral = 0
+            total_max_profit = 0
+            avg_health_factor = 0
+            min_health_factor = 0
+            max_health_factor = 0
+            users_in_emode = 0
+
+        return JsonResponse(
+            {
+                "total_candidates": len(candidates),
+                "total_debt": total_debt,
+                "total_collateral": total_collateral,
+                "total_max_profit": total_max_profit,
+                "avg_health_factor": avg_health_factor,
+                "min_health_factor": min_health_factor,
+                "max_health_factor": max_health_factor,
+                "users_in_emode": users_in_emode,
+                "candidates": candidates,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error fetching liquidation candidates: {e}", exc_info=True)
         return JsonResponse({"error": str(e)}, status=500)

@@ -850,3 +850,135 @@ class VerifyHistoricalPriceTask(Task):
 
 
 VerifyHistoricalPriceTask = app.register_task(VerifyHistoricalPriceTask())
+
+
+class RecordTransactionTimingTask(Task):
+    """
+    Record transaction timing data in ClickHouse.
+    """
+
+    def run(
+        self,
+        tx_hash: str,
+        asset_source: str,
+        unconfirmed_tx_ts: int,
+        confirmed_tx_ts: int,
+        mev_share_ts: int,
+    ):
+        """
+        Insert or update transaction timing record in ClickHouse.
+
+        Args:
+            tx_hash: Transaction hash
+            asset_source: Oracle address (asset source) being updated
+            unconfirmed_tx_ts: Unix timestamp when transaction was first seen in mempool
+            confirmed_tx_ts: Unix timestamp when transaction was confirmed on-chain
+            mev_share_ts: Unix timestamp when transaction was seen via MEV share
+        """
+        try:
+            # Insert using a SELECT query with -State functions for AggregatingMergeTree
+            query = f"""
+                INSERT INTO aave_ethereum.TransactionTimingTracking
+                SELECT
+                    '{tx_hash}' as txn_id,
+                    anyState('{asset_source}') as asset_source,
+                    maxState(toUInt64({unconfirmed_tx_ts})) as unconfirmed_tx_ts,
+                    maxState(toUInt64({confirmed_tx_ts})) as confirmed_tx_ts,
+                    maxState(toUInt64({mev_share_ts})) as mev_share_ts
+            """
+            clickhouse_client.execute_query(query)
+            logger.info(
+                f"Recorded timing for transaction {tx_hash} (asset_source: {asset_source})"
+            )
+            UpdateConfirmedTransactionTimestampsTask.delay()
+        except Exception as e:
+            logger.error(f"Error recording transaction timing for {tx_hash}: {e}")
+
+
+RecordTransactionTimingTask = app.register_task(RecordTransactionTimingTask())
+
+
+class UpdateConfirmedTransactionTimestampsTask(Task):
+    """
+    Fetch confirmed transaction timestamps from RPC for pending transactions.
+    """
+
+    def run(self):
+        """
+        Query ClickHouse for transactions with confirmed_tx_ts = 0 and attempt to
+        fetch their block timestamps from RPC.
+        """
+        try:
+            # Query for transactions with 0 confirmed timestamp
+            # Use a subquery to filter after aggregation
+            query = """
+                SELECT txn_id, asset_source_val, unconfirmed_ts, confirmed_ts
+                FROM (
+                    SELECT
+                        txn_id,
+                        anyMerge(asset_source) as asset_source_val,
+                        maxMerge(unconfirmed_tx_ts) as unconfirmed_ts,
+                        maxMerge(confirmed_tx_ts) as confirmed_ts
+                    FROM aave_ethereum.TransactionTimingTracking
+                    GROUP BY txn_id
+                )
+                WHERE confirmed_ts = 0
+                LIMIT 100
+            """
+            result = clickhouse_client.execute_query(query)
+
+            if not result.result_rows:
+                logger.info("No pending transactions found")
+                return
+
+            logger.info(f"Found {len(result.result_rows)} pending transactions")
+
+            updated_count = 0
+            not_found_count = 0
+            error_count = 0
+
+            for row in result.result_rows:
+                tx_hash = row[0]
+                asset_source = row[1]
+                try:
+                    # Fetch transaction receipt from RPC
+                    receipt = rpc_adapter.get_transaction_receipt(tx_hash)
+
+                    if receipt and receipt.get("blockNumber"):
+                        # Fetch block to get timestamp
+                        block = rpc_adapter.client.eth.get_block(receipt["blockNumber"])
+                        confirmed_ts = int(block["timestamp"])
+
+                        # Update the record with confirmed timestamp
+                        RecordTransactionTimingTask.delay(
+                            tx_hash=tx_hash,
+                            asset_source=asset_source,
+                            unconfirmed_tx_ts=0,  # Will be merged with existing
+                            confirmed_tx_ts=confirmed_ts,
+                            mev_share_ts=0,  # Will be merged with existing
+                        )
+                        logger.info(
+                            f"Updated confirmed timestamp for transaction {tx_hash}: {confirmed_ts}"
+                        )
+                        updated_count += 1
+                    else:
+                        logger.debug(
+                            f"Transaction {tx_hash} receipt not found or no blockNumber"
+                        )
+                        not_found_count += 1
+                except Exception as e:
+                    logger.warning(f"Error fetching transaction {tx_hash}: {e}")
+                    error_count += 1
+                    continue
+
+            logger.info(
+                f"Completed: {updated_count} updated, {not_found_count} not found, {error_count} errors"
+            )
+
+        except Exception as e:
+            logger.error(f"Error updating confirmed transaction timestamps: {e}")
+
+
+UpdateConfirmedTransactionTimestampsTask = app.register_task(
+    UpdateConfirmedTransactionTimestampsTask()
+)

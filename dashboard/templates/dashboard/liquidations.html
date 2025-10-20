@@ -236,6 +236,10 @@
                     <i class="fas fa-dollar-sign me-2"></i>
                     Prices
                 </a>
+                <a class="nav-link" href="{% url 'dashboard:debt' %}">
+                    <i class="fas fa-money-bill-wave me-2"></i>
+                    Debt
+                </a>
                 <a class="nav-link active" href="{% url 'dashboard:liquidations' %}">
                     <i class="fas fa-exclamation-triangle me-2"></i>
                     Liquidations
@@ -321,7 +325,7 @@
                                 <input class="form-check-input" type="checkbox" id="overviewMinValueToggle" checked
                                     onchange="updateDashboard()">
                                 <label class="form-check-label text-white ms-2" for="overviewMinValueToggle">
-                                    Show only $1000+ liquidations
+                                    Show only $10000+ liquidations
                                 </label>
                             </div>
                         </div>
@@ -474,7 +478,7 @@
                                                     id="recentMinValueToggle" checked
                                                     onchange="loadRecentLiquidations()">
                                                 <label class="form-check-label text-muted" for="recentMinValueToggle">
-                                                    Show only $1000+ liquidations
+                                                    Show only $10000+ liquidations
                                                 </label>
                                             </div>
                                         </div>
@@ -862,7 +866,7 @@
 
         // Update metrics cards
         function updateMetrics(timeWindow, minValueFilter) {
-            const minValueParam = minValueFilter ? '&min_value=1000' : '';
+            const minValueParam = minValueFilter ? '&min_value=10000' : '';
             fetch(`/api/liquidations-metrics/?time_window=${timeWindow}${minValueParam}`)
                 .then(response => response.json())
                 .then(data => {
@@ -888,7 +892,7 @@
 
         // Update timeseries charts
         function updateTimeseries(timeWindow, minValueFilter) {
-            const minValueParam = minValueFilter ? '&min_value=1000' : '';
+            const minValueParam = minValueFilter ? '&min_value=10000' : '';
             fetch(`/api/liquidations-timeseries/?time_window=${timeWindow}${minValueParam}`)
                 .then(response => response.json())
                 .then(data => {
@@ -926,7 +930,7 @@
             document.getElementById('topLiquidatorsTable').style.display = 'none';
             document.getElementById('topLiquidatorsError').style.display = 'none';
 
-            const minValueParam = minValueFilter ? '&min_value=1000' : '';
+            const minValueParam = minValueFilter ? '&min_value=10000' : '';
             fetch(`/api/liquidations-top-liquidators/?time_window=${timeWindow}${minValueParam}`)
                 .then(response => response.json())
                 .then(data => {
@@ -1058,7 +1062,7 @@
             document.getElementById('recentLiquidationsError').style.display = 'none';
             document.getElementById('recentLiquidationsPagination').style.display = 'none';
 
-            const minValueParam = minValueFilter ? '&min_value=1000' : '';
+            const minValueParam = minValueFilter ? '&min_value=10000' : '';
             fetch(`/api/liquidations-recent/?time_window=${timeWindow}&page=${page}&page_size=${pageSize}${minValueParam}`)
                 .then(response => response.json())
                 .then(data => {

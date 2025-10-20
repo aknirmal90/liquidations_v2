@@ -12,6 +12,15 @@ from balances.models import BalanceEvent
 from blockchains.balance_test_tasks import (
     CompareCollateralBalanceTask,
     CompareDebtBalanceTask,
+    CompareHealthFactorTask,
+)
+from blockchains.interest_rate_test_tasks import (
+    CompareCollateralInterestRateTask,
+    CompareDebtInterestRateTask,
+)
+from blockchains.liquidity_index_test_tasks import (
+    CompareLiquidityIndexTask,
+    CompareVariableBorrowIndexTask,
 )
 from blockchains.models import Event
 from liquidations_v2.celery_app import app
@@ -1819,3 +1828,14 @@ CompareUserCollateralTask = app.register_task(CompareUserCollateralTask())
 # Register balance test tasks
 compare_collateral_balance_task = app.register_task(CompareCollateralBalanceTask())
 compare_debt_balance_task = app.register_task(CompareDebtBalanceTask())
+compare_health_factor_task = app.register_task(CompareHealthFactorTask())
+
+# Register liquidity index test tasks
+compare_liquidity_index_task = app.register_task(CompareLiquidityIndexTask())
+compare_variable_borrow_index_task = app.register_task(CompareVariableBorrowIndexTask())
+
+# Register interest rate test tasks
+compare_collateral_interest_rate_task = app.register_task(
+    CompareCollateralInterestRateTask()
+)
+compare_debt_interest_rate_task = app.register_task(CompareDebtInterestRateTask())

@@ -1,4 +1,4 @@
-CREATE OR REPLACE VIEW aave_ethereum.view_LatestAssetConfiguration AS
+CREATE VIEW IF NOT EXISTS aave_ethereum.view_LatestAssetConfiguration AS
 SELECT
     aave_ethereum.ReserveInitialized.asset AS asset,
     aave_ethereum.ReserveInitialized.aToken AS aToken,
@@ -20,7 +20,11 @@ SELECT
     aave_ethereum.LatestTokenMetadata.decimals_places AS decimals_places,
 
     aave_ethereum.LatestPriceEvent.historical_price_usd AS historical_event_price,
-    aave_ethereum.LatestPriceTransaction.predicted_price AS predicted_transaction_price
+    aave_ethereum.LatestPriceTransaction.predicted_price AS predicted_transaction_price,
+    aave_ethereum.LatestPriceTransaction.predicted_price_usd AS predicted_transaction_price_usd,
+
+    dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'liquidityIndex', aave_ethereum.ReserveInitialized.asset, toUInt256(0)) AS max_collateral_liquidityIndex,
+    dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', aave_ethereum.ReserveInitialized.asset, toUInt256(0)) AS max_variable_debt_liquidityIndex
 
 FROM aave_ethereum.ReserveInitialized
 LEFT JOIN aave_ethereum.LatestCollateralConfigurationChanged

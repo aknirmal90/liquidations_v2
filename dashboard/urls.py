@@ -36,6 +36,16 @@ urlpatterns = [
         name="transaction_timestamp_differences",
     ),
     path(
+        "api/transaction-detection-timing-histogram/",
+        views.transaction_detection_timing_histogram,
+        name="transaction_detection_timing_histogram",
+    ),
+    path(
+        "api/asset-source-timing-stats/",
+        views.asset_source_timing_stats,
+        name="asset_source_timing_stats",
+    ),
+    path(
         "api/liquidations-metrics/",
         views.liquidations_metrics,
         name="liquidations_metrics",
@@ -92,13 +102,40 @@ urlpatterns = [
         name="debt_balance_tests",
     ),
     path(
-        "api/user-balances/<str:user_address>/",
-        views.user_balances_api,
-        name="user_balances_api",
+        "tests/health-factor/",
+        views.health_factor_tests,
+        name="health_factor_tests",
     ),
     path(
-        "api/user-events/<str:user_address>/<str:asset>/",
-        views.user_events_api,
-        name="user_events_api",
+        "tests/liquidity-index/",
+        views.liquidity_index_tests,
+        name="liquidity_index_tests",
+    ),
+    path(
+        "tests/variable-borrow-index/",
+        views.variable_borrow_index_tests,
+        name="variable_borrow_index_tests",
+    ),
+    path(
+        "tests/collateral-interest-rate/",
+        views.collateral_interest_rate_tests,
+        name="collateral_interest_rate_tests",
+    ),
+    path(
+        "tests/debt-interest-rate/",
+        views.debt_interest_rate_tests,
+        name="debt_interest_rate_tests",
+    ),
+    path("debt/", views.debt, name="debt"),
+    path("api/debt-metrics/", views.debt_metrics, name="debt_metrics"),
+    path(
+        "liquidation-candidates/",
+        views.liquidation_candidates,
+        name="liquidation_candidates",
+    ),
+    path(
+        "api/liquidation-candidates/",
+        views.liquidation_candidates_api,
+        name="liquidation_candidates_api",
     ),
 ]

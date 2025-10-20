@@ -1,3 +1,5 @@
+import logging
+
 from web3 import Web3
 
 from oracles.contracts.denominator import get_denominator
@@ -14,6 +16,8 @@ from oracles.contracts.utils import (
 from utils.encoding import decode_any
 from utils.rpc import get_evm_block_timestamps, rpc_adapter
 
+logger = logging.getLogger(__name__)
+
 
 class MaxCapType:
     NO_CAP = 0
@@ -24,6 +28,8 @@ class MaxCapType:
 def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> list:
     asset_source = decode_any(asset_source)
     asset_source_type, abi = RpcCacheStorage.get_contract_info(asset_source)
+
+    logger.info(f"Getting max cap for {asset_source} of type {asset_source_type}")
 
     if transaction or (event is None and transaction is None):
         return RpcCacheStorage.get_cache(asset_source, "MAX_CAP") or 0
@@ -148,23 +154,36 @@ def get_max_cap(asset: str, asset_source: str, event=None, transaction=None) -> 
             get_evm_block_timestamps([block_number])[block_number] / 1_000_000
         )
 
-        snapshot_ratio = RpcCacheStorage.get_cached_asset_source_function(
+        snapshot_ratio_1 = RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "getSnapshotRatio", ttl=CACHE_TTL_4_HOURS
         )
-        max_ratio_growth_per_second = RpcCacheStorage.get_cached_asset_source_function(
-            asset_source, "getMaxRatioGrowthPerSecond", ttl=CACHE_TTL_4_HOURS
+        max_ratio_growth_per_second_1 = (
+            RpcCacheStorage.get_cached_asset_source_function(
+                asset_source, "getMaxRatioGrowthPerSecond", ttl=CACHE_TTL_4_HOURS
+            )
         )
-        snapshot_timestamp = RpcCacheStorage.get_cached_asset_source_function(
+        snapshot_timestamp_1 = RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "getSnapshotTimestamp", ttl=CACHE_TTL_4_HOURS
         )
-        max_cap_1 = snapshot_ratio + max_ratio_growth_per_second * (
-            block_timestamp - snapshot_timestamp
+        max_cap_1 = snapshot_ratio_1 + max_ratio_growth_per_second_1 * (
+            block_timestamp - snapshot_timestamp_1
         )
         underlying = RpcCacheStorage.get_cached_asset_source_function(
             asset_source, "BASE_TO_USD_AGGREGATOR", ttl=CACHE_TTL_4_HOURS
         )
-        max_cap_2 = RpcCacheStorage.get_cached_asset_source_function(
-            underlying, "MAX_CAP", ttl=CACHE_TTL_4_HOURS
+        snapshot_ratio_2 = RpcCacheStorage.get_cached_asset_source_function(
+            underlying, "getSnapshotRatio", ttl=CACHE_TTL_4_HOURS
+        )
+        max_ratio_growth_per_second_2 = (
+            RpcCacheStorage.get_cached_asset_source_function(
+                underlying, "getMaxRatioGrowthPerSecond", ttl=CACHE_TTL_4_HOURS
+            )
+        )
+        snapshot_timestamp_2 = RpcCacheStorage.get_cached_asset_source_function(
+            underlying, "getSnapshotTimestamp", ttl=CACHE_TTL_4_HOURS
+        )
+        max_cap_2 = snapshot_ratio_2 + max_ratio_growth_per_second_2 * (
+            block_timestamp - snapshot_timestamp_2
         )
         max_cap = max_cap_1 * max_cap_2
         RpcCacheStorage.set_cache_with_ttl(
