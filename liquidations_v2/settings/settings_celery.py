@@ -25,6 +25,7 @@ CELERY_WORKER_POOL_RESTARTS = True  # Enable pool restarts
 # Task execution settings
 CELERY_ROUTES = {
     "oracles.tasks.InsertTransactionNumeratorTask": {"queue": "High"},
+    "payments.tasks.EstimateFutureLiquidationCandidatesTask": {"queue": "High"},
 }
 
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True

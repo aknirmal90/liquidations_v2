@@ -123,7 +123,7 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 -- Use predicted_transaction_price for updated assets, historical_event_price for others
                 if(
                     uaeb.asset IN ({assets_str}),
-                    toFloat64(dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'predicted_transaction_price', uaeb.asset, toUInt256(0))),
+                    dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'predicted_transaction_price', uaeb.asset, toFloat64(0)),
                     dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'historical_event_price', uaeb.asset, toFloat64(0))
                 ) AS price,
                 dictGetOrDefault('aave_ethereum.dict_collateral_status', 'is_enabled_as_collateral', tuple(uaeb.user, uaeb.asset), toInt8(0)) AS is_collateral_enabled,

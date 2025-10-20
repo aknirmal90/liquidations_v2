@@ -685,9 +685,9 @@ PriceTransactionDynamicSynchronizeTask = app.register_task(
 
 
 class InsertTransactionNumeratorTask(BasePriceMixin, Task):
-    def run(self, parsed_multiplier_logs: List[Any]):
+    def run(self, parsed_numerator_logs: List[Any]):
         self.bulk_insert_raw_price_events(
-            table_name="TransactionRawNumerator", logs=parsed_multiplier_logs
+            table_name="TransactionRawNumerator", logs=parsed_numerator_logs
         )
 
         # Import here to avoid circular dependency
@@ -695,7 +695,7 @@ class InsertTransactionNumeratorTask(BasePriceMixin, Task):
 
         # Trigger the future liquidation candidates estimation task
         EstimateFutureLiquidationCandidatesTask.delay(
-            parsed_numerator_logs=parsed_multiplier_logs
+            parsed_numerator_logs=parsed_numerator_logs
         )
 
 
