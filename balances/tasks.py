@@ -596,3 +596,92 @@ class BalancesBackfillTask(Task):
 
 
 BalancesBackfillTask = app.register_task(BalancesBackfillTask())
+
+
+class RefreshLiquidationCandidatesTask(Task):
+    """
+    Task to refresh liquidation candidates in the Memory table.
+    This task truncates and repopulates LiquidationCandidates_Memory
+    with fresh data from view_liquidation_candidates.
+    Should be run periodically (e.g., every few seconds) for real-time liquidation monitoring.
+    """
+
+    clickhouse_client = clickhouse_client
+
+    def run(self):
+        """
+        Atomically refresh the liquidation candidates Memory table.
+        Uses EXCHANGE TABLES pattern for zero-downtime updates.
+        """
+        try:
+            logger.info("Refreshing LiquidationCandidates_Memory table")
+
+            # Create temp table with fresh liquidation candidates
+            create_temp_query = """
+            CREATE TABLE aave_ethereum.LiquidationCandidates_Memory_temp
+            ENGINE = Memory
+            AS SELECT
+                user,
+                collateral_asset,
+                debt_asset,
+                debt_to_cover,
+                profit,
+                health_factor,
+                effective_collateral,
+                effective_debt,
+                collateral_balance,
+                debt_balance,
+                liquidation_bonus,
+                collateral_price,
+                debt_price,
+                collateral_decimals,
+                debt_decimals,
+                is_priority_debt,
+                is_priority_collateral,
+                now() AS updated_at
+            FROM aave_ethereum.view_liquidation_candidates
+            """
+
+            # Drop temp table if it exists (from previous failed run)
+            self.clickhouse_client.execute_query(
+                "DROP TABLE IF EXISTS aave_ethereum.LiquidationCandidates_Memory_temp"
+            )
+
+            # Create and populate temp table
+            self.clickhouse_client.execute_query(create_temp_query)
+
+            # Atomic swap
+            self.clickhouse_client.execute_query(
+                "EXCHANGE TABLES aave_ethereum.LiquidationCandidates_Memory AND aave_ethereum.LiquidationCandidates_Memory_temp"
+            )
+
+            # Drop old data (now in temp table)
+            self.clickhouse_client.execute_query(
+                "DROP TABLE IF EXISTS aave_ethereum.LiquidationCandidates_Memory_temp"
+            )
+
+            # Log count of liquidation candidates
+            count_query = (
+                "SELECT count() FROM aave_ethereum.LiquidationCandidates_Memory"
+            )
+            result = self.clickhouse_client.execute_query(count_query)
+            candidate_count = result.result_rows[0][0] if result.result_rows else 0
+
+            logger.info(
+                f"Successfully refreshed LiquidationCandidates_Memory table with {candidate_count} candidates"
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Error refreshing liquidation candidates table: {e}", exc_info=True
+            )
+            # Clean up temp table if it exists
+            try:
+                self.clickhouse_client.execute_query(
+                    "DROP TABLE IF EXISTS aave_ethereum.LiquidationCandidates_Memory_temp"
+                )
+            except Exception:
+                pass
+
+
+RefreshLiquidationCandidatesTask = app.register_task(RefreshLiquidationCandidatesTask())
