@@ -210,6 +210,8 @@ class EstimateFutureLiquidationCandidatesTask(Task):
         INNER JOIN current_health_factors AS chf ON phf.user = chf.user
         WHERE chf.current_health_factor > 1.0
             AND phf.predicted_health_factor < 1.0
+            AND phf.total_effective_collateral > 10000
+            AND phf.total_effective_debt > 10000
         """
 
         try:
