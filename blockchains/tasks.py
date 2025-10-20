@@ -1492,12 +1492,11 @@ class CompareUserCollateralTask(Task):
         """
         # Use a simpler approach with subquery to ensure proper type handling
         query = """
-        SELECT user, asset
+        SELECT user, reserve as asset
         FROM aave_ethereum.ReserveUsedAsCollateralEnabled
-        UNION ALL
-        SELECT user, asset
+        UNION DISTINCT
+        SELECT user, reserve as asset
         FROM aave_ethereum.ReserveUsedAsCollateralDisabled
-        GROUP BY user, asset
         """
         parameters = {}
 
