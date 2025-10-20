@@ -190,8 +190,7 @@ class Command(WebsocketCommand, BaseCommand):
             return True
 
         except Exception as e:
-            logger.error(f"Error filtering transaction: {e}")
-            logger.error(f"Transaction data: {tx_data}")
+            logger.error(f"Error filtering transaction: {e}. {tx_data}")
             return False
 
     async def _record_unconfirmed_transaction(self, tx_hash: str, oracle_address: str):
