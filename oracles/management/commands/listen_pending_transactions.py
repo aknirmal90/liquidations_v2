@@ -171,20 +171,19 @@ class Command(WebsocketCommand, BaseCommand):
                 logger.warning("No transmitters or authorized senders in cache")
                 return False
 
+            # Must have input data (for forwarder calls)
+            if not tx_data.get("input") or len(tx_data["input"]) < 10:
+                return False
+
             # Check if transaction is to a known transmitter
             to_address = tx_data.get("to", "").lower()
-            from_address = tx_data.get("from", "").lower()
-
             # Must be to a known transmitter
             if to_address not in allowed_transmitters:
                 return False
 
+            from_address = tx_data.get("from", "").lower()
             # Must be from an authorized sender
             if from_address not in authorized_senders:
-                return False
-
-            # Must have input data (for forwarder calls)
-            if not tx_data.get("input") or len(tx_data["input"]) < 10:
                 return False
 
             return True
