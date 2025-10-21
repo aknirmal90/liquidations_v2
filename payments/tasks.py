@@ -214,6 +214,8 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             SELECT
                 user,
                 is_in_emode,
+                sum(effective_collateral_usd) AS total_effective_collateral_usd,
+                sum(effective_debt_usd) AS total_effective_debt_usd,
                 sum(effective_collateral) AS total_effective_collateral,
                 sum(effective_debt) AS total_effective_debt,
                 if(
@@ -222,18 +224,15 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                     total_effective_collateral / total_effective_debt
                 ) AS predicted_health_factor
             FROM effective_balances
-            WHERE effective_collateral_usd > 10000
-                AND effective_debt_usd > 10000
             GROUP BY user, is_in_emode
         ),
         current_health_factors AS (
             SELECT
                 user,
+                effective_collateral_usd,
+                effective_debt_usd,
                 health_factor AS current_health_factor
             FROM aave_ethereum.view_user_health_factor
-            WHERE
-                effective_collateral_usd > 10000
-                AND effective_debt_usd > 10000
         ),
         at_risk_users AS (
             SELECT
@@ -245,6 +244,10 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             WHERE
                 chf.current_health_factor > 1.0
                 AND phf.predicted_health_factor <= 1.0
+                AND phf.total_effective_collateral_usd > 10000
+                AND phf.total_effective_debt_usd > 10000
+                AND chf.effective_collateral_usd > 10000
+                AND chf.effective_debt_usd > 10000
         )
         SELECT
             lc.user,
