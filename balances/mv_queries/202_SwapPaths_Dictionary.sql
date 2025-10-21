@@ -19,8 +19,8 @@ PRIMARY KEY token_in, token_out
 SOURCE(CLICKHOUSE(
     HOST 'localhost'
     PORT 9000
-    USER 'default'
-    PASSWORD ''
+    USER 'clickhouse-user'
+    PASSWORD 'clickhouse-password'
     DB 'aave_ethereum'
     TABLE 'SwapPaths'
 ))
