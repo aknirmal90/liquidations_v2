@@ -64,7 +64,7 @@ class EstimateFutureLiquidationCandidatesTask(Task):
 
             # Step 2: Get liquidation candidates in a single optimized query
             # This combines the at-risk users query and liquidation candidates lookup
-            liquidation_candidates = self._get_liquidation_candidates_optimized(
+            liquidation_candidates = self._get_at_risk_users_with_predicted_prices(
                 updated_assets, transaction_hashes, max_block_number
             )
 
@@ -276,112 +276,6 @@ class EstimateFutureLiquidationCandidatesTask(Task):
         except Exception as e:
             logger.error(
                 f"[LIQUIDATION_DETECTION_ERROR] Error calculating at-risk users: {e}",
-                exc_info=True,
-            )
-            return []
-
-    def _get_liquidation_candidates_from_memory(
-        self, at_risk_users: List[Dict[str, Any]], updated_assets: List[str]
-    ) -> List[List[Any]]:
-        """
-        Retrieve liquidation candidates from LiquidationCandidates_Memory table
-        for the at-risk users.
-
-        Returns:
-            List of rows for insertion into LiquidationDetections log table
-        """
-        # Extract user addresses
-        user_addresses = [user["user"] for user in at_risk_users]
-        users_str = ", ".join([f"'{user}'" for user in user_addresses])
-
-        # Create a map of user -> health factors for easy lookup
-        health_factor_map = {
-            user["user"]: (
-                user["current_health_factor"],
-                user["predicted_health_factor"],
-            )
-            for user in at_risk_users
-        }
-
-        query = f"""
-        SELECT
-            user,
-            collateral_asset,
-            debt_asset,
-            debt_to_cover,
-            profit,
-            effective_collateral,
-            effective_debt,
-            collateral_balance,
-            debt_balance,
-            liquidation_bonus,
-            collateral_price,
-            debt_price,
-            collateral_decimals,
-            debt_decimals,
-            is_priority_debt,
-            is_priority_collateral
-        FROM aave_ethereum.LiquidationCandidates_Memory
-        WHERE user IN ({users_str})
-        ORDER BY profit DESC
-        """
-
-        try:
-            result = self.clickhouse_client.execute_query(query)
-            candidates = []
-
-            if result.result_rows:
-                logger.info(
-                    f"[LIQUIDATION_DETECTION] Retrieved {len(result.result_rows)} liquidation opportunities from memory table"
-                )
-
-                for row in result.result_rows:
-                    user = row[0]
-                    collateral_asset = row[1]
-                    debt_asset = row[2]
-                    profit = float(row[4])
-                    current_hf, predicted_hf = health_factor_map.get(user, (0.0, 0.0))
-
-                    # Format row for insertion into LiquidationDetections log table
-                    candidates.append(
-                        [
-                            user,  # user
-                            collateral_asset,  # collateral_asset
-                            debt_asset,  # debt_asset
-                            current_hf,  # current_health_factor
-                            predicted_hf,  # predicted_health_factor
-                            row[3],  # debt_to_cover
-                            profit,  # profit
-                            row[5],  # effective_collateral
-                            row[6],  # effective_debt
-                            row[7],  # collateral_balance
-                            row[8],  # debt_balance
-                            row[9],  # liquidation_bonus
-                            row[10],  # collateral_price
-                            row[11],  # debt_price
-                            row[12],  # collateral_decimals
-                            row[13],  # debt_decimals
-                            row[14],  # is_priority_debt
-                            row[15],  # is_priority_collateral
-                            updated_assets,  # updated_assets
-                            int(
-                                datetime.now().timestamp()
-                            ),  # detected_at (Unix timestamp)
-                        ]
-                    )
-
-                    # Log individual liquidation opportunity
-                    logger.warning(
-                        f"[LIQUIDATION_OPPORTUNITY] User: {user[:10]}... | "
-                        f"Collateral: {collateral_asset[:10]}... | Debt: {debt_asset[:10]}... | "
-                        f"Profit: ${profit:,.2f} | HF: {current_hf:.4f} → {predicted_hf:.4f}"
-                    )
-
-            return candidates
-
-        except Exception as e:
-            logger.error(
-                f"[LIQUIDATION_DETECTION_ERROR] Error getting liquidation candidates: {e}",
                 exc_info=True,
             )
             return []
