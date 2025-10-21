@@ -89,8 +89,6 @@ collateral_opportunities AS (
         up.price AS collateral_price,
         up.decimals_places AS collateral_decimals,
         up.health_factor,
-        up.total_effective_collateral,
-        up.total_effective_debt,
         up.is_in_emode,
 
         -- Get liquidation bonus (use eMode bonus if in eMode, otherwise collateral bonus)
@@ -148,8 +146,8 @@ liquidation_pairs AS (
         co.user,
         co.collateral_asset,
         dp.debt_asset,
-        co.accrued_collateral_balance,
-        dp.accrued_debt_balance,
+        co.collateral_balance,
+        dp.debt_balance,
         co.collateral_price,
         dp.debt_price,
         co.collateral_decimals,
@@ -157,13 +155,11 @@ liquidation_pairs AS (
         co.liquidation_bonus,
         co.profit,
         co.health_factor,
-        co.total_effective_collateral,
-        co.total_effective_debt,
         co.is_priority_asset AS is_priority_collateral,
         dp.is_priority_debt,
 
         -- Calculate maximum debt that can be covered (50% of total accrued debt)
-        toFloat64(dp.accrued_debt_balance) * 0.5 AS max_debt_to_cover,
+        toFloat64(dp.debt_balance) * 0.5 AS max_debt_to_cover,
 
         -- Rank collateral assets for each user-debt pair
         -- Priority: 1) Priority collateral assets, 2) Highest profit
@@ -187,10 +183,10 @@ SELECT
     max_debt_to_cover AS debt_to_cover,
     profit,
     health_factor,
-    total_effective_collateral AS effective_collateral,
-    total_effective_debt AS effective_debt,
-    toFloat64(accrued_collateral_balance) AS collateral_balance,
-    toFloat64(accrued_debt_balance) AS debt_balance,
+    collateral_balance AS effective_collateral,
+    debt_balance AS effective_debt,
+    toFloat64(collateral_balance) AS collateral_balance,
+    toFloat64(debt_balance) AS debt_balance,
     liquidation_bonus,
     collateral_price,
     debt_price,
