@@ -267,6 +267,11 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             lc.is_priority_collateral
         FROM aave_ethereum.LiquidationCandidates_Memory AS lc
         INNER JOIN at_risk_users AS aru ON lc.user = aru.user
+        WHERE NOT (
+            -- Exclude pairs where both collateral and debt are stablecoins (USDT or USDC)
+            lc.collateral_asset IN ('0xdac17f958d2ee523a2206206994597c13d831ec7', '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48')
+            AND lc.debt_asset IN ('0xdac17f958d2ee523a2206206994597c13d831ec7', '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48')
+        )
         ORDER BY lc.profit DESC
         """
 
