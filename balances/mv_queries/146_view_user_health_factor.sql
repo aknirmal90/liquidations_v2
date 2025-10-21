@@ -81,7 +81,7 @@ SELECT
     -- If debt is 0, health factor is infinite (represented as 999.9 for practical purposes)
     -- If collateral is 0 and debt > 0, health factor is 0 (liquidatable)
     if(
-        total_effective_debt_usd = 0,
+        total_effective_debt = 0,
         999.9,
         total_effective_collateral / total_effective_debt
     ) AS health_factor
