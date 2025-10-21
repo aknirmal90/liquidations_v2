@@ -4839,7 +4839,7 @@ def liquidation_candidates_api(request):
         # Filter by profit > $100 and sort by health factor (lowest first)
         query = """
         WITH
-        -- Aggregate candidates by user to get totals
+        -- Aggregate candidates by user to get totals and best liquidation opportunity
         user_aggregates AS (
             SELECT
                 user,
@@ -4848,7 +4848,10 @@ def liquidation_candidates_api(request):
                 max(effective_collateral) AS effective_collateral,
                 max(effective_debt) AS effective_debt,
                 max(is_priority_debt) AS has_priority_debt,
-                max(is_priority_collateral) AS has_priority_collateral
+                max(is_priority_collateral) AS has_priority_collateral,
+                -- Get the collateral and debt assets from the row with max profit
+                argMax(collateral_asset, profit) AS best_collateral_asset,
+                argMax(debt_asset, profit) AS best_debt_asset
             FROM aave_ethereum.LiquidationCandidates_Memory
             WHERE profit > 100
             GROUP BY user
@@ -4860,7 +4863,10 @@ def liquidation_candidates_api(request):
             effective_collateral,
             effective_debt,
             health_factor,
-            total_profit AS max_profit
+            total_profit AS max_profit,
+            -- Get asset symbols from the dict_latest_asset_configuration dictionary
+            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'symbol', best_collateral_asset, '') AS collateral_symbol,
+            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'symbol', best_debt_asset, '') AS debt_symbol
         FROM user_aggregates
         ORDER BY health_factor ASC
         """
@@ -4877,6 +4883,8 @@ def liquidation_candidates_api(request):
                     "effective_debt": float(row[3]) if row[3] else 0,
                     "health_factor": float(row[4]) if row[4] else 0,
                     "max_profit": float(row[5]) if row[5] else 0,
+                    "collateral_symbol": row[6] if row[6] else "",
+                    "debt_symbol": row[7] if row[7] else "",
                 }
             )
 

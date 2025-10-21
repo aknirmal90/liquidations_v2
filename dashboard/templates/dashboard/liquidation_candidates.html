@@ -238,6 +238,8 @@
                     <tr>
                         <th>Rank</th>
                         <th>User Address</th>
+                        <th class="text-center">Collateral</th>
+                        <th class="text-center">Debt</th>
                         <th class="text-end">Health Factor</th>
                         <th class="text-end">Effective Collateral</th>
                         <th class="text-end">Effective Debt</th>
@@ -331,9 +333,14 @@
                     ? '<span class="badge-emode">eMode</span>'
                     : '<span style="color: #9ca3af;">-</span>';
 
+                const collateralSymbol = candidate.collateral_symbol || '-';
+                const debtSymbol = candidate.debt_symbol || '-';
+
                 row.innerHTML = `
                     <td><strong>${index + 1}</strong></td>
                     <td class="user-address">${candidate.user}</td>
+                    <td class="text-center"><span style="font-weight: 600; color: #059669;">${collateralSymbol}</span></td>
+                    <td class="text-center"><span style="font-weight: 600; color: #dc2626;">${debtSymbol}</span></td>
                     <td class="text-end ${hfClass}">${candidate.health_factor.toFixed(4)}</td>
                     <td class="text-end">${collateralUSD}</td>
                     <td class="text-end"><strong>${debtUSD}</strong></td>

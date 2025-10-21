@@ -51,8 +51,6 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 )
                 return
 
-            max_block_number = max(block_numbers) if block_numbers else 0
-
             logger.info(
                 f"[LIQUIDATION_DETECTION] Processing {len(updated_assets)} updated assets: {', '.join(updated_assets[:5])}"
                 + (
@@ -65,7 +63,7 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             # Step 2: Get liquidation candidates in a single optimized query
             # This combines the at-risk users query and liquidation candidates lookup
             liquidation_candidates = self._get_at_risk_users_with_predicted_prices(
-                updated_assets, transaction_hashes, max_block_number
+                updated_assets
             )
 
             if not liquidation_candidates:
