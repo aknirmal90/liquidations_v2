@@ -2,7 +2,7 @@
 -- Identifies profitable liquidation opportunities based on:
 -- 1. Health factor between 0.9 and 1.25
 -- 2. Effective collateral and debt > $10,000
--- 3. Priority debt assets (WETH, USDT, USDC, wstETH, USDe, WBTC)
+-- 3. ALL debt assets (no priority filtering)
 -- 4. Selects best collateral asset based on profit calculation
 --
 -- This view uses accrued balances from view_user_asset_effective_balances (query 145)
@@ -13,19 +13,6 @@
 
 CREATE VIEW IF NOT EXISTS aave_ethereum.view_liquidation_candidates AS
 WITH
--- Priority assets for liquidation (debt assets we want to target)
-priority_debt_assets AS (
-    SELECT asset
-    FROM (
-        SELECT '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2' AS asset  -- WETH
-        UNION ALL SELECT '0xdac17f958d2ee523a2206206994597c13d831ec7'  -- USDT
-        UNION ALL SELECT '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'  -- USDC
-        UNION ALL SELECT '0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0'  -- wstETH
-        UNION ALL SELECT '0x4c9edd5852cd905f086c759e8383e09bff1e68b3'  -- USDe
-        UNION ALL SELECT '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599'  -- WBTC
-    )
-),
-
 -- Get users with health factors in liquidation range
 at_risk_users AS (
     SELECT
@@ -98,9 +85,6 @@ collateral_opportunities AS (
             dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationBonus', up.asset, toUInt256(10000))
         ) AS liquidation_bonus,
 
-        -- Check if this is a priority asset
-        if(up.asset IN (SELECT asset FROM priority_debt_assets), 1, 0) AS is_priority_asset,
-
         -- Calculate profit: (liquidation_bonus / 10000.0 - 1) * accrued_collateral_balance * price / decimals
         (
             (toFloat64(
@@ -134,8 +118,7 @@ debt_positions AS (
             / toFloat64(up.decimals_places)
         ) as UInt256) AS debt_effective_value,
         up.price AS debt_price,
-        up.decimals_places AS debt_decimals,
-        if(up.asset IN (SELECT asset FROM priority_debt_assets), 1, 0) AS is_priority_debt
+        up.decimals_places AS debt_decimals
     FROM user_positions AS up
     WHERE up.debt_balance > 0
 ),
@@ -155,8 +138,6 @@ liquidation_pairs AS (
         co.liquidation_bonus,
         co.profit,
         co.health_factor,
-        co.is_priority_asset AS is_priority_collateral,
-        dp.is_priority_debt,
         co.collateral_effective_value,
         dp.debt_effective_value,
 
@@ -164,7 +145,7 @@ liquidation_pairs AS (
         toFloat64(dp.debt_balance) * 0.5 AS max_debt_to_cover,
 
         -- Rank collateral assets for each user-debt pair
-        -- Priority: 1) Priority collateral assets, 2) Highest profit
+        -- Priority: Highest profit
         ROW_NUMBER() OVER (
             PARTITION BY co.user, dp.debt_asset
             ORDER BY
@@ -173,7 +154,6 @@ liquidation_pairs AS (
 
     FROM collateral_opportunities AS co
     INNER JOIN debt_positions AS dp ON co.user = dp.user
-    WHERE dp.is_priority_debt = 1  -- Only consider priority debt assets
 )
 
 -- Select best liquidation opportunity per user-debt pair
@@ -192,9 +172,7 @@ SELECT
     collateral_price,
     debt_price,
     collateral_decimals,
-    debt_decimals,
-    is_priority_debt,
-    is_priority_collateral
+    debt_decimals
 FROM liquidation_pairs
 WHERE collateral_rank = 1  -- Only take the best collateral for each debt
     AND profit > 0  -- Only profitable liquidations
