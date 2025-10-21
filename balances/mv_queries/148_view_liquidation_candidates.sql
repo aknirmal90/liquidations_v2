@@ -84,7 +84,7 @@ collateral_opportunities AS (
             )
             * toFloat64(up.is_collateral_enabled)
             * up.price
-            / (10000 * toFloat64(up.decimals_places))
+            / (10000 * toFloat64(up.decimals_places) * toFloat64(up.decimals_places))
         ) as UInt256) AS collateral_effective_value,
         up.price AS collateral_price,
         up.decimals_places AS collateral_decimals,
@@ -114,7 +114,7 @@ collateral_opportunities AS (
             ) / 10000.0 - 1.0)
             * toFloat64(up.accrued_collateral_balance)
             * up.price
-            / toFloat64(up.decimals_places)
+            / (toFloat64(up.decimals_places) * toFloat64(up.decimals_places))
         ) AS profit
 
     FROM user_positions AS up
