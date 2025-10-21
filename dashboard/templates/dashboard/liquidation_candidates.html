@@ -243,18 +243,24 @@
     </div>
     <div class="info-box-text">
         Showing users with: <strong>Effective Debt > $10,000</strong> | <strong>Effective Collateral > $10,000</strong> |
-        <strong>Health Factor: 0.9 - 1.25</strong> | <strong>Profit > $100</strong> | <strong>Debt in major assets</strong> (WETH, USDT, USDC, wstETH, USDe, WBTC)
+        <strong>Health Factor: 0.9 - 1.25</strong> | <strong>Profit > $100</strong>
     </div>
 </div>
 
 <!-- Filter Controls -->
 <div class="card" style="padding: 1.5rem; margin-bottom: 2rem;">
-    <div style="display: flex; align-items: center; gap: 1rem;">
-        <div style="flex: 1;">
+    <div style="display: flex; align-items: center; gap: 2rem; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 150px;">
             <h5 style="margin: 0; font-weight: 600; color: #374151;">
                 <i class="fas fa-filter me-2"></i>
                 Filters
             </h5>
+        </div>
+        <div class="form-check form-switch" style="font-size: 1.1rem;">
+            <input class="form-check-input" type="checkbox" id="priorityAssetsOnly" style="cursor: pointer;">
+            <label class="form-check-label" for="priorityAssetsOnly" style="cursor: pointer; font-weight: 500;">
+                Priority Assets Only (WETH, USDT, USDC, WBTC, cbBTC)
+            </label>
         </div>
         <div class="form-check form-switch" style="font-size: 1.1rem;">
             <input class="form-check-input" type="checkbox" id="excludeStablecoinPairs" style="cursor: pointer;">
@@ -353,9 +359,10 @@
     // Fetch liquidation candidates from API
     async function fetchLiquidationCandidates() {
         try {
-            // Get the exclude stablecoin pairs toggle state
+            // Get the toggle states
             const excludeStablecoinPairs = document.getElementById('excludeStablecoinPairs').checked;
-            const url = `/api/liquidation-candidates/?exclude_stablecoin_pairs=${excludeStablecoinPairs}`;
+            const priorityAssetsOnly = document.getElementById('priorityAssetsOnly').checked;
+            const url = `/api/liquidation-candidates/?exclude_stablecoin_pairs=${excludeStablecoinPairs}&priority_assets_only=${priorityAssetsOnly}`;
 
             console.log('Fetching liquidation candidates from', url);
             const response = await fetch(url);
@@ -627,29 +634,37 @@
     };
     document.head.appendChild(chartScript);
 
-    // Add event listener to the toggle
-    function initializeToggle() {
-        const toggle = document.getElementById('excludeStablecoinPairs');
-        if (toggle) {
-            toggle.addEventListener('change', function() {
-                console.log('Toggle changed, reloading data...');
-                // Show loading state
-                document.getElementById('stats-content').style.display = 'none';
-                document.getElementById('loading-stats').style.display = 'block';
-                document.getElementById('error-container').innerHTML = '';
+    // Add event listeners to the toggles
+    function initializeToggles() {
+        const excludeStablecoinToggle = document.getElementById('excludeStablecoinPairs');
+        const priorityAssetsToggle = document.getElementById('priorityAssetsOnly');
 
-                // Reset timer
-                let seconds = 0;
-                const loadingMessage = document.getElementById('loading-message');
-                const timer = setInterval(() => {
-                    seconds++;
-                    loadingMessage.textContent = `Loading liquidation candidates... ${seconds} seconds (this may take 20-30 seconds)`;
-                }, 1000);
-                window.loadingTimer = timer;
+        const reloadData = function() {
+            console.log('Toggle changed, reloading data...');
+            // Show loading state
+            document.getElementById('stats-content').style.display = 'none';
+            document.getElementById('loading-stats').style.display = 'block';
+            document.getElementById('error-container').innerHTML = '';
 
-                // Fetch new data
-                fetchLiquidationCandidates();
-            });
+            // Reset timer
+            let seconds = 0;
+            const loadingMessage = document.getElementById('loading-message');
+            const timer = setInterval(() => {
+                seconds++;
+                loadingMessage.textContent = `Loading liquidation candidates... ${seconds} seconds (this may take 20-30 seconds)`;
+            }, 1000);
+            window.loadingTimer = timer;
+
+            // Fetch new data
+            fetchLiquidationCandidates();
+        };
+
+        if (excludeStablecoinToggle) {
+            excludeStablecoinToggle.addEventListener('change', reloadData);
+        }
+
+        if (priorityAssetsToggle) {
+            priorityAssetsToggle.addEventListener('change', reloadData);
         }
     }
 
@@ -657,8 +672,8 @@
     document.addEventListener('DOMContentLoaded', function() {
         console.log('DOM Content Loaded - starting to fetch liquidation candidates');
 
-        // Initialize the toggle event listener
-        initializeToggle();
+        // Initialize the toggle event listeners
+        initializeToggles();
 
         // Add a timer to show progress
         let seconds = 0;
