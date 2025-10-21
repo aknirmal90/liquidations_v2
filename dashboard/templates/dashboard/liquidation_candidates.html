@@ -162,6 +162,66 @@
         max-height: 600px;
         overflow-y: auto;
     }
+
+    #pivot-table {
+        font-size: 0.9rem;
+    }
+
+    #pivot-table th {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: white;
+        font-weight: 600;
+        text-align: center;
+        padding: 0.75rem;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    #pivot-table th.row-header {
+        background: linear-gradient(135deg, #6366f1, #4f46e5);
+        text-align: left;
+        position: sticky;
+        left: 0;
+        z-index: 11;
+    }
+
+    #pivot-table td {
+        text-align: center;
+        padding: 0.75rem;
+        font-weight: 500;
+    }
+
+    #pivot-table td.row-header {
+        background: #f3f4f6;
+        font-weight: 600;
+        text-align: left;
+        position: sticky;
+        left: 0;
+        z-index: 9;
+    }
+
+    #pivot-table td.profit-cell {
+        color: #10b981;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    #pivot-table td.profit-cell:hover {
+        background: rgba(16, 185, 129, 0.1);
+        transform: scale(1.05);
+    }
+
+    #pivot-table td.empty-cell {
+        color: #9ca3af;
+        font-style: italic;
+    }
+
+    #pivot-table-container .table-responsive {
+        max-height: none;
+        overflow: auto;
+    }
 </style>
 {% endblock %}
 
@@ -232,6 +292,19 @@
         <div class="card stats-card">
             <div class="stats-value" id="min-health-factor">-</div>
             <div class="stats-label">Min Health Factor</div>
+        </div>
+    </div>
+
+    <!-- Pivot Table Container -->
+    <div class="table-container" id="pivot-table-container">
+        <h2 class="table-title">
+            <i class="fas fa-table-cells me-2"></i>
+            Profit by Asset Pairs (Collateral × Debt)
+        </h2>
+        <div class="table-responsive">
+            <table class="table table-bordered" id="pivot-table">
+                <!-- Pivot table will be populated by JavaScript -->
+            </table>
         </div>
     </div>
 
@@ -373,6 +446,9 @@
                 tableBody.appendChild(row);
             });
 
+            // Create pivot table
+            createPivotTable(data.pivot_data);
+
             // Create chart
             createChart(data.candidates);
 
@@ -392,6 +468,63 @@
                 </div>
             `;
         }
+    }
+
+    function createPivotTable(pivotData) {
+        console.log('Creating pivot table with', pivotData.length, 'pairs');
+
+        // Extract unique collateral and debt assets
+        const collateralAssets = [...new Set(pivotData.map(d => d.collateral_symbol))].sort();
+        const debtAssets = [...new Set(pivotData.map(d => d.debt_symbol))].sort();
+
+        console.log('Collateral assets:', collateralAssets);
+        console.log('Debt assets:', debtAssets);
+
+        // Create a map for quick lookup
+        const profitMap = {};
+        pivotData.forEach(d => {
+            const key = `${d.debt_symbol}|${d.collateral_symbol}`;
+            profitMap[key] = d.profit;
+        });
+
+        // Build the table HTML
+        let tableHTML = '<thead><tr>';
+        tableHTML += '<th class="row-header">Debt \\ Collateral</th>';
+        collateralAssets.forEach(col => {
+            tableHTML += `<th>${col}</th>`;
+        });
+        tableHTML += '</tr></thead><tbody>';
+
+        // Create rows for each debt asset
+        debtAssets.forEach(debt => {
+            tableHTML += '<tr>';
+            tableHTML += `<td class="row-header">${debt}</td>`;
+
+            collateralAssets.forEach(col => {
+                const key = `${debt}|${col}`;
+                const profit = profitMap[key];
+
+                if (profit && profit > 0) {
+                    const profitFormatted = profit.toLocaleString('en-US', {
+                        style: 'currency',
+                        currency: 'USD',
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                    });
+                    tableHTML += `<td class="profit-cell" title="Total profit: ${profitFormatted}">${profitFormatted}</td>`;
+                } else {
+                    tableHTML += '<td class="empty-cell">-</td>';
+                }
+            });
+
+            tableHTML += '</tr>';
+        });
+
+        tableHTML += '</tbody>';
+
+        // Insert into the table
+        document.getElementById('pivot-table').innerHTML = tableHTML;
+        console.log('Pivot table created successfully');
     }
 
     function createChart(candidates) {

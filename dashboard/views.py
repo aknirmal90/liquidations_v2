@@ -4925,6 +4925,31 @@ def liquidation_candidates_api(request):
             max_health_factor = 0
             users_in_emode = 0
 
+        # Get pivot table data (collateral × debt pairs with profit)
+        pivot_query = f"""
+        SELECT
+            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'symbol', collateral_asset, '') AS collateral_symbol,
+            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'symbol', debt_asset, '') AS debt_symbol,
+            sum(profit) AS total_profit
+        FROM aave_ethereum.LiquidationCandidates_Memory
+        WHERE profit > 100
+        {stablecoin_filter}
+        GROUP BY collateral_asset, debt_asset, collateral_symbol, debt_symbol
+        ORDER BY total_profit DESC
+        """
+
+        pivot_result = clickhouse_client.execute_query(pivot_query)
+        pivot_data = []
+        for row in pivot_result.result_rows:
+            if row[0] and row[1]:  # Only include rows with valid symbols
+                pivot_data.append(
+                    {
+                        "collateral_symbol": row[0],
+                        "debt_symbol": row[1],
+                        "profit": float(row[2]) if row[2] else 0,
+                    }
+                )
+
         return JsonResponse(
             {
                 "total_candidates": len(candidates),
@@ -4936,6 +4961,7 @@ def liquidation_candidates_api(request):
                 "max_health_factor": max_health_factor,
                 "users_in_emode": users_in_emode,
                 "candidates": candidates,
+                "pivot_data": pivot_data,
             }
         )
 
