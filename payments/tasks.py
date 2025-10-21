@@ -34,20 +34,24 @@ class EstimateFutureLiquidationCandidatesTask(Task):
 
         Args:
             parsed_numerator_logs: List of parsed transaction numerator logs
-                Each log contains: [asset, asset_source, name, blockTimestamp, blockNumber, numerator]
+                Each log contains: [asset, asset_source, asset_source_type, timestamp, blockNumber, transaction_hash, type, price]
         """
         try:
             logger.info(
                 "[LIQUIDATION_DETECTION] Starting EstimateFutureLiquidationCandidatesTask"
             )
 
-            # Step 1: Extract updated assets from the logs
-            updated_assets = self._extract_updated_assets(parsed_numerator_logs)
+            # Step 1: Extract updated assets and transaction metadata from the logs
+            updated_assets, transaction_hashes, block_numbers = (
+                self._extract_updated_assets_and_metadata(parsed_numerator_logs)
+            )
             if not updated_assets:
                 logger.info(
                     "[LIQUIDATION_DETECTION] No assets to process, skipping task"
                 )
                 return
+
+            max_block_number = max(block_numbers) if block_numbers else 0
 
             logger.info(
                 f"[LIQUIDATION_DETECTION] Processing {len(updated_assets)} updated assets: {', '.join(updated_assets[:5])}"
@@ -58,41 +62,24 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 )
             )
 
-            # Step 2: Get users with current health_factor > 1 from view 146
-            # but predicted health_factor < 1 using predicted prices
-            at_risk_users = self._get_at_risk_users_with_predicted_prices(
-                updated_assets
-            )
-
-            if not at_risk_users:
-                logger.info(
-                    "[LIQUIDATION_DETECTION] No at-risk users found - all health factors remain safe"
-                )
-                return
-
-            logger.warning(
-                f"[LIQUIDATION_ALERT] Found {len(at_risk_users)} at-risk users with predicted HF < 1.0"
-            )
-
-            # Step 3: Get liquidation candidates from LiquidationCandidates_Memory for these users
-            liquidation_candidates = self._get_liquidation_candidates_from_memory(
-                at_risk_users, updated_assets
+            # Step 2: Get liquidation candidates in a single optimized query
+            # This combines the at-risk users query and liquidation candidates lookup
+            liquidation_candidates = self._get_liquidation_candidates_optimized(
+                updated_assets, transaction_hashes, max_block_number
             )
 
             if not liquidation_candidates:
-                logger.info(
-                    "[LIQUIDATION_DETECTION] No liquidation candidates found in memory table"
-                )
+                logger.info("[LIQUIDATION_DETECTION] No liquidation candidates found")
                 return
 
-            # Step 4: Append results to ClickHouse LiquidationDetections log table
+            # Step 3: Append results to ClickHouse LiquidationDetections log table
             self._append_liquidation_detections(liquidation_candidates)
 
             # Calculate summary statistics
             num_users = len(set([c[0] for c in liquidation_candidates]))
             total_profit = sum([float(c[6]) for c in liquidation_candidates])
 
-            # Step 5: Send SimplePush notification
+            # Step 4: Send SimplePush notification
             self._send_notification(liquidation_candidates, updated_assets)
 
             logger.warning(
@@ -107,14 +94,34 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 exc_info=True,
             )
 
-    def _extract_updated_assets(self, parsed_numerator_logs: List[Any]) -> List[str]:
-        """Extract unique asset addresses from parsed logs."""
+    def _extract_updated_assets_and_metadata(self, parsed_numerator_logs: List[Any]):
+        """
+        Extract unique asset addresses, transaction hashes, and block numbers from parsed logs.
+
+        Args:
+            parsed_numerator_logs: List where each log is [asset, asset_source, asset_source_type,
+                                   timestamp, blockNumber, transaction_hash, type, price]
+
+        Returns:
+            Tuple of (assets list, transaction_hashes list, block_numbers list)
+        """
         assets = set()
+        transaction_hashes = set()
+        block_numbers = set()
+
         for log in parsed_numerator_logs:
-            if len(log) > 0:
+            if len(log) >= 6:
                 asset = log[0]  # asset is the first element
+                block_number = log[4]  # blockNumber is at index 4
+                transaction_hash = log[5]  # transaction_hash is at index 5
+
                 assets.add(asset)
-        return list(assets)
+                if transaction_hash:
+                    transaction_hashes.add(transaction_hash)
+                if block_number:
+                    block_numbers.add(block_number)
+
+        return list(assets), list(transaction_hashes), list(block_numbers)
 
     def _get_at_risk_users_with_predicted_prices(
         self, updated_assets: List[str]
@@ -175,7 +182,7 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                     / (10000 * toFloat64(decimals_places))
                 ) as UInt256) AS effective_collateral,
                 -- Effective Debt: apply price adjustment
-                cast(ceil(
+                cast(floor(
                     toFloat64(accrued_debt_balance)
                     * price
                     / (toFloat64(decimals_places))
@@ -192,7 +199,7 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                     / (10000 * toFloat64(decimals_places) * toFloat64(decimals_places))
                 ) as UInt256) AS effective_collateral_usd,
                 -- Effective Debt: apply price adjustment
-                cast(ceil(
+                cast(floor(
                     toFloat64(accrued_debt_balance)
                     * price
                     / (toFloat64(decimals_places) * toFloat64(decimals_places))
