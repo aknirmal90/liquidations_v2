@@ -49,13 +49,13 @@ effective_balances AS (
             )
             * toFloat64(is_collateral_enabled)
             * price
-            / (10000 * toFloat64(decimals_places) * toFloat64(decimals_places))
+            / (10000 * toFloat64(decimals_places))
         ) as UInt256) AS effective_collateral,
         -- Effective Debt: apply price adjustment
         cast(floor(
             toFloat64(accrued_debt_balance)
             * price
-            / (toFloat64(decimals_places) * toFloat64(decimals_places))
+            / (toFloat64(decimals_places))
         ) as UInt256) AS effective_debt
     FROM asset_effective_balances
 ),
