@@ -35,7 +35,7 @@ at_risk_users AS (
         effective_debt,
         is_in_emode
     FROM aave_ethereum.view_user_health_factor
-    WHERE health_factor >= 0.9
+    WHERE health_factor > 1.0
         AND health_factor <= 1.25
         AND effective_collateral > 10000
         AND effective_debt > 10000
