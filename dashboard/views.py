@@ -4834,10 +4834,26 @@ def liquidation_candidates(request):
 def liquidation_candidates_api(request):
     """API endpoint to get liquidation candidates at risk"""
     try:
+        # Get optional parameter to exclude stablecoin pairs
+        exclude_stablecoin_pairs = (
+            request.GET.get("exclude_stablecoin_pairs", "false").lower() == "true"
+        )
+
+        # Build WHERE clause for stablecoin exclusion
+        stablecoin_filter = ""
+        if exclude_stablecoin_pairs:
+            stablecoin_filter = """
+            AND NOT (
+                -- Exclude pairs where both collateral and debt are stablecoins (USDT or USDC)
+                collateral_asset IN ('0xdac17f958d2ee523a2206206994597c13d831ec7', '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48')
+                AND debt_asset IN ('0xdac17f958d2ee523a2206206994597c13d831ec7', '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48')
+            )
+            """
+
         # Query directly from the LiquidationCandidates_Memory table
         # This table is populated by RefreshLiquidationCandidatesTask
         # Filter by profit > $100 and sort by health factor (lowest first)
-        query = """
+        query = f"""
         WITH
         -- Aggregate candidates by user to get totals and best liquidation opportunity
         user_aggregates AS (
@@ -4854,6 +4870,7 @@ def liquidation_candidates_api(request):
                 argMax(debt_asset, profit) AS best_debt_asset
             FROM aave_ethereum.LiquidationCandidates_Memory
             WHERE profit > 100
+            {stablecoin_filter}
             GROUP BY user
         )
         SELECT

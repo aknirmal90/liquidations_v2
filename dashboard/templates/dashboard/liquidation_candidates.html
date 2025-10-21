@@ -187,6 +187,24 @@
     </div>
 </div>
 
+<!-- Filter Controls -->
+<div class="card" style="padding: 1.5rem; margin-bottom: 2rem;">
+    <div style="display: flex; align-items: center; gap: 1rem;">
+        <div style="flex: 1;">
+            <h5 style="margin: 0; font-weight: 600; color: #374151;">
+                <i class="fas fa-filter me-2"></i>
+                Filters
+            </h5>
+        </div>
+        <div class="form-check form-switch" style="font-size: 1.1rem;">
+            <input class="form-check-input" type="checkbox" id="excludeStablecoinPairs" style="cursor: pointer;">
+            <label class="form-check-label" for="excludeStablecoinPairs" style="cursor: pointer; font-weight: 500;">
+                Exclude Stablecoin Pairs (USDT/USDC)
+            </label>
+        </div>
+    </div>
+</div>
+
 <!-- Stats Cards -->
 <div id="loading-stats" class="loading-spinner">
     <i class="fas fa-spinner fa-spin fa-3x"></i>
@@ -262,8 +280,12 @@
     // Fetch liquidation candidates from API
     async function fetchLiquidationCandidates() {
         try {
-            console.log('Fetching liquidation candidates from /api/liquidation-candidates/...');
-            const response = await fetch('/api/liquidation-candidates/');
+            // Get the exclude stablecoin pairs toggle state
+            const excludeStablecoinPairs = document.getElementById('excludeStablecoinPairs').checked;
+            const url = `/api/liquidation-candidates/?exclude_stablecoin_pairs=${excludeStablecoinPairs}`;
+
+            console.log('Fetching liquidation candidates from', url);
+            const response = await fetch(url);
             console.log('Response status:', response.status);
 
             if (!response.ok) {
@@ -472,9 +494,38 @@
     };
     document.head.appendChild(chartScript);
 
+    // Add event listener to the toggle
+    function initializeToggle() {
+        const toggle = document.getElementById('excludeStablecoinPairs');
+        if (toggle) {
+            toggle.addEventListener('change', function() {
+                console.log('Toggle changed, reloading data...');
+                // Show loading state
+                document.getElementById('stats-content').style.display = 'none';
+                document.getElementById('loading-stats').style.display = 'block';
+                document.getElementById('error-container').innerHTML = '';
+
+                // Reset timer
+                let seconds = 0;
+                const loadingMessage = document.getElementById('loading-message');
+                const timer = setInterval(() => {
+                    seconds++;
+                    loadingMessage.textContent = `Loading liquidation candidates... ${seconds} seconds (this may take 20-30 seconds)`;
+                }, 1000);
+                window.loadingTimer = timer;
+
+                // Fetch new data
+                fetchLiquidationCandidates();
+            });
+        }
+    }
+
     // Load data when page loads
     document.addEventListener('DOMContentLoaded', function() {
         console.log('DOM Content Loaded - starting to fetch liquidation candidates');
+
+        // Initialize the toggle event listener
+        initializeToggle();
 
         // Add a timer to show progress
         let seconds = 0;
