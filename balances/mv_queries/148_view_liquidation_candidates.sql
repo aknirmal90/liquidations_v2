@@ -157,8 +157,8 @@ liquidation_pairs AS (
         co.liquidation_bonus,
         co.profit,
         co.health_factor,
-        co.collateral_effective_value AS total_effective_collateral,
-        co.debt_effective_value AS total_effective_debt,
+        co.total_effective_collateral,
+        co.total_effective_debt,
         co.is_priority_asset AS is_priority_collateral,
         dp.is_priority_debt,
 
