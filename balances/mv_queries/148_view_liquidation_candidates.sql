@@ -31,14 +31,14 @@ at_risk_users AS (
     SELECT
         user,
         health_factor,
-        effective_collateral,
-        effective_debt,
+        effective_collateral_usd,
+        effective_debt_usd,
         is_in_emode
     FROM aave_ethereum.view_user_health_factor
     WHERE health_factor > 1.0
         AND health_factor <= 1.25
-        AND effective_collateral > 10000
-        AND effective_debt > 10000
+        AND effective_collateral_usd > 10000
+        AND effective_debt_usd > 10000
 ),
 
 -- Get user asset balances for at-risk users
@@ -58,8 +58,8 @@ user_positions AS (
         dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationThreshold', eb.asset, toUInt256(0)) AS emode_liquidation_threshold,
         dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationThreshold', eb.asset, toUInt256(0)) AS collateral_liquidation_threshold,
         ar.health_factor,
-        ar.effective_collateral AS total_effective_collateral,
-        ar.effective_debt AS total_effective_debt
+        ar.effective_collateral_usd AS total_effective_collateral,
+        ar.effective_debt_usd AS total_effective_debt
     FROM aave_ethereum.view_user_asset_effective_balances AS eb
     INNER JOIN at_risk_users AS ar ON eb.user = ar.user
     WHERE eb.collateral_balance > 0 OR eb.debt_balance > 0
@@ -112,7 +112,7 @@ collateral_opportunities AS (
             ) / 10000.0 - 1.0)
             * toFloat64(up.accrued_collateral_balance)
             * up.price
-            / toFloat64(up.decimals_places)
+            / (toFloat64(up.decimals_places))
         ) AS profit
 
     FROM user_positions AS up
@@ -157,6 +157,8 @@ liquidation_pairs AS (
         co.health_factor,
         co.is_priority_asset AS is_priority_collateral,
         dp.is_priority_debt,
+        co.collateral_effective_value,
+        dp.debt_effective_value,
 
         -- Calculate maximum debt that can be covered (50% of total accrued debt)
         toFloat64(dp.debt_balance) * 0.5 AS max_debt_to_cover,
@@ -183,8 +185,8 @@ SELECT
     max_debt_to_cover AS debt_to_cover,
     profit,
     health_factor,
-    collateral_balance AS effective_collateral,
-    debt_balance AS effective_debt,
+    collateral_effective_value AS effective_collateral,
+    debt_effective_value AS effective_debt,
     toFloat64(collateral_balance) AS collateral_balance,
     toFloat64(debt_balance) AS debt_balance,
     liquidation_bonus,

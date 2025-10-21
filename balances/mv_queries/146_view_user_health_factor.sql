@@ -49,13 +49,13 @@ effective_balances AS (
             )
             * toFloat64(is_collateral_enabled)
             * price
-            / (10000 * toFloat64(decimals_places))
+            / (10000 * toFloat64(decimals_places) * toFloat64(decimals_places))
         ) as UInt256) AS effective_collateral,
         -- Effective Debt: apply price adjustment
         cast(floor(
             toFloat64(accrued_debt_balance)
             * price
-            / (toFloat64(decimals_places))
+            / (toFloat64(decimals_places) * toFloat64(decimals_places))
         ) as UInt256) AS effective_debt
     FROM asset_effective_balances
 ),
@@ -75,13 +75,13 @@ SELECT
     is_in_emode,
     total_accrued_collateral_balance,
     total_accrued_debt_balance,
-    total_effective_collateral AS effective_collateral,
-    total_effective_debt AS effective_debt,
+    total_effective_collateral AS effective_collateral_usd,
+    total_effective_debt AS effective_debt_usd,
     -- Health Factor = Effective Collateral / Effective Debt
     -- If debt is 0, health factor is infinite (represented as 999.9 for practical purposes)
     -- If collateral is 0 and debt > 0, health factor is 0 (liquidatable)
     if(
-        total_effective_debt = 0,
+        total_effective_debt_usd = 0,
         999.9,
         total_effective_collateral / total_effective_debt
     ) AS health_factor
