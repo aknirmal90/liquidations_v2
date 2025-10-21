@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, List
 
 from celery import Task
 
@@ -123,13 +123,19 @@ class EstimateFutureLiquidationCandidatesTask(Task):
 
     def _get_at_risk_users_with_predicted_prices(
         self, updated_assets: List[str]
-    ) -> List[Dict[str, Any]]:
+    ) -> List[List[Any]]:
         """
-        Calculate health factors using predicted prices for updated assets
-        and find users with current HF > 1 but predicted HF < 1.
+        Calculate health factors using predicted prices for updated assets,
+        find users with current HF > 1 but predicted HF < 1,
+        and retrieve their liquidation candidates from LiquidationCandidates_Memory.
 
         Returns:
-            List of dicts with keys: user, current_health_factor, predicted_health_factor
+            List of lists containing liquidation detection data ready for insertion
+            into LiquidationDetections table. Each row contains:
+            [user, collateral_asset, debt_asset, current_health_factor, predicted_health_factor,
+             debt_to_cover, profit, effective_collateral, effective_debt, collateral_balance,
+             debt_balance, liquidation_bonus, collateral_price, debt_price, collateral_decimals,
+             debt_decimals, is_priority_debt, is_priority_collateral, updated_assets]
         """
         # Build CASE statement for dynamic price selection
         # For updated assets, use predicted_transaction_price; for others, use historical_event_price
@@ -228,52 +234,78 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             WHERE
                 effective_collateral_usd > 10000
                 AND effective_debt_usd > 10000
+        ),
+        at_risk_users AS (
+            SELECT
+                phf.user,
+                chf.current_health_factor,
+                phf.predicted_health_factor
+            FROM predicted_health_factors AS phf
+            INNER JOIN current_health_factors AS chf ON phf.user = chf.user
+            WHERE
+                chf.current_health_factor > 1.0
+                AND phf.predicted_health_factor <= 1.0
         )
         SELECT
-            phf.user,
-            chf.current_health_factor,
-            phf.predicted_health_factor
-        FROM predicted_health_factors AS phf
-        INNER JOIN current_health_factors AS chf ON phf.user = chf.user
-        WHERE
-            chf.current_health_factor > 1.0
-            AND phf.predicted_health_factor <= 1.0
+            lc.user,
+            lc.collateral_asset,
+            lc.debt_asset,
+            aru.current_health_factor,
+            aru.predicted_health_factor,
+            lc.debt_to_cover,
+            lc.profit,
+            lc.effective_collateral,
+            lc.effective_debt,
+            lc.collateral_balance,
+            lc.debt_balance,
+            lc.liquidation_bonus,
+            lc.collateral_price,
+            lc.debt_price,
+            lc.collateral_decimals,
+            lc.debt_decimals,
+            lc.is_priority_debt,
+            lc.is_priority_collateral
+        FROM aave_ethereum.LiquidationCandidates_Memory AS lc
+        INNER JOIN at_risk_users AS aru ON lc.user = aru.user
+        ORDER BY lc.profit DESC
         """
 
         try:
             result = self.clickhouse_client.execute_query(query)
-            at_risk_users = []
+            liquidation_candidates = []
 
             if result.result_rows:
+                num_users = len(set([row[0] for row in result.result_rows]))
                 logger.info(
-                    f"[LIQUIDATION_DETECTION] Query returned {len(result.result_rows)} users with declining health factors"
+                    f"[LIQUIDATION_DETECTION] Found {len(result.result_rows)} liquidation opportunities "
+                    f"for {num_users} users with declining health factors"
                 )
 
                 for row in result.result_rows:
                     user = row[0]
-                    current_hf = float(row[1])
-                    predicted_hf = float(row[2])
+                    current_hf = float(row[3])
+                    predicted_hf = float(row[4])
+                    profit = float(row[6])
 
-                    at_risk_users.append(
-                        {
-                            "user": user,
-                            "current_health_factor": current_hf,
-                            "predicted_health_factor": predicted_hf,
-                        }
-                    )
+                    # Convert tuple to list and append updated_assets array
+                    row_data = list(row)
+                    row_data.append(
+                        updated_assets
+                    )  # Add updated_assets as the 19th field
+                    liquidation_candidates.append(row_data)
 
-                    # Log individual user at risk with health factor change
+                    # Log individual liquidation opportunity
                     logger.info(
-                        f"[LIQUIDATION_USER_RISK] User: {user} | "
+                        f"[LIQUIDATION_OPPORTUNITY] User: {user} | "
                         f"Current HF: {current_hf:.4f} → Predicted HF: {predicted_hf:.4f} | "
-                        f"Change: {((predicted_hf - current_hf) / current_hf * 100):.2f}%"
+                        f"Profit: ${profit:,.2f}"
                     )
 
-            return at_risk_users
+            return liquidation_candidates
 
         except Exception as e:
             logger.error(
-                f"[LIQUIDATION_DETECTION_ERROR] Error calculating at-risk users: {e}",
+                f"[LIQUIDATION_DETECTION_ERROR] Error calculating liquidation opportunities: {e}",
                 exc_info=True,
             )
             return []
