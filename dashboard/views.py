@@ -4834,21 +4834,50 @@ def liquidation_candidates(request):
 def liquidation_candidates_api(request):
     """API endpoint to get liquidation candidates at risk"""
     try:
-        # Get optional parameter to exclude stablecoin pairs
+        # Get optional parameters
         exclude_stablecoin_pairs = (
             request.GET.get("exclude_stablecoin_pairs", "false").lower() == "true"
         )
+        priority_assets_only = (
+            request.GET.get("priority_assets_only", "false").lower() == "true"
+        )
 
-        # Build WHERE clause for stablecoin exclusion
-        stablecoin_filter = ""
+        # Build WHERE clause filters
+        filters = []
+
+        # Priority assets filter (WETH, USDT, USDC, WBTC, cbBTC)
+        if priority_assets_only:
+            priority_filter = """(
+                collateral_asset IN (
+                    '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',  -- WETH
+                    '0xdac17f958d2ee523a2206206994597c13d831ec7',  -- USDT
+                    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',  -- USDC
+                    '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599',  -- WBTC
+                    '0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf'   -- cbBTC
+                )
+                AND debt_asset IN (
+                    '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',  -- WETH
+                    '0xdac17f958d2ee523a2206206994597c13d831ec7',  -- USDT
+                    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',  -- USDC
+                    '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599',  -- WBTC
+                    '0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf'   -- cbBTC
+                )
+            )"""
+            filters.append(priority_filter)
+
+        # Stablecoin exclusion filter
         if exclude_stablecoin_pairs:
-            stablecoin_filter = """
-            AND NOT (
+            stablecoin_filter = """NOT (
                 -- Exclude pairs where both collateral and debt are stablecoins (USDT or USDC)
                 collateral_asset IN ('0xdac17f958d2ee523a2206206994597c13d831ec7', '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48')
                 AND debt_asset IN ('0xdac17f958d2ee523a2206206994597c13d831ec7', '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48')
-            )
-            """
+            )"""
+            filters.append(stablecoin_filter)
+
+        # Combine all filters
+        combined_filter = ""
+        if filters:
+            combined_filter = "AND " + " AND ".join(filters)
 
         # Query directly from the LiquidationCandidates_Memory table
         # This table is populated by RefreshLiquidationCandidatesTask
@@ -4868,7 +4897,7 @@ def liquidation_candidates_api(request):
                 argMax(debt_asset, profit) AS best_debt_asset
             FROM aave_ethereum.LiquidationCandidates_Memory
             WHERE profit > 100
-            {stablecoin_filter}
+            {combined_filter}
             GROUP BY user
         )
         SELECT
@@ -4931,7 +4960,7 @@ def liquidation_candidates_api(request):
             sum(profit) AS total_profit
         FROM aave_ethereum.LiquidationCandidates_Memory
         WHERE profit > 100
-        {stablecoin_filter}
+        {combined_filter}
         GROUP BY collateral_asset, debt_asset, collateral_symbol, debt_symbol
         ORDER BY total_profit DESC
         """
