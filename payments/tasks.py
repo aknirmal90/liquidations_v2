@@ -589,11 +589,11 @@ class UpdateSwapPathsTask(Task):
         all_paths.sort(key=lambda x: x["output_amount"], reverse=True)
         best = all_paths[0]
 
-        # Build path string (comma-separated pool addresses)
+        # Build path string (semicolon-separated pool addresses)
         if best["hops"] == 1:
             path_str = best["pool_address"]
         else:
-            path_str = f"{best['pool1_address']},{best['pool2_address']}"
+            path_str = f"{best['pool1_address']};{best['pool2_address']}"
 
         return {
             "token_in": token_in,

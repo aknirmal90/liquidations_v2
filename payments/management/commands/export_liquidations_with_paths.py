@@ -30,8 +30,8 @@ OUTPUT CSV COLUMNS:
     - transaction_index: Transaction index in block
     - block_height: Block number
     - liquidator: Liquidator address
-    - path_collateral_to_debt: Swap path to convert collateral to debt (comma-separated pools)
-    - path_collateral_to_weth: Swap path to convert collateral to WETH (comma-separated pools)
+    - path_collateral_to_debt: Swap path to convert collateral to debt (semicolon-separated pools)
+    - path_collateral_to_weth: Swap path to convert collateral to WETH (semicolon-separated pools)
 """
 
 import csv
@@ -229,7 +229,7 @@ class Command(BaseCommand):
             token_out: Destination token address (lowercase)
 
         Returns:
-            Comma-separated pool addresses, or None if not found
+            Semicolon-separated pool addresses, or None if not found
         """
         # Skip if same token
         if token_in.lower() == token_out.lower():

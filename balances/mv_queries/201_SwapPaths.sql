@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS aave_ethereum.SwapPaths
 (
     token_in String,
     token_out String,
-    path String COMMENT 'Comma-separated pool addresses: pool1,pool2 (or just pool1 for 1-hop)',
+    path String COMMENT 'Semicolon-separated pool addresses: pool1;pool2 (or just pool1 for 1-hop)',
     updated_at DateTime DEFAULT now()
 )
 ENGINE = Log;
