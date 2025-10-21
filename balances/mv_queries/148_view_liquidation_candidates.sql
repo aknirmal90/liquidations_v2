@@ -168,7 +168,6 @@ liquidation_pairs AS (
         ROW_NUMBER() OVER (
             PARTITION BY co.user, dp.debt_asset
             ORDER BY
-                co.is_priority_asset DESC,
                 co.profit DESC
         ) AS collateral_rank
 

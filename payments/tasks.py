@@ -175,11 +175,28 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                     / (10000 * toFloat64(decimals_places))
                 ) as UInt256) AS effective_collateral,
                 -- Effective Debt: apply price adjustment
-                cast(floor(
+                cast(ceil(
                     toFloat64(accrued_debt_balance)
                     * price
                     / (toFloat64(decimals_places))
-                ) as UInt256) AS effective_debt
+                ) as UInt256) AS effective_debt,
+                cast(floor(
+                    toFloat64(accrued_collateral_balance)
+                    * if(
+                        is_in_emode = 1,
+                        toFloat64(emode_liquidation_threshold),
+                        toFloat64(collateral_liquidation_threshold)
+                    )
+                    * toFloat64(is_collateral_enabled)
+                    * price
+                    / (10000 * toFloat64(decimals_places) * toFloat64(decimals_places))
+                ) as UInt256) AS effective_collateral_usd,
+                -- Effective Debt: apply price adjustment
+                cast(ceil(
+                    toFloat64(accrued_debt_balance)
+                    * price
+                    / (toFloat64(decimals_places) * toFloat64(decimals_places))
+                ) as UInt256) AS effective_debt_usd
             FROM asset_effective_balances
         ),
         predicted_health_factors AS (
@@ -194,6 +211,8 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                     total_effective_collateral / total_effective_debt
                 ) AS predicted_health_factor
             FROM effective_balances
+            WHERE effective_collateral_usd > 10000
+                AND effective_debt_usd > 10000
             GROUP BY user, is_in_emode
         ),
         current_health_factors AS (
@@ -202,8 +221,8 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 health_factor AS current_health_factor
             FROM aave_ethereum.view_user_health_factor
             WHERE
-                effective_collateral > 10000
-                AND effective_debt > 100000
+                effective_collateral_usd > 10000
+                AND effective_debt_usd > 10000
         )
         SELECT
             phf.user,
@@ -211,10 +230,9 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             phf.predicted_health_factor
         FROM predicted_health_factors AS phf
         INNER JOIN current_health_factors AS chf ON phf.user = chf.user
-        WHERE chf.current_health_factor > 1.0
+        WHERE
+            chf.current_health_factor > 1.0
             AND phf.predicted_health_factor <= 1.0
-            AND phf.total_effective_collateral > 10000
-            AND phf.total_effective_debt > 10000
         """
 
         try:

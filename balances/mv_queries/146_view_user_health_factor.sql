@@ -92,6 +92,8 @@ SELECT
     is_in_emode,
     total_accrued_collateral_balance,
     total_accrued_debt_balance,
+    total_effective_collateral,
+    total_effective_debt,
     total_effective_collateral_usd AS effective_collateral_usd,
     total_effective_debt_usd AS effective_debt_usd,
     -- Health Factor = Effective Collateral / Effective Debt

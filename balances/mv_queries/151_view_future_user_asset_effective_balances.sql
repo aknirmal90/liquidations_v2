@@ -23,7 +23,7 @@ current_balances AS (
         lb.asset,
         -- Convert scaled balance to underlying: floor((scaled * liquidityIndex) / RAY), using Int256 to avoid overflow
         floor((toInt256(lb.collateral_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS collateral_balance,
-        floor((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance,
+        ceil((toInt256(lb.variable_debt_scaled_balance) * toInt256(dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'liquidityIndex', lb.asset, toUInt256(0)))) / toInt256('1000000000000000000000000000')) AS debt_balance,
         dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'interest_rate', lb.asset, toUInt256(0)) AS collateral_interest_rate,
         dictGetOrDefault('aave_ethereum.dict_collateral_liquidity_index', 'updated_at_block', lb.asset, toUInt64(0)) AS collateral_updated_at_block,
         dictGetOrDefault('aave_ethereum.dict_debt_liquidity_index', 'interest_rate', lb.asset, toUInt256(0)) AS debt_interest_rate,
@@ -71,6 +71,6 @@ SELECT
     debt_interest_accrual_factor,
     -- Store accrued balances as integers: int(balance * accrual_factor)
     toInt256(floor(toFloat64(collateral_balance) * collateral_interest_accrual_factor)) AS accrued_collateral_balance,
-    toInt256(floor(toFloat64(debt_balance) * debt_interest_accrual_factor)) AS accrued_debt_balance
+    toInt256(ceil(toFloat64(debt_balance) * debt_interest_accrual_factor)) AS accrued_debt_balance
 FROM accrual_factors
 WHERE collateral_balance != 0 OR debt_balance != 0;
