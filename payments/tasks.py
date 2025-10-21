@@ -135,7 +135,7 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             [user, collateral_asset, debt_asset, current_health_factor, predicted_health_factor,
              debt_to_cover, profit, effective_collateral, effective_debt, collateral_balance,
              debt_balance, liquidation_bonus, collateral_price, debt_price, collateral_decimals,
-             debt_decimals, is_priority_debt, is_priority_collateral, updated_assets]
+             debt_decimals, updated_assets]
         """
         # Build CASE statement for dynamic price selection
         # For updated assets, use predicted_transaction_price; for others, use historical_event_price
@@ -265,9 +265,7 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             lc.collateral_price,
             lc.debt_price,
             lc.collateral_decimals,
-            lc.debt_decimals,
-            lc.is_priority_debt,
-            lc.is_priority_collateral
+            lc.debt_decimals
         FROM aave_ethereum.LiquidationCandidates_Memory AS lc
         INNER JOIN at_risk_users AS aru ON lc.user = aru.user
         ORDER BY lc.profit DESC
@@ -294,7 +292,7 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                     row_data = list(row)
                     row_data.append(
                         updated_assets
-                    )  # Add updated_assets as the 19th field
+                    )  # Add updated_assets as the 17th field
                     liquidation_candidates.append(row_data)
 
                     # Log individual liquidation opportunity

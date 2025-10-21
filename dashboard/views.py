@@ -4863,8 +4863,6 @@ def liquidation_candidates_api(request):
                 min(health_factor) AS health_factor,
                 max(effective_collateral) AS effective_collateral,
                 max(effective_debt) AS effective_debt,
-                max(is_priority_debt) AS has_priority_debt,
-                max(is_priority_collateral) AS has_priority_collateral,
                 -- Get the collateral and debt assets from the row with max profit
                 argMax(collateral_asset, profit) AS best_collateral_asset,
                 argMax(debt_asset, profit) AS best_debt_asset

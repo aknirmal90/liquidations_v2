@@ -25,8 +25,6 @@ CREATE TABLE IF NOT EXISTS aave_ethereum.LiquidationDetections
     debt_price Float64,
     collateral_decimals UInt256,
     debt_decimals UInt256,
-    is_priority_debt UInt8,
-    is_priority_collateral UInt8,
     updated_assets Array(String),
     detected_at DateTime DEFAULT now()
 )

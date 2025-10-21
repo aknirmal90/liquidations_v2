@@ -636,8 +636,6 @@ class RefreshLiquidationCandidatesTask(Task):
                 debt_price,
                 collateral_decimals,
                 debt_decimals,
-                is_priority_debt,
-                is_priority_collateral,
                 now() AS updated_at
             FROM aave_ethereum.view_liquidation_candidates
             """
