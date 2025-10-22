@@ -141,7 +141,7 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             [user, collateral_asset, debt_asset, current_health_factor, predicted_health_factor,
              debt_to_cover, profit, effective_collateral, effective_debt, collateral_balance,
              debt_balance, liquidation_bonus, collateral_price, debt_price, collateral_decimals,
-             debt_decimals, updated_assets]
+             debt_decimals, updated_assets, detected_at]
         """
         # Build CASE statement for dynamic price selection
         # For updated assets, use predicted_transaction_price; for others, use historical_event_price
@@ -294,11 +294,14 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                     predicted_hf = float(row[4])
                     profit = float(row[6])
 
-                    # Convert tuple to list and append updated_assets array
+                    # Convert tuple to list and append updated_assets array and timestamp
                     row_data = list(row)
                     row_data.append(
                         updated_assets
                     )  # Add updated_assets as the 17th field
+                    row_data.append(
+                        datetime.now()
+                    )  # Add detected_at timestamp as the 18th field
                     liquidation_candidates.append(row_data)
 
                     # Log individual liquidation opportunity
