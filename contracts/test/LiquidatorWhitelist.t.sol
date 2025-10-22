@@ -52,7 +52,7 @@ contract LiquidatorWhitelistTest is Test {
     function testAddWhitelistedDebtAsset_NonOwner() public {
         // Non-owner should not be able to add debt asset
         vm.prank(nonOwner);
-        vm.expectRevert(bytes("Not owner"));
+        vm.expectRevert(NotOwner.selector);
         liquidator.addWhitelistedDebtAsset(USDC);
 
         // Verify state unchanged
@@ -62,7 +62,7 @@ contract LiquidatorWhitelistTest is Test {
     function testAddWhitelistedDebtAsset_ZeroAddress() public {
         // Should revert on zero address
         vm.prank(owner);
-        vm.expectRevert(bytes("zero address"));
+        vm.expectRevert(ZeroAddress.selector);
         liquidator.addWhitelistedDebtAsset(address(0));
     }
 
@@ -73,7 +73,7 @@ contract LiquidatorWhitelistTest is Test {
 
         // Try to add again
         vm.prank(owner);
-        vm.expectRevert(bytes("already whitelisted"));
+        vm.expectRevert(AlreadyWhitelisted.selector);
         liquidator.addWhitelistedDebtAsset(USDC);
     }
 
@@ -98,7 +98,7 @@ contract LiquidatorWhitelistTest is Test {
 
         // Non-owner should not be able to remove debt asset
         vm.prank(nonOwner);
-        vm.expectRevert(bytes("Not owner"));
+        vm.expectRevert(NotOwner.selector);
         liquidator.removeWhitelistedDebtAsset(USDC);
 
         // Verify state unchanged
@@ -133,7 +133,7 @@ contract LiquidatorWhitelistTest is Test {
     function testAddWhitelistedCollateralAsset_NonOwner() public {
         // Non-owner should not be able to add collateral asset
         vm.prank(nonOwner);
-        vm.expectRevert(bytes("Not owner"));
+        vm.expectRevert(NotOwner.selector);
         liquidator.addWhitelistedCollateralAsset(WETH);
 
         // Verify state unchanged
@@ -143,7 +143,7 @@ contract LiquidatorWhitelistTest is Test {
     function testAddWhitelistedCollateralAsset_ZeroAddress() public {
         // Should revert on zero address
         vm.prank(owner);
-        vm.expectRevert(bytes("zero address"));
+        vm.expectRevert(ZeroAddress.selector);
         liquidator.addWhitelistedCollateralAsset(address(0));
     }
 
@@ -154,7 +154,7 @@ contract LiquidatorWhitelistTest is Test {
 
         // Try to add again
         vm.prank(owner);
-        vm.expectRevert(bytes("already whitelisted"));
+        vm.expectRevert(AlreadyWhitelisted.selector);
         liquidator.addWhitelistedCollateralAsset(WETH);
     }
 
@@ -179,7 +179,7 @@ contract LiquidatorWhitelistTest is Test {
 
         // Non-owner should not be able to remove collateral asset
         vm.prank(nonOwner);
-        vm.expectRevert(bytes("Not owner"));
+        vm.expectRevert(NotOwner.selector);
         liquidator.removeWhitelistedCollateralAsset(WETH);
 
         // Verify state unchanged
@@ -212,7 +212,7 @@ contract LiquidatorWhitelistTest is Test {
     function testAddWhitelistedLiquidator_NonOwner() public {
         // Non-owner should not be able to add liquidator
         vm.prank(nonOwner);
-        vm.expectRevert(bytes("Not owner"));
+        vm.expectRevert(NotOwner.selector);
         liquidator.addWhitelistedLiquidator(user2);
 
         // Verify state unchanged
@@ -222,7 +222,7 @@ contract LiquidatorWhitelistTest is Test {
     function testAddWhitelistedLiquidator_ZeroAddress() public {
         // Should revert on zero address
         vm.prank(owner);
-        vm.expectRevert(bytes("zero address"));
+        vm.expectRevert(ZeroAddress.selector);
         liquidator.addWhitelistedLiquidator(address(0));
     }
 
@@ -247,7 +247,7 @@ contract LiquidatorWhitelistTest is Test {
 
         // Non-owner should not be able to remove liquidator
         vm.prank(nonOwner);
-        vm.expectRevert(bytes("Not owner"));
+        vm.expectRevert(NotOwner.selector);
         liquidator.removeWhitelistedLiquidator(user2);
 
         // Verify state unchanged
@@ -280,7 +280,7 @@ contract LiquidatorWhitelistTest is Test {
     function testTransferOwnership_NonOwner() public {
         // Non-owner should not be able to transfer ownership
         vm.prank(nonOwner);
-        vm.expectRevert(bytes("Not owner"));
+        vm.expectRevert(NotOwner.selector);
         liquidator.transferOwnership(user2);
 
         // Verify ownership unchanged
@@ -290,7 +290,7 @@ contract LiquidatorWhitelistTest is Test {
     function testTransferOwnership_ZeroAddress() public {
         // Should revert on zero address
         vm.prank(owner);
-        vm.expectRevert(bytes("zero"));
+        vm.expectRevert(ZeroAddress.selector);
         liquidator.transferOwnership(address(0));
     }
 
@@ -308,7 +308,7 @@ contract LiquidatorWhitelistTest is Test {
 
         // Old owner should NOT be able to modify
         vm.prank(owner);
-        vm.expectRevert(bytes("Not owner"));
+        vm.expectRevert(NotOwner.selector);
         liquidator.addWhitelistedDebtAsset(DAI);
     }
 
@@ -389,31 +389,28 @@ contract LiquidatorWhitelistTest is Test {
             debtToCover: 1000
         });
 
-        AaveV3MEVLiquidator.SwapPath[] memory swapPaths =
-            new AaveV3MEVLiquidator.SwapPath[](1);
-        swapPaths[0] = AaveV3MEVLiquidator.SwapPath({
+        AaveV3MEVLiquidator.SwapPath memory swapPath = AaveV3MEVLiquidator.SwapPath({
             pathCollateralToDebt: "",
-            pathCollateralToWETH: "",
-            maxCollateralForRepayment: 1000
+            pathCollateralToWETH: ""
         });
 
         // These should not revert during validation (will fail later due to flashloan, but that's ok)
         vm.prank(owner);
-        try liquidator.executeLiquidations(params, swapPaths, 1000, 0) {
+        try liquidator.executeLiquidations(params, swapPath, 1000, 0) {
             // Success
         } catch {
             // Expected to fail at flashloan, not validation
         }
 
         vm.prank(owner);
-        try liquidator.executeLiquidations(params, swapPaths, 1000, 50) {
+        try liquidator.executeLiquidations(params, swapPath, 1000, 50) {
             // Success
         } catch {
             // Expected to fail at flashloan, not validation
         }
 
         vm.prank(owner);
-        try liquidator.executeLiquidations(params, swapPaths, 1000, 100) {
+        try liquidator.executeLiquidations(params, swapPath, 1000, 100) {
             // Success
         } catch {
             // Expected to fail at flashloan, not validation
@@ -436,17 +433,14 @@ contract LiquidatorWhitelistTest is Test {
             debtToCover: 1000
         });
 
-        AaveV3MEVLiquidator.SwapPath[] memory swapPaths =
-            new AaveV3MEVLiquidator.SwapPath[](1);
-        swapPaths[0] = AaveV3MEVLiquidator.SwapPath({
+        AaveV3MEVLiquidator.SwapPath memory swapPath = AaveV3MEVLiquidator.SwapPath({
             pathCollateralToDebt: "",
-            pathCollateralToWETH: "",
-            maxCollateralForRepayment: 1000
+            pathCollateralToWETH: ""
         });
 
         // Should revert with bribe > 100
         vm.prank(owner);
-        vm.expectRevert(bytes("Bribe must be <= 100"));
-        liquidator.executeLiquidations(params, swapPaths, 1000, 101);
+        vm.expectRevert(InvalidBribe.selector);
+        liquidator.executeLiquidations(params, swapPath, 1000, 101);
     }
 }

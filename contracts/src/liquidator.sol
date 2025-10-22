@@ -2,12 +2,38 @@
 pragma solidity ^0.8.20;
 
 /// ----------------------
+/// Custom Errors (Gas Optimization)
+/// ----------------------
+error NotOwner();
+error ZeroAddress();
+error AlreadyWhitelisted();
+error NotWhitelisted();
+error NoLiquidations();
+error LengthMismatch();
+error ZeroFlashloan();
+error InvalidBribe();
+error DebtNotWhitelisted();
+error CollateralNotWhitelisted();
+error MixedDebtAssets();
+error MixedCollateralAssets();
+error NotPool();
+error BadInitiator();
+error NoSuccessfulLiquidations();
+error ValidatorTransferFailed();
+error LiquidatorTransferFailed();
+error ReentrancyDetected();
+error ApproveFailed();
+error ETHSweepFailed();
+error TokenSweepFailed();
+
+/// ----------------------
 /// Minimal ERC20
 /// ----------------------
 interface IERC20 {
     function balanceOf(address) external view returns (uint256);
     function approve(address spender, uint256 value) external returns (bool);
     function transfer(address to, uint256 value) external returns (bool);
+    function allowance(address owner, address spender) external view returns (uint256);
 }
 
 /// ----------------------
@@ -37,6 +63,20 @@ interface IAaveV3Pool {
         bytes calldata params,
         uint16 referralCode
     ) external;
+
+    function getUserAccountData(
+        address user
+    )
+        external
+        view
+        returns (
+            uint256 totalCollateralBase,
+            uint256 totalDebtBase,
+            uint256 availableBorrowsBase,
+            uint256 currentLiquidationThreshold,
+            uint256 ltv,
+            uint256 healthFactor
+        );
 }
 
 interface IFlashLoanSimpleReceiver {
@@ -58,12 +98,14 @@ interface ISwapRouter {
     struct ExactInputParams {
         bytes path;
         address recipient;
+        uint256 deadline;
         uint256 amountIn;
         uint256 amountOutMinimum;
     }
     struct ExactOutputParams {
         bytes path;
         address recipient;
+        uint256 deadline;
         uint256 amountOut;
         uint256 amountInMaximum;
     }
@@ -79,14 +121,17 @@ interface ISwapRouter {
 /// Safe Approval Helper (for USDT compatibility)
 /// ----------------------
 library SafeApprove {
-    function safeApprove(address token, address spender, uint256 value) internal {
+    function safeApprove(
+        address token,
+        address spender,
+        uint256 value
+    ) internal {
         (bool success, bytes memory data) = token.call(
             abi.encodeWithSelector(IERC20.approve.selector, spender, value)
         );
-        require(
-            success && (data.length == 0 || abi.decode(data, (bool))),
-            "SafeApprove: approve failed"
-        );
+        if (!success || (data.length != 0 && !abi.decode(data, (bool)))) {
+            revert ApproveFailed();
+        }
     }
 }
 
@@ -96,14 +141,14 @@ library SafeApprove {
 abstract contract Ownable {
     address public owner;
     modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
+        if (msg.sender != owner) revert NotOwner();
         _;
     }
     constructor() {
         owner = msg.sender;
     }
     function transferOwnership(address n) external onlyOwner {
-        require(n != address(0), "zero");
+        if (n == address(0)) revert ZeroAddress();
         owner = n;
     }
 }
@@ -113,7 +158,7 @@ abstract contract ReentrancyGuard {
     uint256 private constant _IN = 2;
     uint256 private _s = _NOT;
     modifier nonReentrant() {
-        require(_s != _IN, "reentrant");
+        if (_s == _IN) revert ReentrancyDetected();
         _s = _IN;
         _;
         _s = _NOT;
@@ -159,7 +204,6 @@ contract AaveV3MEVLiquidator is
     struct SwapPath {
         bytes pathCollateralToDebt; // for exact repayment of flashloan
         bytes pathCollateralToWETH; // for converting remainder to WETH
-        uint256 maxCollateralForRepayment; // max collateral to use for debt repayment (slippage)
     }
 
     // ---------- Constructor ----------
@@ -171,8 +215,8 @@ contract AaveV3MEVLiquidator is
 
     /// @notice Add debt asset to whitelist and pre-approve to pool
     function addWhitelistedDebtAsset(address asset) external onlyOwner {
-        require(asset != address(0), "zero address");
-        require(!whitelistedDebtAssets[asset], "already whitelisted");
+        if (asset == address(0)) revert ZeroAddress();
+        if (whitelistedDebtAssets[asset]) revert AlreadyWhitelisted();
 
         whitelistedDebtAssets[asset] = true;
 
@@ -190,8 +234,8 @@ contract AaveV3MEVLiquidator is
 
     /// @notice Add collateral asset to whitelist and pre-approve to router
     function addWhitelistedCollateralAsset(address asset) external onlyOwner {
-        require(asset != address(0), "zero address");
-        require(!whitelistedCollateralAssets[asset], "already whitelisted");
+        if (asset == address(0)) revert ZeroAddress();
+        if (whitelistedCollateralAssets[asset]) revert AlreadyWhitelisted();
 
         whitelistedCollateralAssets[asset] = true;
 
@@ -211,7 +255,7 @@ contract AaveV3MEVLiquidator is
 
     /// @notice Add EOA to liquidator whitelist
     function addWhitelistedLiquidator(address liquidator) external onlyOwner {
-        require(liquidator != address(0), "zero address");
+        if (liquidator == address(0)) revert ZeroAddress();
         whitelistedLiquidators[liquidator] = true;
     }
 
@@ -227,41 +271,47 @@ contract AaveV3MEVLiquidator is
     /// @notice Execute batch liquidations with flashloan
     /// @dev Only whitelisted liquidators can call. Requires at least 1 successful liquidation.
     /// @param params Array of liquidation parameters
-    /// @param swapPaths Array of pre-computed Uniswap paths (computed off-chain)
+    /// @param swapPath Pre-computed Uniswap paths (computed off-chain) - same for all liquidations
     /// @param totalFlashloanAmount Total debt asset to borrow via flashloan
     /// @param bribe Percentage (0-100) of profit to send to block.coinbase, remainder goes to msg.sender
     function executeLiquidations(
         LiquidationParams[] calldata params,
-        SwapPath[] calldata swapPaths,
+        SwapPath calldata swapPath,
         uint256 totalFlashloanAmount,
         uint256 bribe
     ) external nonReentrant {
-        require(whitelistedLiquidators[msg.sender], "Not whitelisted");
-        require(params.length > 0, "No liquidations");
-        require(params.length == swapPaths.length, "Length mismatch");
-        require(totalFlashloanAmount > 0, "Zero flashloan");
-        require(bribe <= 100, "Bribe must be <= 100");
-
-        // Validate all assets are whitelisted
-        for (uint256 i = 0; i < params.length; i++) {
-            require(
-                whitelistedDebtAssets[params[i].debtAsset],
-                "Debt not whitelisted"
-            );
-            require(
-                whitelistedCollateralAssets[params[i].collateralAsset],
-                "Collateral not whitelisted"
-            );
-        }
+        if (!whitelistedLiquidators[msg.sender]) revert NotWhitelisted();
+        uint256 len = params.length;
+        if (len == 0) revert NoLiquidations();
+        if (totalFlashloanAmount == 0) revert ZeroFlashloan();
+        if (bribe > 100) revert InvalidBribe();
 
         // All liquidations must use the same debt asset for single flashloan
         address debtAsset = params[0].debtAsset;
-        for (uint256 i = 1; i < params.length; i++) {
-            require(params[i].debtAsset == debtAsset, "Mixed debt assets");
+        address collateralAsset = params[0].collateralAsset;
+
+        // Validate all assets are whitelisted in single loop
+        if (!whitelistedDebtAssets[debtAsset]) revert DebtNotWhitelisted();
+        if (!whitelistedCollateralAssets[collateralAsset])
+            revert CollateralNotWhitelisted();
+
+        for (uint256 i = 1; i < len; ) {
+            if (params[i].debtAsset != debtAsset) revert MixedDebtAssets();
+            if (params[i].collateralAsset != collateralAsset)
+                revert MixedCollateralAssets();
+
+            unchecked {
+                ++i;
+            }
         }
 
         // Encode params for callback (including bribe and liquidator address)
-        bytes memory callbackData = abi.encode(params, swapPaths, bribe, msg.sender);
+        bytes memory callbackData = abi.encode(
+            params,
+            swapPath,
+            bribe,
+            msg.sender
+        );
 
         // Execute flashloan
         POOL.flashLoanSimple(
@@ -282,26 +332,28 @@ contract AaveV3MEVLiquidator is
         address initiator,
         bytes calldata params
     ) external override returns (bool) {
-        require(msg.sender == address(POOL), "Not pool");
-        require(initiator == address(this), "Bad initiator");
+        if (msg.sender != address(POOL)) revert NotPool();
+        if (initiator != address(this)) revert BadInitiator();
 
         (
             LiquidationParams[] memory liquidations,
-            SwapPath[] memory swapPaths,
+            SwapPath memory swapPath,
             uint256 bribe,
             address liquidator
-        ) = abi.decode(params, (LiquidationParams[], SwapPath[], uint256, address));
-
-        uint256 successCount = 0;
-        uint256 totalCollateralReceived = 0;
-        address collateralAsset = liquidations[0].collateralAsset;
-
-        // Execute liquidations with try-catch
-        for (uint256 i = 0; i < liquidations.length; i++) {
-            uint256 balanceBefore = IERC20(collateralAsset).balanceOf(
-                address(this)
+        ) = abi.decode(
+                params,
+                (LiquidationParams[], SwapPath, uint256, address)
             );
 
+        address collateralAsset = liquidations[0].collateralAsset;
+
+        // Get balance before all liquidations (single read)
+        uint256 balanceBefore = IERC20(collateralAsset).balanceOf(address(this));
+
+        uint256 successCount = 0;
+
+        // Execute liquidations with try-catch
+        for (uint256 i = 0; i < liquidations.length; ) {
             // Try to liquidate - don't revert if one fails
             try
                 POOL.liquidationCall(
@@ -312,24 +364,23 @@ contract AaveV3MEVLiquidator is
                     false // receive underlying collateral, not aToken
                 )
             {
-                uint256 balanceAfter = IERC20(collateralAsset).balanceOf(
-                    address(this)
-                );
-                uint256 received = balanceAfter - balanceBefore;
-
-                // Count as success if any collateral received
-                if (received > 0) {
-                    successCount++;
-                    totalCollateralReceived += received;
-                }
+                ++successCount;
             } catch {
                 // Liquidation failed, continue to next
-                continue;
+            }
+
+            unchecked {
+                ++i;
             }
         }
 
+        // Calculate total collateral received (single read)
+        uint256 totalCollateralReceived = IERC20(collateralAsset).balanceOf(
+            address(this)
+        ) - balanceBefore;
+
         // Require at least 1 successful liquidation
-        require(successCount > 0, "No successful liquidations");
+        if (successCount == 0) revert NoSuccessfulLiquidations();
 
         // Calculate flashloan repayment amount
         uint256 flashloanRepayment = amount + premium;
@@ -338,14 +389,15 @@ contract AaveV3MEVLiquidator is
         // Uses exactOutput: we want exactly flashloanRepayment of debt asset
         uint256 collateralUsedForRepayment = 0;
 
-        if (swapPaths[0].pathCollateralToDebt.length > 0) {
+        if (swapPath.pathCollateralToDebt.length > 0) {
             // Only swap if collateral != debt asset
             collateralUsedForRepayment = ROUTER.exactOutput(
                 ISwapRouter.ExactOutputParams({
-                    path: swapPaths[0].pathCollateralToDebt,
+                    path: swapPath.pathCollateralToDebt,
                     recipient: address(this),
+                    deadline: block.timestamp,
                     amountOut: flashloanRepayment,
-                    amountInMaximum: swapPaths[0].maxCollateralForRepayment
+                    amountInMaximum: totalCollateralReceived
                 })
             );
         } else {
@@ -360,12 +412,13 @@ contract AaveV3MEVLiquidator is
         // Convert remaining collateral to WETH
         if (
             remainingCollateral > 0 &&
-            swapPaths[0].pathCollateralToWETH.length > 0
+            swapPath.pathCollateralToWETH.length > 0
         ) {
             ROUTER.exactInput(
                 ISwapRouter.ExactInputParams({
-                    path: swapPaths[0].pathCollateralToWETH,
+                    path: swapPath.pathCollateralToWETH,
                     recipient: address(this),
+                    deadline: block.timestamp,
                     amountIn: remainingCollateral,
                     amountOutMinimum: 0 // Already profitable if we got here
                 })
@@ -380,21 +433,44 @@ contract AaveV3MEVLiquidator is
 
         // Split ETH between validator and liquidator based on bribe percentage
         uint256 ethBalance = address(this).balance;
+        // It's generally recommended to use .call for sending ETH, with proper checks (which is being done here).
+        // .send and .transfer are not recommended because of gas cost restrictions due to EIP-1884 and may revert unexpectedly.
+        // To be extra safe, you may consider also checking if the recipient is a contract and handling reentrancy, but for payment
+        // to EOAs like liquidator or block.coinbase this pattern is broadly accepted.
+
         if (ethBalance > 0) {
-            // Calculate validator bribe (e.g., 90% if bribe = 90)
-            uint256 validatorAmount = (ethBalance * bribe) / 100;
-            uint256 liquidatorAmount = ethBalance - validatorAmount;
+            if (bribe == 0) {
+                // No bribe - send all to liquidator (single transfer)
+                (bool success, ) = payable(liquidator).call{value: ethBalance}(
+                    ""
+                );
+                if (!success) revert LiquidatorTransferFailed();
+            } else if (bribe == 100) {
+                // Full bribe - send all to validator (single transfer)
+                (bool success, ) = payable(block.coinbase).call{
+                    value: ethBalance
+                }("");
+                if (!success) revert ValidatorTransferFailed();
+            } else {
+                // Split between validator and liquidator
+                uint256 validatorAmount;
+                unchecked {
+                    validatorAmount = (ethBalance * bribe) / 100;
+                }
 
-            // Send bribe to validator (block.coinbase)
-            if (validatorAmount > 0) {
-                (bool success, ) = block.coinbase.call{value: validatorAmount}("");
-                require(success, "Validator transfer failed");
-            }
+                (bool success1, ) = payable(block.coinbase).call{
+                    value: validatorAmount
+                }("");
+                if (!success1) revert ValidatorTransferFailed();
 
-            // Send remaining profit to liquidator
-            if (liquidatorAmount > 0) {
-                (bool success, ) = liquidator.call{value: liquidatorAmount}("");
-                require(success, "Liquidator transfer failed");
+                // Send remainder to liquidator
+                unchecked {
+                    uint256 liquidatorAmount = ethBalance - validatorAmount;
+                    (bool success2, ) = payable(liquidator).call{
+                        value: liquidatorAmount
+                    }("");
+                    if (!success2) revert LiquidatorTransferFailed();
+                }
             }
         }
 
@@ -417,12 +493,12 @@ contract AaveV3MEVLiquidator is
             uint256 amt = address(this).balance;
             if (amt > 0) {
                 (bool ok, ) = payable(to).call{value: amt}("");
-                require(ok, "ETH sweep failed");
+                if (!ok) revert ETHSweepFailed();
             }
         } else {
             uint256 bal = IERC20(token).balanceOf(address(this));
             if (bal > 0) {
-                require(IERC20(token).transfer(to, bal), "Token sweep failed");
+                if (!IERC20(token).transfer(to, bal)) revert TokenSweepFailed();
             }
         }
     }
