@@ -242,9 +242,9 @@ class EstimateFutureLiquidationCandidatesTask(Task):
         ),
         at_risk_users AS (
             SELECT
-                phf.user,
-                chf.current_health_factor,
-                phf.predicted_health_factor
+                phf.user AS user,
+                chf.current_health_factor AS current_health_factor,
+                phf.predicted_health_factor AS predicted_health_factor
             FROM predicted_health_factors AS phf
             INNER JOIN current_health_factors AS chf ON phf.user = chf.user
             WHERE
@@ -256,22 +256,22 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 AND chf.effective_debt_usd > 10000
         )
         SELECT
-            lc.user,
-            lc.collateral_asset,
-            lc.debt_asset,
-            aru.current_health_factor,
-            aru.predicted_health_factor,
-            lc.debt_to_cover,
-            lc.profit,
-            lc.effective_collateral,
-            lc.effective_debt,
-            lc.collateral_balance,
-            lc.debt_balance,
-            lc.liquidation_bonus,
-            lc.collateral_price,
-            lc.debt_price,
-            lc.collateral_decimals,
-            lc.debt_decimals
+            lc.user AS user,
+            lc.collateral_asset AS collateral_asset,
+            lc.debt_asset AS debt_asset,
+            aru.current_health_factor AS current_health_factor,
+            aru.predicted_health_factor AS predicted_health_factor,
+            lc.debt_to_cover AS debt_to_cover,
+            lc.profit AS profit,
+            lc.effective_collateral AS effective_collateral,
+            lc.effective_debt AS effective_debt,
+            lc.collateral_balance AS collateral_balance,
+            lc.debt_balance AS debt_balance,
+            lc.liquidation_bonus AS liquidation_bonus,
+            lc.collateral_price AS collateral_price,
+            lc.debt_price AS debt_price,
+            lc.collateral_decimals AS collateral_decimals,
+            lc.debt_decimals AS debt_decimals
         FROM aave_ethereum.LiquidationCandidates_Memory AS lc
         INNER JOIN at_risk_users AS aru ON lc.user = aru.user
         ORDER BY lc.profit DESC
