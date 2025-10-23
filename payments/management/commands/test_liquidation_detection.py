@@ -275,7 +275,7 @@ class Command(BaseCommand):
             effective_collateral_usd,
             effective_debt_usd
         FROM aave_ethereum.view_user_health_factor
-        WHERE health_factor < 1.02
+        WHERE health_factor between 1.00 AND 1.02
         ORDER BY health_factor ASC
         LIMIT 5
         """
@@ -283,7 +283,7 @@ class Command(BaseCommand):
         result = clickhouse_client.execute_query(query)
 
         if result.result_rows:
-            self.stdout.write("Users with low health factors (< 2.0):")
+            self.stdout.write("Users with low health factors (< 1.02):")
             for row in result.result_rows:
                 user, hf, collateral, debt = row
                 self.stdout.write(
@@ -291,7 +291,7 @@ class Command(BaseCommand):
                     f"Collateral: ${collateral:,.2f} | Debt: ${debt:,.2f}"
                 )
         else:
-            self.stdout.write("No users with health factor < 2.0")
+            self.stdout.write("No users with health factor < 1.02")
 
         # Show existing liquidation candidates
         query2 = """
