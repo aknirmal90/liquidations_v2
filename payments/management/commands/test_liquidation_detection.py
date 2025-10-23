@@ -58,6 +58,7 @@ COMMON ASSETS:
 """
 
 import logging
+from datetime import datetime
 
 from django.core.management.base import BaseCommand
 
@@ -329,22 +330,17 @@ class Command(BaseCommand):
         Returns:
             list: Backup of original price data for restoration
         """
-        import time
 
         # Use microsecond timestamp (Unix timestamp * 1,000,000)
-        current_timestamp = int(time.time() * 1_000_000)
+        current_timestamp = int(datetime.now().timestamp() * 1_000_000)
 
         parsed_numerator_logs = []
         assets_to_backup = []
 
-        for asset, price_usd in asset_price_pairs:
+        for asset, price in asset_price_pairs:
             asset_info = self._get_asset_info(asset)
             if asset_info:
                 assets_to_backup.append(asset)
-
-                # Convert USD price to raw format (price * decimals_places)
-                raw_price = int(price_usd * asset_info["decimals_places"])
-
                 parsed_numerator_logs.append(
                     [
                         asset,
@@ -353,8 +349,8 @@ class Command(BaseCommand):
                         current_timestamp,
                         999999999,
                         "0xtest_transaction_hash",
-                        "test",
-                        raw_price,
+                        "transaction",
+                        int(price),
                     ]
                 )
 

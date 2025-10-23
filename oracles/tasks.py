@@ -686,6 +686,7 @@ PriceTransactionDynamicSynchronizeTask = app.register_task(
 
 class InsertTransactionNumeratorTask(BasePriceMixin, Task):
     def run(self, parsed_numerator_logs: List[Any], hash: str):
+        logger.info(f"Parsed numerator logs: {parsed_numerator_logs}")
         self.bulk_insert_raw_price_events(
             table_name="TransactionRawNumerator", logs=parsed_numerator_logs
         )
@@ -693,8 +694,6 @@ class InsertTransactionNumeratorTask(BasePriceMixin, Task):
         clickhouse_client.execute_query(
             """SYSTEM RELOAD DICTIONARY aave_ethereum.dict_latest_asset_configuration"""
         )
-
-        # Import here to avoid circular dependency
         from payments.tasks import EstimateFutureLiquidationCandidatesTask
 
         # Trigger the future liquidation candidates estimation task
