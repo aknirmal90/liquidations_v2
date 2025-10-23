@@ -378,7 +378,6 @@ class Command(BaseCommand):
         InsertTransactionNumeratorTask.delay(
             parsed_numerator_logs=parsed_numerator_logs, hash="0xtest_transaction_hash"
         )
-
         self.stdout.write(
             self.style.SUCCESS("\n✓ Detection task completed successfully")
         )
