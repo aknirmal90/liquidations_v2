@@ -37,6 +37,7 @@ effective_balances AS (
         is_in_emode,
         accrued_collateral_balance,
         accrued_debt_balance,
+        decimals_places,
         -- Effective Collateral: apply liquidation threshold based on eMode, collateral status, and price
         cast(floor(
             toFloat64(accrued_collateral_balance)
@@ -59,6 +60,20 @@ effective_balances AS (
         ) as UInt256) AS effective_debt
     FROM asset_effective_balances
 ),
+effective_balances_usd AS (
+    SELECT
+        user,
+        asset,
+        is_in_emode,
+        accrued_collateral_balance,
+        accrued_debt_balance,
+        decimals_places,
+        effective_collateral,
+        effective_debt,
+        effective_collateral / 1e8 AS effective_collateral_usd,
+        effective_debt / 1e8 AS effective_debt_usd
+    FROM effective_balances
+),
 user_totals AS (
     SELECT
         user,
@@ -66,8 +81,10 @@ user_totals AS (
         sum(accrued_collateral_balance) AS total_accrued_collateral_balance,
         sum(accrued_debt_balance) AS total_accrued_debt_balance,
         sum(effective_collateral) AS total_effective_collateral,
-        sum(effective_debt) AS total_effective_debt
-    FROM effective_balances
+        sum(effective_debt) AS total_effective_debt,
+        sum(effective_collateral_usd) AS total_effective_collateral_usd,
+        sum(effective_debt_usd) AS total_effective_debt_usd
+    FROM effective_balances_usd
     GROUP BY user, is_in_emode
 )
 SELECT
@@ -75,8 +92,10 @@ SELECT
     is_in_emode,
     total_accrued_collateral_balance,
     total_accrued_debt_balance,
-    total_effective_collateral AS effective_collateral,
-    total_effective_debt AS effective_debt,
+    total_effective_collateral,
+    total_effective_debt,
+    total_effective_collateral_usd AS effective_collateral_usd,
+    total_effective_debt_usd AS effective_debt_usd,
     -- Health Factor = Effective Collateral / Effective Debt
     -- If debt is 0, health factor is infinite (represented as 999.9 for practical purposes)
     -- If collateral is 0 and debt > 0, health factor is 0 (liquidatable)

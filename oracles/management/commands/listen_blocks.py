@@ -79,6 +79,9 @@ class Command(WebsocketCommand, BaseCommand):
             ParentSynchronizeTask.delay()
             PriceEventDynamicSynchronizeTask.delay()
             ParentBalancesSynchronizeTask.delay()
+            # EstimateFutureLiquidationCandidatesTask.delay(
+            #     [["newBlock", block_number, block_timestamp]]
+            # )
 
         except Exception as e:
             logger.error(f"Error processing block data: {e}")

@@ -4834,12 +4834,55 @@ def liquidation_candidates(request):
 def liquidation_candidates_api(request):
     """API endpoint to get liquidation candidates at risk"""
     try:
+        # Get optional parameters
+        exclude_stablecoin_pairs = (
+            request.GET.get("exclude_stablecoin_pairs", "false").lower() == "true"
+        )
+        priority_assets_only = (
+            request.GET.get("priority_assets_only", "false").lower() == "true"
+        )
+
+        # Build WHERE clause filters
+        filters = []
+
+        # Priority assets filter (WETH, USDT, USDC, WBTC)
+        if priority_assets_only:
+            priority_filter = """(
+                collateral_asset IN (
+                    '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',  -- WETH
+                    '0xdac17f958d2ee523a2206206994597c13d831ec7',  -- USDT
+                    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',  -- USDC
+                    '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599'   -- WBTC
+                )
+                AND debt_asset IN (
+                    '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',  -- WETH
+                    '0xdac17f958d2ee523a2206206994597c13d831ec7',  -- USDT
+                    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',  -- USDC
+                    '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599'   -- WBTC
+                )
+            )"""
+            filters.append(priority_filter)
+
+        # Stablecoin exclusion filter
+        if exclude_stablecoin_pairs:
+            stablecoin_filter = """NOT (
+                -- Exclude pairs where both collateral and debt are stablecoins (USDT or USDC)
+                collateral_asset IN ('0xdac17f958d2ee523a2206206994597c13d831ec7', '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48')
+                AND debt_asset IN ('0xdac17f958d2ee523a2206206994597c13d831ec7', '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48')
+            )"""
+            filters.append(stablecoin_filter)
+
+        # Combine all filters
+        combined_filter = ""
+        if filters:
+            combined_filter = "AND " + " AND ".join(filters)
+
         # Query directly from the LiquidationCandidates_Memory table
         # This table is populated by RefreshLiquidationCandidatesTask
         # Filter by profit > $100 and sort by health factor (lowest first)
-        query = """
+        query = f"""
         WITH
-        -- Aggregate candidates by user to get totals
+        -- Aggregate candidates by user to get totals and best liquidation opportunity
         user_aggregates AS (
             SELECT
                 user,
@@ -4847,10 +4890,12 @@ def liquidation_candidates_api(request):
                 min(health_factor) AS health_factor,
                 max(effective_collateral) AS effective_collateral,
                 max(effective_debt) AS effective_debt,
-                max(is_priority_debt) AS has_priority_debt,
-                max(is_priority_collateral) AS has_priority_collateral
+                -- Get the collateral and debt assets from the row with max profit
+                argMax(collateral_asset, profit) AS best_collateral_asset,
+                argMax(debt_asset, profit) AS best_debt_asset
             FROM aave_ethereum.LiquidationCandidates_Memory
             WHERE profit > 100
+            {combined_filter}
             GROUP BY user
         )
         SELECT
@@ -4860,7 +4905,10 @@ def liquidation_candidates_api(request):
             effective_collateral,
             effective_debt,
             health_factor,
-            total_profit AS max_profit
+            total_profit AS max_profit,
+            -- Get asset symbols from the dict_latest_asset_configuration dictionary
+            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'symbol', best_collateral_asset, '') AS collateral_symbol,
+            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'symbol', best_debt_asset, '') AS debt_symbol
         FROM user_aggregates
         ORDER BY health_factor ASC
         """
@@ -4877,6 +4925,8 @@ def liquidation_candidates_api(request):
                     "effective_debt": float(row[3]) if row[3] else 0,
                     "health_factor": float(row[4]) if row[4] else 0,
                     "max_profit": float(row[5]) if row[5] else 0,
+                    "collateral_symbol": row[6] if row[6] else "",
+                    "debt_symbol": row[7] if row[7] else "",
                 }
             )
 
@@ -4900,6 +4950,31 @@ def liquidation_candidates_api(request):
             max_health_factor = 0
             users_in_emode = 0
 
+        # Get pivot table data (collateral × debt pairs with profit)
+        pivot_query = f"""
+        SELECT
+            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'symbol', collateral_asset, '') AS collateral_symbol,
+            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'symbol', debt_asset, '') AS debt_symbol,
+            sum(profit) AS total_profit
+        FROM aave_ethereum.LiquidationCandidates_Memory
+        WHERE profit > 100
+        {combined_filter}
+        GROUP BY collateral_asset, debt_asset, collateral_symbol, debt_symbol
+        ORDER BY total_profit DESC
+        """
+
+        pivot_result = clickhouse_client.execute_query(pivot_query)
+        pivot_data = []
+        for row in pivot_result.result_rows:
+            if row[0] and row[1]:  # Only include rows with valid symbols
+                pivot_data.append(
+                    {
+                        "collateral_symbol": row[0],
+                        "debt_symbol": row[1],
+                        "profit": float(row[2]) if row[2] else 0,
+                    }
+                )
+
         return JsonResponse(
             {
                 "total_candidates": len(candidates),
@@ -4911,6 +4986,7 @@ def liquidation_candidates_api(request):
                 "max_health_factor": max_health_factor,
                 "users_in_emode": users_in_emode,
                 "candidates": candidates,
+                "pivot_data": pivot_data,
             }
         )
 

@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     # "aave",
     "django_admin_inline_paginator",
     "django_object_actions",
+    "payments",
 ]
 
 MIDDLEWARE = [

@@ -190,6 +190,33 @@ class Command(WebsocketCommand, BaseCommand):
             if from_address not in authorized_senders:
                 return False
 
+            # Run Tenderly simulation for relevant transactions
+            # try:
+            #     logger.info(
+            #         f"Running Tenderly simulation for transaction: {tx_data.get('hash')}"
+            #     )
+            #     simulation_response = get_tenderly_simulation_response(
+            #         chain_id=int(
+            #             tx_data.get("chainId", "0x1"), 16
+            #         ),  # Convert hex to int
+            #         from_address=tx_data.get("from"),
+            #         to_address=tx_data.get("to"),
+            #         input=tx_data.get("input"),
+            #         value=int(tx_data.get("value", "0x0"), 16)
+            #         if tx_data.get("value")
+            #         else 0,
+            #         gas=tx_data.get("gas"),
+            #         simulation_type="quick",
+            #     )
+            #     is_success = simulation_response["simulation"].get("status")
+            #     logger.info(
+            #         f"Tenderly simulation result for tx {tx_data.get('hash')}: is_success={is_success}"
+            #     )
+
+            # except Exception as sim_error:
+            #     logger.error(f"Error running Tenderly simulation: {sim_error}")
+            #     # Continue processing even if simulation fails
+
             return True
 
         except Exception as e:

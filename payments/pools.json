@@ -1,0 +1,167 @@
+{
+  "priority_assets": {
+    "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "USDT": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "USDC": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "WBTC": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+    "cbBTC": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf"
+  },
+  "pools": [
+    {
+      "pool_address": "0x7858E59e0C01EA06Df3aF3D20aC7B0003275D4Bf",
+      "token0": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "token1": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "symbol0": "USDC",
+      "symbol1": "USDT",
+      "fee": 500,
+      "fee_percent": 0.05,
+      "liquidity": 703109481806772,
+      "has_liquidity": true
+    },
+    {
+      "pool_address": "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640",
+      "token0": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "token1": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "symbol0": "USDC",
+      "symbol1": "WETH",
+      "fee": 500,
+      "fee_percent": 0.05,
+      "liquidity": 1457271450445142432,
+      "has_liquidity": true
+    },
+    {
+      "pool_address": "0x8ad599c3A0ff1De082011EFDDc58f1908eb6e6D8",
+      "token0": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "token1": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "symbol0": "USDC",
+      "symbol1": "WETH",
+      "fee": 3000,
+      "fee_percent": 0.3,
+      "liquidity": 3893271284284219125,
+      "has_liquidity": true
+    },
+    {
+      "pool_address": "0x54E58c986818903d2d86dAfE03f5F5E6C2cA6710",
+      "token0": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "token1": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
+      "symbol0": "USDC",
+      "symbol1": "cbBTC",
+      "fee": 500,
+      "fee_percent": 0.05,
+      "liquidity": 26156361474,
+      "has_liquidity": true
+    },
+    {
+      "pool_address": "0x9a772018FbD77fcD2d25657e5C547BAfF3Fd7D16",
+      "token0": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+      "token1": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "symbol0": "WBTC",
+      "symbol1": "USDC",
+      "fee": 500,
+      "fee_percent": 0.05,
+      "liquidity": 553706106313,
+      "has_liquidity": true
+    },
+    {
+      "pool_address": "0x99ac8cA7087fA4A2A1FB6357269965A2014ABc35",
+      "token0": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+      "token1": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "symbol0": "WBTC",
+      "symbol1": "USDC",
+      "fee": 3000,
+      "fee_percent": 0.3,
+      "liquidity": 25609942843799,
+      "has_liquidity": true
+    },
+    {
+      "pool_address": "0x56534741CD8B152df6d48AdF7ac51f75169A83b2",
+      "token0": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+      "token1": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "symbol0": "WBTC",
+      "symbol1": "USDT",
+      "fee": 500,
+      "fee_percent": 0.05,
+      "liquidity": 4700405674661,
+      "has_liquidity": true
+    },
+    {
+      "pool_address": "0x4585FE77225b41b697C938B018E2Ac67Ac5a20c0",
+      "token0": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+      "token1": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "symbol0": "WBTC",
+      "symbol1": "WETH",
+      "fee": 500,
+      "fee_percent": 0.05,
+      "liquidity": 134936245801965207,
+      "has_liquidity": true
+    },
+    {
+      "pool_address": "0xCBCdF9626bC03E24f779434178A73a0B4bad62eD",
+      "token0": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+      "token1": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "symbol0": "WBTC",
+      "symbol1": "WETH",
+      "fee": 3000,
+      "fee_percent": 0.3,
+      "liquidity": 163090597684517080,
+      "has_liquidity": true
+    },
+    {
+      "pool_address": "0x0da6253560822973185297d5f32fF8fA38243Afe",
+      "token0": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+      "token1": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
+      "symbol0": "WBTC",
+      "symbol1": "cbBTC",
+      "fee": 500,
+      "fee_percent": 0.05,
+      "liquidity": 169202426445,
+      "has_liquidity": true
+    },
+    {
+      "pool_address": "0x11b815efB8f581194ae79006d24E0d814B7697F6",
+      "token0": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "token1": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "symbol0": "WETH",
+      "symbol1": "USDT",
+      "fee": 500,
+      "fee_percent": 0.05,
+      "liquidity": 389177908535615670,
+      "has_liquidity": true
+    },
+    {
+      "pool_address": "0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36",
+      "token0": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "token1": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "symbol0": "WETH",
+      "symbol1": "USDT",
+      "fee": 3000,
+      "fee_percent": 0.3,
+      "liquidity": 9930584777836859719,
+      "has_liquidity": true
+    },
+    {
+      "pool_address": "0x66DD1ACc5da42502ddD469277aed509D1de22b69",
+      "token0": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "token1": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
+      "symbol0": "WETH",
+      "symbol1": "cbBTC",
+      "fee": 500,
+      "fee_percent": 0.05,
+      "liquidity": 66285240906302,
+      "has_liquidity": true
+    },
+    {
+      "pool_address": "0x15aA01580ae866f9FF4DBe45E06e307941d90C7b",
+      "token0": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "token1": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
+      "symbol0": "WETH",
+      "symbol1": "cbBTC",
+      "fee": 3000,
+      "fee_percent": 0.3,
+      "liquidity": 61713673143503,
+      "has_liquidity": true
+    }
+  ],
+  "factory_address": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+  "chain": "ethereum"
+}

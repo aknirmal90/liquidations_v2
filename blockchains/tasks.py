@@ -68,6 +68,17 @@ class InitializeAppTask(Task):
             f"Completed InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}"
         )
 
+        tables = [
+            "EventRawNumerator",
+            "EventRawDenominator",
+            "EventRawMaxCap",
+            "EventRawMultiplier",
+            "TransactionRawNumerator",
+            "TransactionRawMultiplier",
+        ]
+        for table in tables:
+            clickhouse_client.optimize_table(table)
+
     def create_materialized_views(self):
         """Create materialized views in Clickhouse."""
         BLOCKCHAINS_MATERIALIZED_VIEWS_PATH = os.path.join(
