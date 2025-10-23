@@ -112,35 +112,9 @@ contract LiquidatorHistoricalTest is Test {
             debtToCover: liq.debtToCover
         });
 
-        // Prepare swap path (single path for all liquidations)
-        bytes memory pathToDebt = parseUniswapPath(
-            liq.pathCollateralToDebt,
-            liq.collateralAsset,
-            liq.debtAsset
-        );
-
-        bytes memory pathToWeth = parseUniswapPath(
-            liq.pathCollateralToWeth,
-            liq.collateralAsset,
-            WETH
-        );
-
-        AaveV3MEVLiquidator.SwapPath memory swapPath = AaveV3MEVLiquidator
-            .SwapPath({
-                pathCollateralToDebt: reverseUniswapPath(pathToDebt),
-                pathCollateralToWETH: pathToWeth
-            });
-
         console.log("");
         console.log("=== SWAP PATHS ===");
-        console.log(
-            "Path Collateral -> Debt length:",
-            swapPath.pathCollateralToDebt.length
-        );
-        console.log(
-            "Path Collateral -> WETH length:",
-            swapPath.pathCollateralToWETH.length
-        );
+        console.log("Using direct encoding with fee 500");
         console.log("");
 
         // Check approvals
@@ -191,7 +165,7 @@ contract LiquidatorHistoricalTest is Test {
         uint256 gasStart = gasleft();
         vm.prank(OWNER);
         try
-            liquidator.executeLiquidations(params, swapPath, liq.debtToCover, 0)
+            liquidator.executeLiquidations(params, liq.debtToCover, 0)
         {
             uint256 gasUsed = gasStart - gasleft();
             console.log("SUCCESS - Liquidation executed");

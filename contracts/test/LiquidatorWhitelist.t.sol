@@ -389,28 +389,23 @@ contract LiquidatorWhitelistTest is Test {
             debtToCover: 1000
         });
 
-        AaveV3MEVLiquidator.SwapPath memory swapPath = AaveV3MEVLiquidator.SwapPath({
-            pathCollateralToDebt: "",
-            pathCollateralToWETH: ""
-        });
-
         // These should not revert during validation (will fail later due to flashloan, but that's ok)
         vm.prank(owner);
-        try liquidator.executeLiquidations(params, swapPath, 1000, 0) {
+        try liquidator.executeLiquidations(params, 1000, 0) {
             // Success
         } catch {
             // Expected to fail at flashloan, not validation
         }
 
         vm.prank(owner);
-        try liquidator.executeLiquidations(params, swapPath, 1000, 50) {
+        try liquidator.executeLiquidations(params, 1000, 50) {
             // Success
         } catch {
             // Expected to fail at flashloan, not validation
         }
 
         vm.prank(owner);
-        try liquidator.executeLiquidations(params, swapPath, 1000, 100) {
+        try liquidator.executeLiquidations(params, 1000, 100) {
             // Success
         } catch {
             // Expected to fail at flashloan, not validation
@@ -433,14 +428,9 @@ contract LiquidatorWhitelistTest is Test {
             debtToCover: 1000
         });
 
-        AaveV3MEVLiquidator.SwapPath memory swapPath = AaveV3MEVLiquidator.SwapPath({
-            pathCollateralToDebt: "",
-            pathCollateralToWETH: ""
-        });
-
         // Should revert with bribe > 100
         vm.prank(owner);
         vm.expectRevert(InvalidBribe.selector);
-        liquidator.executeLiquidations(params, swapPath, 1000, 101);
+        liquidator.executeLiquidations(params, 1000, 101);
     }
 }

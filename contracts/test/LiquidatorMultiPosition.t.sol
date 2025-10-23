@@ -112,18 +112,6 @@ contract LiquidatorMultiPositionTest is Test {
         params[0] = params1;
         // params[1] = params2;  // Comment out second position for now to test
 
-        // Swap path for WETH -> USDC using the pool from CSV: 0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640
-        // This is WETH/USDC 0.05% pool
-        // Single swap path used for all liquidations (since all use same collateral/debt assets)
-        AaveV3MEVLiquidator.SwapPath memory swapPath = AaveV3MEVLiquidator.SwapPath({
-            pathCollateralToDebt: abi.encodePacked(
-                WETH,
-                uint24(500),  // 0.05% fee tier
-                USDC
-            ),
-            pathCollateralToWETH: abi.encodePacked(WETH)  // Already WETH, no swap needed
-        });
-
         // Total flashloan amount = just first position for now
         uint256 totalFlashloanAmount = 4482862847; // First position only
 
@@ -146,7 +134,7 @@ contract LiquidatorMultiPositionTest is Test {
         // Measure gas for liquidation
         uint256 gasStart = gasleft();
         vm.prank(OWNER);
-        try liquidator.executeLiquidations(params, swapPath, totalFlashloanAmount, 0) {
+        try liquidator.executeLiquidations(params, totalFlashloanAmount, 0) {
             uint256 gasUsed = gasStart - gasleft();
             console.log("SUCCESS - Multi-position liquidation executed");
             console.log("Gas used for liquidation:", gasUsed);

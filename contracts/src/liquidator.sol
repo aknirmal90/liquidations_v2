@@ -33,7 +33,10 @@ interface IERC20 {
     function balanceOf(address) external view returns (uint256);
     function approve(address spender, uint256 value) external returns (bool);
     function transfer(address to, uint256 value) external returns (bool);
-    function allowance(address owner, address spender) external view returns (uint256);
+    function allowance(
+        address owner,
+        address spender
+    ) external view returns (uint256);
 }
 
 /// ----------------------
@@ -201,11 +204,6 @@ contract AaveV3MEVLiquidator is
         uint256 debtToCover;
     }
 
-    struct SwapPath {
-        bytes pathCollateralToDebt; // for exact repayment of flashloan
-        bytes pathCollateralToWETH; // for converting remainder to WETH
-    }
-
     // ---------- Constructor ----------
     constructor() {}
 
@@ -271,12 +269,10 @@ contract AaveV3MEVLiquidator is
     /// @notice Execute batch liquidations with flashloan
     /// @dev Only whitelisted liquidators can call. Requires at least 1 successful liquidation.
     /// @param params Array of liquidation parameters
-    /// @param swapPath Pre-computed Uniswap paths (computed off-chain) - same for all liquidations
     /// @param totalFlashloanAmount Total debt asset to borrow via flashloan
     /// @param bribe Percentage (0-100) of profit to send to block.coinbase, remainder goes to msg.sender
     function executeLiquidations(
         LiquidationParams[] calldata params,
-        SwapPath calldata swapPath,
         uint256 totalFlashloanAmount,
         uint256 bribe
     ) external nonReentrant {
@@ -306,12 +302,7 @@ contract AaveV3MEVLiquidator is
         }
 
         // Encode params for callback (including bribe and liquidator address)
-        bytes memory callbackData = abi.encode(
-            params,
-            swapPath,
-            bribe,
-            msg.sender
-        );
+        bytes memory callbackData = abi.encode(params, bribe, msg.sender);
 
         // Execute flashloan
         POOL.flashLoanSimple(
@@ -337,18 +328,16 @@ contract AaveV3MEVLiquidator is
 
         (
             LiquidationParams[] memory liquidations,
-            SwapPath memory swapPath,
             uint256 bribe,
             address liquidator
-        ) = abi.decode(
-                params,
-                (LiquidationParams[], SwapPath, uint256, address)
-            );
+        ) = abi.decode(params, (LiquidationParams[], uint256, address));
 
         address collateralAsset = liquidations[0].collateralAsset;
 
         // Get balance before all liquidations (single read)
-        uint256 balanceBefore = IERC20(collateralAsset).balanceOf(address(this));
+        uint256 balanceBefore = IERC20(collateralAsset).balanceOf(
+            address(this)
+        );
 
         uint256 successCount = 0;
 
@@ -389,11 +378,36 @@ contract AaveV3MEVLiquidator is
         // Uses exactOutput: we want exactly flashloanRepayment of debt asset
         uint256 collateralUsedForRepayment = 0;
 
-        if (swapPath.pathCollateralToDebt.length > 0) {
+        address debtAsset = liquidations[0].debtAsset;
+
+        if (collateralAsset != debtAsset) {
             // Only swap if collateral != debt asset
+            bytes memory pathCollateralToDebt;
+
+            // Check if we need to route through WETH
+            if (collateralAsset == WETH || debtAsset == WETH) {
+                // Direct swap: one of them is WETH
+                // Encode path for exactOutput (reversed): debtAsset <- collateralAsset
+                pathCollateralToDebt = abi.encodePacked(
+                    debtAsset,
+                    uint24(500),
+                    collateralAsset
+                );
+            } else {
+                // Two-hop swap through WETH: debtAsset <- WETH <- collateralAsset
+                // For exactOutput, path is reversed
+                pathCollateralToDebt = abi.encodePacked(
+                    debtAsset,
+                    uint24(500),
+                    WETH,
+                    uint24(3000),
+                    collateralAsset
+                );
+            }
+
             collateralUsedForRepayment = ROUTER.exactOutput(
                 ISwapRouter.ExactOutputParams({
-                    path: swapPath.pathCollateralToDebt,
+                    path: pathCollateralToDebt,
                     recipient: address(this),
                     deadline: block.timestamp,
                     amountOut: flashloanRepayment,
@@ -409,14 +423,18 @@ contract AaveV3MEVLiquidator is
         uint256 remainingCollateral = totalCollateralReceived -
             collateralUsedForRepayment;
 
-        // Convert remaining collateral to WETH
-        if (
-            remainingCollateral > 0 &&
-            swapPath.pathCollateralToWETH.length > 0
-        ) {
+        // Convert remaining collateral to WETH (if not already WETH)
+        if (remainingCollateral > 0 && collateralAsset != WETH) {
+            // Encode path for exactInput: collateralAsset -> WETH (natural order for exactInput)
+            bytes memory pathCollateralToWETH = abi.encodePacked(
+                collateralAsset,
+                uint24(500),
+                WETH
+            );
+
             ROUTER.exactInput(
                 ISwapRouter.ExactInputParams({
-                    path: swapPath.pathCollateralToWETH,
+                    path: pathCollateralToWETH,
                     recipient: address(this),
                     deadline: block.timestamp,
                     amountIn: remainingCollateral,
