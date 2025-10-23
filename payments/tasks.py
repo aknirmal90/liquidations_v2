@@ -206,13 +206,13 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                     )
                     * toFloat64(is_collateral_enabled)
                     * price
-                    / (10000 * toFloat64(decimals_places) * toFloat64(decimals_places))
+                    / (10000 * toFloat64(decimals_places) * 1e8)
                 ) as UInt256) AS effective_collateral_usd,
                 -- Effective Debt: apply price adjustment
                 cast(floor(
                     toFloat64(accrued_debt_balance)
                     * price
-                    / (toFloat64(decimals_places) * toFloat64(decimals_places))
+                    / (toFloat64(decimals_places) * 1e8)
                 ) as UInt256) AS effective_debt_usd
             FROM asset_effective_balances
         ),

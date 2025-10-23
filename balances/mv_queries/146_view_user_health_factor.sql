@@ -70,8 +70,8 @@ effective_balances_usd AS (
         decimals_places,
         effective_collateral,
         effective_debt,
-        effective_collateral / decimals_places AS effective_collateral_usd,
-        effective_debt / decimals_places AS effective_debt_usd
+        effective_collateral / 1e8 AS effective_collateral_usd,
+        effective_debt / 1e8 AS effective_debt_usd
     FROM effective_balances
 ),
 user_totals AS (
