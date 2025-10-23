@@ -225,9 +225,9 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 sum(effective_collateral) AS total_effective_collateral,
                 sum(effective_debt) AS total_effective_debt,
                 if(
-                    total_effective_debt = 0,
+                    sum(effective_debt) = 0,
                     999.9,
-                    total_effective_collateral / total_effective_debt
+                    sum(effective_collateral) / sum(effective_debt)
                 ) AS predicted_health_factor
             FROM effective_balances
             GROUP BY user, is_in_emode
