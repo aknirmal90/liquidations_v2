@@ -685,7 +685,7 @@ PriceTransactionDynamicSynchronizeTask = app.register_task(
 
 
 class InsertTransactionNumeratorTask(BasePriceMixin, Task):
-    def run(self, parsed_numerator_logs: List[Any]):
+    def run(self, parsed_numerator_logs: List[Any], hash: str):
         self.bulk_insert_raw_price_events(
             table_name="TransactionRawNumerator", logs=parsed_numerator_logs
         )

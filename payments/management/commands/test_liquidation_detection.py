@@ -135,7 +135,7 @@ class Command(BaseCommand):
             )
             self.stdout.write("=" * 80 + "\n")
 
-            self._trigger_detection(asset_price_pairs)
+            backup_data = self._trigger_detection(asset_price_pairs)
 
             # Step 4: Show results
             self.stdout.write("\n" + "=" * 80)
@@ -144,21 +144,30 @@ class Command(BaseCommand):
 
             self._show_results()
 
+            # Cleanup test data and restore original prices
+            self._cleanup_test_data(backup_data)
+
             self.stdout.write("\n" + "=" * 80)
             self.stdout.write(self.style.SUCCESS("✅ Test Completed Successfully!"))
             self.stdout.write("=" * 80)
             self.stdout.write("\n📝 What happened:")
             self.stdout.write(
-                "   1. InsertTransactionNumeratorTask inserted test prices into TransactionRawNumerator"
+                "   1. Original prices were backed up from PriceLatestTransactionRawNumerator"
             )
             self.stdout.write(
-                "   2. EstimateFutureLiquidationCandidatesTask calculated health factors with new prices"
+                "   2. InsertTransactionNumeratorTask inserted test prices into TransactionRawNumerator"
             )
             self.stdout.write(
-                "   3. At-risk users were identified and stored in LiquidationDetections"
+                "   3. EstimateFutureLiquidationCandidatesTask calculated health factors with new prices"
             )
             self.stdout.write(
-                "   4. SimplePush notification was sent (if liquidations were detected)"
+                "   4. At-risk users were identified and stored in LiquidationDetections"
+            )
+            self.stdout.write(
+                "   5. SimplePush notification was sent (if liquidations were detected)"
+            )
+            self.stdout.write(
+                "   6. Original prices were restored to PriceLatestTransactionRawNumerator"
             )
             self.stdout.write("\n🔍 Verify results:")
             self.stdout.write(
@@ -195,12 +204,12 @@ class Command(BaseCommand):
 
                 self.stdout.write(f"  Asset: {symbol} ({asset[:10]}...)")
                 self.stdout.write(
-                    f"    Current Historical Price: ${current_historical:.2f}"
+                    f"    Current Historical Price: {current_historical:.2f}"
                 )
                 self.stdout.write(
-                    f"    Current Predicted Price:  ${current_predicted:.2f}"
+                    f"    Current Predicted Price:  {current_predicted:.2f}"
                 )
-                self.stdout.write(f"    New Test Price:           ${price:.2f}")
+                self.stdout.write(f"    New Test Price:           {price:.2f}")
             else:
                 self.stdout.write(self.style.ERROR(f"  ❌ Asset not found: {asset}"))
 
@@ -213,16 +222,20 @@ class Command(BaseCommand):
 
         Returns:
             dict: Asset info containing symbol, decimals_places, historical_event_price,
-                  and predicted_transaction_price, or None if not found
+                  predicted_transaction_price, asset_source, and name, or None if not found
         """
         query = f"""
         SELECT
-            symbol,
-            decimals_places,
-            historical_event_price,
-            predicted_transaction_price
-        FROM aave_ethereum.view_LatestAssetConfiguration
-        WHERE asset = '{asset}'
+            lac.symbol,
+            lac.decimals_places,
+            lac.historical_event_price,
+            lac.predicted_transaction_price,
+            lasu.source AS asset_source,
+            lac.name
+        FROM aave_ethereum.view_LatestAssetConfiguration AS lac
+        LEFT JOIN aave_ethereum.LatestAssetSourceUpdated AS lasu FINAL
+            ON lac.asset = lasu.asset
+        WHERE lac.asset = '{asset}'
         """
 
         result = clickhouse_client.execute_query(query)
@@ -233,6 +246,10 @@ class Command(BaseCommand):
                 "decimals_places": int(row[1]),
                 "historical_event_price": float(row[2]),
                 "predicted_transaction_price": int(row[3]),
+                "asset_source": row[4]
+                if row[4]
+                else "0x0000000000000000000000000000000000000000",
+                "name": row[5] if row[5] else "Unknown",
             }
         return None
 
@@ -255,10 +272,10 @@ class Command(BaseCommand):
         SELECT
             user,
             health_factor,
-            effective_collateral,
-            effective_debt
+            effective_collateral_usd,
+            effective_debt_usd
         FROM aave_ethereum.view_user_health_factor
-        WHERE health_factor < 2.0
+        WHERE health_factor < 1.02
         ORDER BY health_factor ASC
         LIMIT 5
         """
@@ -295,47 +312,62 @@ class Command(BaseCommand):
         TransactionRawNumerator and trigger EstimateFutureLiquidationCandidatesTask.
 
         The task performs the full detection workflow:
-        1. Inserts price data into TransactionRawNumerator
-        2. Extracts updated asset addresses from the logs
-        3. Calculates health factors using predicted prices for updated assets
+        1. Backs up current prices from PriceLatestTransactionRawNumerator
+        2. Inserts test price data into TransactionRawNumerator
+        3. Extracts updated asset addresses from the logs
+        4. Calculates health factors using predicted prices for updated assets
            and historical prices for all other assets
-        4. Compares with current health factors from view_user_health_factor (146)
-        5. Identifies users with current HF > 1.0 but predicted HF < 1.0
-        6. Retrieves liquidation opportunities from LiquidationCandidates_Memory
-        7. Stores all detections in LiquidationDetections log table
-        8. Sends SimplePush notification with summary
+        5. Compares with current health factors from view_user_health_factor (146)
+        6. Identifies users with current HF > 1.0 but predicted HF < 1.0
+        7. Retrieves liquidation opportunities from LiquidationCandidates_Memory
+        8. Stores all detections in LiquidationDetections log table
+        9. Sends SimplePush notification with summary
 
         Args:
             asset_price_pairs (list): List of tuples (asset, price_usd) for price updates
+
+        Returns:
+            list: Backup of original price data for restoration
         """
         import time
 
-        current_timestamp = int(time.time())
+        # Use microsecond timestamp (Unix timestamp * 1,000,000)
+        current_timestamp = int(time.time() * 1_000_000)
 
         parsed_numerator_logs = []
+        assets_to_backup = []
 
         for asset, price_usd in asset_price_pairs:
             asset_info = self._get_asset_info(asset)
             if asset_info:
+                assets_to_backup.append(asset)
+
                 # Convert USD price to raw format (price * decimals_places)
                 raw_price = int(price_usd * asset_info["decimals_places"])
 
                 parsed_numerator_logs.append(
                     [
                         asset,
-                        "0xtest_source",
-                        f"{asset_info['symbol']}/USD Test",
+                        asset_info["asset_source"],
+                        asset_info["name"],
                         current_timestamp,
                         999999999,
+                        "0xtest_transaction_hash",
+                        "test",
                         raw_price,
                     ]
                 )
 
         if not parsed_numerator_logs:
             self.stdout.write(self.style.ERROR("❌ No valid assets to process"))
-            return
+            return []
 
-        # Run the task synchronously (not async)
+        # Step 1: Backup current prices before inserting test data
+        self.stdout.write("📦 Backing up current prices...")
+        backup_data = self._backup_current_prices(assets_to_backup)
+        self.stdout.write(f"✓ Backed up {len(backup_data)} price records\n")
+
+        # Step 2: Run the task synchronously (not async)
         self.stdout.write(
             f"Triggering detection for {len(parsed_numerator_logs)} assets..."
         )
@@ -343,12 +375,14 @@ class Command(BaseCommand):
             "Running InsertTransactionNumeratorTask (includes insertion + detection)...\n"
         )
 
-        InsertTransactionNumeratorTask.run(parsed_numerator_logs)
+        InsertTransactionNumeratorTask.delay(parsed_numerator_logs)
 
         self.stdout.write(
             self.style.SUCCESS("\n✓ Detection task completed successfully")
         )
         self.stdout.write("All data has been written to ClickHouse tables")
+
+        return backup_data
 
     def _show_results(self):
         """
@@ -408,6 +442,109 @@ class Command(BaseCommand):
 
         # Note: MEV submission tracking is on a different branch
         # This section would check LiquidationSubmissions table if execution branch is merged
+
+    def _backup_current_prices(self, assets):
+        """
+        Backup current prices from PriceLatestTransactionRawNumerator before test.
+
+        Args:
+            assets (list): List of asset addresses to backup
+
+        Returns:
+            list: List of tuples containing current price data for each asset
+        """
+        if not assets:
+            return []
+
+        assets_str = ", ".join([f"'{asset}'" for asset in assets])
+        query = f"""
+        SELECT
+            asset,
+            asset_source,
+            name,
+            blockTimestamp,
+            blockNumber,
+            transactionHash,
+            type,
+            numerator
+        FROM aave_ethereum.PriceLatestTransactionRawNumerator
+        WHERE asset IN ({assets_str})
+        """
+
+        result = clickhouse_client.execute_query(query)
+        return result.result_rows if result.result_rows else []
+
+    def _cleanup_test_data(self, backup_data):
+        """
+        Restore original prices by re-inserting backup data.
+
+        Since PriceLatestTransactionRawNumerator uses ReplacingMergeTree,
+        we can't simply delete the test data. Instead, we re-insert the
+        original backed-up data with a current timestamp to make it the "latest"
+        version, effectively replacing the test data.
+
+        Args:
+            backup_data (list): List of tuples containing original price data
+        """
+        try:
+            self.stdout.write("\n" + "=" * 80)
+            self.stdout.write(self.style.SUCCESS("🧹 Restoring Original Prices"))
+            self.stdout.write("=" * 80 + "\n")
+
+            if not backup_data:
+                self.stdout.write("⚠️  No backup data found - skipping restoration")
+                return
+
+            import time
+
+            # Use current microsecond timestamp to make restored data "latest"
+            current_timestamp = int(time.time() * 1_000_000)
+
+            # Prepare rows for re-insertion with updated timestamp
+            restore_rows = []
+            for row in backup_data:
+                # Convert tuple to list and update blockTimestamp to current time
+                restore_row = list(row)
+                restore_row[3] = current_timestamp  # Update blockTimestamp
+                restore_rows.append(restore_row)
+
+            # Re-insert original data with current timestamp
+            self.stdout.write(
+                f"📥 Re-inserting {len(restore_rows)} original price records..."
+            )
+            clickhouse_client.insert_rows(
+                "PriceLatestTransactionRawNumerator", restore_rows
+            )
+            self.stdout.write("✓ Original prices re-inserted with current timestamp")
+
+            # Optimize the table to apply the replacement
+            self.stdout.write("🔧 Optimizing table to apply changes...")
+            optimize_query = """
+            OPTIMIZE TABLE aave_ethereum.PriceLatestTransactionRawNumerator FINAL
+            """
+            clickhouse_client.execute_query(optimize_query)
+            self.stdout.write("✓ Optimized PriceLatestTransactionRawNumerator table")
+
+            self.stdout.write("\n✓ Original prices restored successfully")
+            self.stdout.write(
+                "   (Test data with older timestamp will be ignored by FINAL queries)"
+            )
+
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"\n⚠️  Warning: Restoration failed: {e}")
+            )
+            self.stdout.write(
+                "   The test data may still be affecting predicted prices."
+            )
+            self.stdout.write("   You may need to manually restore with:")
+            self.stdout.write(
+                "   1. Query current state: clickhouse-client --query \"SELECT * FROM aave_ethereum.PriceLatestTransactionRawNumerator FINAL WHERE asset = '<asset_address>' FORMAT Vertical\""
+            )
+            self.stdout.write("   2. Re-insert original data with current timestamp")
+            self.stdout.write(
+                '   3. Run: clickhouse-client --query "OPTIMIZE TABLE aave_ethereum.PriceLatestTransactionRawNumerator FINAL"'
+            )
 
     def _list_assets(self):
         """

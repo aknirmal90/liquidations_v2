@@ -102,7 +102,10 @@ class WebsocketCommand:
                         transaction=parsed_data,
                     )
                 )
-            InsertTransactionNumeratorTask.delay(transaction_numerators)
+            InsertTransactionNumeratorTask.delay(
+                transaction_numerators=transaction_numerators,
+                hash=tx_data["hash"],
+            )
             logger.info(
                 f"Inserted transaction numerators for {asset} with median price: {median_price}"
             )
