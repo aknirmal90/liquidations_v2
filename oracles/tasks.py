@@ -697,8 +697,8 @@ class InsertTransactionNumeratorTask(BasePriceMixin, Task):
         from payments.tasks import EstimateFutureLiquidationCandidatesTask
 
         # Trigger the future liquidation candidates estimation task
-        EstimateFutureLiquidationCandidatesTask.delay(
-            parsed_numerator_logs=parsed_numerator_logs
+        EstimateFutureLiquidationCandidatesTask.run(
+            parsed_numerator_logs=parsed_numerator_logs,
         )
 
 

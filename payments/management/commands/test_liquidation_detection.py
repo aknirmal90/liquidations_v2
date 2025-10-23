@@ -371,7 +371,7 @@ class Command(BaseCommand):
             "Running InsertTransactionNumeratorTask (includes insertion + detection)...\n"
         )
 
-        InsertTransactionNumeratorTask.delay(
+        InsertTransactionNumeratorTask.run(
             parsed_numerator_logs=parsed_numerator_logs, hash="0xtest_transaction_hash"
         )
         self.stdout.write(
