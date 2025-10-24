@@ -67,7 +67,7 @@ contract LiquidatorHistoricalTest is Test {
         );
 
         // Give OWNER some ETH for gas
-        vm.deal(OWNER, 100 ether);
+        vm.deal(OWNER, 1 ether);
 
         vm.startPrank(OWNER);
 
@@ -91,6 +91,10 @@ contract LiquidatorHistoricalTest is Test {
         console.log("Adding whitelisted liquidator...");
         liquidator.addWhitelistedLiquidator(OWNER);
         vm.stopPrank();
+
+        // Ensure liquidator contract starts with zero balance
+        vm.deal(address(liquidator), 0);
+        console.log("Liquidator contract balance reset to 0");
     }
 
     function executeLiquidationTest(LiquidationData memory liq) internal {
@@ -133,15 +137,10 @@ contract LiquidatorHistoricalTest is Test {
         console.log("");
         // Log balance before liquidation
         uint256 liquidatorBalanceBefore = address(liquidator).balance;
-        uint256 ownerBalanceBefore = OWNER.balance;
         console.log("=== BALANCES BEFORE LIQUIDATION ===");
         console.log("Liquidator Contract:", address(liquidator));
         console.log("  Balance (Wei):", liquidatorBalanceBefore);
         console.log("  Balance (ETH):", liquidatorBalanceBefore / 1e18);
-        console.log("");
-        console.log("Owner (Profit Recipient):", OWNER);
-        console.log("  Balance (Wei):", ownerBalanceBefore);
-        console.log("  Balance (ETH):", ownerBalanceBefore / 1e18);
         console.log("");
 
         // Log Aave position before liquidation
@@ -158,22 +157,6 @@ contract LiquidatorHistoricalTest is Test {
             console.log("=== BALANCES AFTER LIQUIDATION ===");
             console.log("Liquidator Contract:", address(liquidator));
             console.log("  ETH Balance (Wei):", address(liquidator).balance);
-            console.log(
-                "  WETH Balance (Wei):",
-                IERC20(WETH).balanceOf(address(liquidator))
-            );
-            console.log(
-                "  Collateral Balance (Wei):",
-                IERC20(liq.collateralAsset).balanceOf(address(liquidator))
-            );
-            console.log(
-                "  Debt Asset Balance (Wei):",
-                IERC20(liq.debtAsset).balanceOf(address(liquidator))
-            );
-            console.log("");
-            console.log("Owner (Profit Recipient):", OWNER);
-            console.log("  ETH Balance (Wei):", OWNER.balance);
-            console.log("  WETH Balance (Wei):", IERC20(WETH).balanceOf(OWNER));
             console.log("");
 
             // Log Aave position after liquidation
@@ -181,27 +164,17 @@ contract LiquidatorHistoricalTest is Test {
 
             // Log profit/loss summary
             console.log("=== PROFIT/LOSS SUMMARY ===");
-            console.log("Liquidator Contract:");
-            console.log("  No change (expected - profits sent to owner)");
-            console.log("");
-            console.log("Owner (Actual Profit):");
-            if (OWNER.balance > ownerBalanceBefore) {
+            console.log("Liquidator Contract Balance Change:");
+            uint256 liquidatorBalanceAfter = address(liquidator).balance;
+            if (liquidatorBalanceAfter > liquidatorBalanceBefore) {
                 console.log(
                     "  Profit (Wei):",
-                    OWNER.balance - ownerBalanceBefore
+                    liquidatorBalanceAfter - liquidatorBalanceBefore
                 );
-                console.log(
-                    "  Profit (ETH):",
-                    (OWNER.balance - ownerBalanceBefore) / 1e18
-                );
-            } else if (OWNER.balance < ownerBalanceBefore) {
+            } else if (liquidatorBalanceAfter < liquidatorBalanceBefore) {
                 console.log(
                     "  Loss (Wei):",
-                    ownerBalanceBefore - OWNER.balance
-                );
-                console.log(
-                    "  Loss (ETH):",
-                    (ownerBalanceBefore - OWNER.balance) / 1e18
+                    liquidatorBalanceBefore - liquidatorBalanceAfter
                 );
             } else {
                 console.log("  No profit/loss - Break even");

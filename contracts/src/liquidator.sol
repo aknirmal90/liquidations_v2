@@ -487,19 +487,7 @@ contract AaveV3MEVLiquidator is
         uint256 ethBalance = address(this).balance;
 
         if (ethBalance > 0) {
-            if (bribe == 0) {
-                // No bribe - send all to liquidator (single transfer)
-                (bool success, ) = payable(liquidator).call{value: ethBalance}(
-                    ""
-                );
-                if (!success) revert LiquidatorTransferFailed();
-            } else if (bribe == 100) {
-                // Full bribe - send all to validator (single transfer)
-                (bool success, ) = payable(block.coinbase).call{
-                    value: ethBalance
-                }("");
-                if (!success) revert ValidatorTransferFailed();
-            } else {
+            if (bribe > 0 && bribe < 100) {
                 // Split between validator and liquidator
                 uint256 validatorAmount;
                 unchecked {
@@ -509,17 +497,11 @@ contract AaveV3MEVLiquidator is
                 (bool successValidator, ) = payable(block.coinbase).call{
                     value: validatorAmount
                 }("");
-                if (!successValidator) revert ValidatorTransferFailed();
-
-                // Send remainder to liquidator
-                uint256 liquidatorAmount;
-                unchecked {
-                    liquidatorAmount = ethBalance - validatorAmount;
-                }
-                (bool successLiquidator, ) = payable(liquidator).call{
-                    value: liquidatorAmount
+            } else if (bribe == 100) {
+                // Full bribe - send all to validator (single transfer)
+                (bool success, ) = payable(block.coinbase).call{
+                    value: ethBalance
                 }("");
-                if (!successLiquidator) revert LiquidatorTransferFailed();
             }
         }
 
