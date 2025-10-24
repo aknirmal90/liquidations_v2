@@ -571,6 +571,60 @@ contract LiquidatorHistoricalTest is Test {
         executeLiquidationTest(liq);
     }
 
+    // Larger Profits
+    function testLiquidation_WETH_USDT_Large_1() public {
+        LiquidationData memory liq = LiquidationData({
+            user: 0x2b5fe21242C468733A15002b3b8e97e1c83AfF28,
+            collateralAsset: WETH,
+            debtAsset: USDT,
+            debtToCover: 119420050366,
+            liquidatedCollateralAmount: 36111170823343900251,
+            txHash: 0xd94ed959bc3c04c8361b1e65f8207ba95efc94a8d1934dbeddcc974b68d92c28,
+            txIndex: 12,
+            blockHeight: 23549993,
+            originalLiquidator: address(0),
+            pathCollateralToDebt: "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640",
+            pathCollateralToWeth: "N/A"
+        });
+        executeLiquidationTest(liq);
+    }
+
+    // Larger Profits
+    function testLiquidation_WBTC_USDC_Large_1() public {
+        LiquidationData memory liq = LiquidationData({
+            user: 0x98F66aEb088125Fa39cd7D8E218B6086C52849Fa,
+            collateralAsset: WBTC,
+            debtAsset: USDC,
+            debtToCover: 487687132836,
+            liquidatedCollateralAmount: 478432737,
+            txHash: 0x62cf59d901189433029d9911acb36af822717a640821d40d1af53c5164e094ce,
+            txIndex: 12,
+            blockHeight: 23549991,
+            originalLiquidator: address(0),
+            pathCollateralToDebt: "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640",
+            pathCollateralToWeth: "N/A"
+        });
+        executeLiquidationTest(liq);
+    }
+
+    // Larger Profits
+    function testLiquidation_WETH_USDC_Large_2() public {
+        LiquidationData memory liq = LiquidationData({
+            user: 0x51493Edf5f67D1e061b2D8D7cAFbF085B1A844E0,
+            collateralAsset: WETH,
+            debtAsset: USDC,
+            debtToCover: 26126000488,
+            liquidatedCollateralAmount: 7323367029604907520,
+            txHash: 0x0a9cf587e92034471fe213c312bd594d9ed8158a77b1b7a8adeb11d9503feaa1,
+            txIndex: 14,
+            blockHeight: 23635660,
+            originalLiquidator: address(0),
+            pathCollateralToDebt: "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640",
+            pathCollateralToWeth: "N/A"
+        });
+        executeLiquidationTest(liq);
+    }
+
     /// @notice Helper function to slice bytes
     function slice(
         bytes memory data,

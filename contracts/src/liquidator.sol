@@ -426,7 +426,7 @@ contract AaveV3MEVLiquidator is
                     debtAsset,
                     uint24(500),
                     WETH,
-                    uint24(500),
+                    uint24(3000),
                     collateralAsset
                 );
             }
