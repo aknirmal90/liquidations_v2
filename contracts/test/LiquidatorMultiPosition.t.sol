@@ -18,14 +18,22 @@ contract LiquidatorMultiPositionTest is Test {
         // Don't deploy here - will deploy after forking in the test
     }
 
-    function replayPriorTransaction(uint256 blockNumber, uint256 liquidationTxIndex) internal {
+    function replayPriorTransaction(
+        uint256 blockNumber,
+        uint256 liquidationTxIndex
+    ) internal {
         if (liquidationTxIndex == 0) {
             console.log("No prior transaction to replay (txIndex = 0)");
             return;
         }
 
         uint256 priorTxIndex = liquidationTxIndex - 1;
-        console.log("Attempting to replay transaction at block", blockNumber, "index", priorTxIndex);
+        console.log(
+            "Attempting to replay transaction at block",
+            blockNumber,
+            "index",
+            priorTxIndex
+        );
 
         string[] memory inputs = new string[](4);
         inputs[0] = "bash";
@@ -41,7 +49,9 @@ contract LiquidatorMultiPositionTest is Test {
                 return;
             }
 
-            try vm.parseJsonString(txJson, ".from") returns (string memory txFrom) {
+            try vm.parseJsonString(txJson, ".from") returns (
+                string memory txFrom
+            ) {
                 string memory txTo = vm.parseJsonString(txJson, ".to");
                 string memory txInput = vm.parseJsonString(txJson, ".input");
                 string memory txValue = vm.parseJsonString(txJson, ".value");
@@ -79,7 +89,10 @@ contract LiquidatorMultiPositionTest is Test {
         uint256 txIndex = 2;
 
         // Fork at block BEFORE liquidation (matching historical tests pattern)
-        vm.createSelectFork("https://reth-ethereum.ithaca.xyz/rpc", blockNumber - 1);
+        vm.createSelectFork(
+            "https://reth-ethereum.ithaca.xyz/rpc",
+            blockNumber - 1
+        );
 
         // Deploy liquidator AFTER forking
         liquidator = new AaveV3MEVLiquidator();
@@ -92,23 +105,26 @@ contract LiquidatorMultiPositionTest is Test {
         replayPriorTransaction(blockNumber, txIndex);
 
         // Position 1: 0xc6cB96CC1727eC701E5483C565195B01E3C1da2b
-        AaveV3MEVLiquidator.LiquidationParams memory params1 = AaveV3MEVLiquidator.LiquidationParams({
-            user: 0xc6cB96CC1727eC701E5483C565195B01E3C1da2b,
-            debtAsset: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,
-            collateralAsset: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-            debtToCover: 4482862847
-        });
+        AaveV3MEVLiquidator.LiquidationParams
+            memory params1 = AaveV3MEVLiquidator.LiquidationParams({
+                user: 0xc6cB96CC1727eC701E5483C565195B01E3C1da2b,
+                debtAsset: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,
+                collateralAsset: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+                debtToCover: 4482862847
+            });
 
         // Position 2: 0xE664B08fC5106c2Db70eD4043Dbe2cB5FD14219A
-        AaveV3MEVLiquidator.LiquidationParams memory params2 = AaveV3MEVLiquidator.LiquidationParams({
-            user: 0xE664B08fC5106c2Db70eD4043Dbe2cB5FD14219A,
-            debtAsset: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,
-            collateralAsset: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
-            debtToCover: 5504765139
-        });
+        AaveV3MEVLiquidator.LiquidationParams
+            memory params2 = AaveV3MEVLiquidator.LiquidationParams({
+                user: 0xE664B08fC5106c2Db70eD4043Dbe2cB5FD14219A,
+                debtAsset: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,
+                collateralAsset: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
+                debtToCover: 5504765139
+            });
 
         // Create array with both positions
-        AaveV3MEVLiquidator.LiquidationParams[] memory params = new AaveV3MEVLiquidator.LiquidationParams[](1);
+        AaveV3MEVLiquidator.LiquidationParams[]
+            memory params = new AaveV3MEVLiquidator.LiquidationParams[](1);
         params[0] = params1;
         // params[1] = params2;  // Comment out second position for now to test
 

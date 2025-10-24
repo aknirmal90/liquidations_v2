@@ -9,7 +9,6 @@ error ZeroAddress();
 error AlreadyWhitelisted();
 error NotWhitelisted();
 error NoLiquidations();
-error LengthMismatch();
 error ZeroFlashloan();
 error InvalidBribe();
 error DebtNotWhitelisted();
@@ -25,6 +24,10 @@ error ReentrancyDetected();
 error ApproveFailed();
 error ETHSweepFailed();
 error TokenSweepFailed();
+error InsufficientCollateral(
+    uint256 collateralReceived,
+    uint256 repaymentNeeded
+);
 
 /// ----------------------
 /// Minimal ERC20
@@ -59,14 +62,6 @@ interface IAaveV3Pool {
         bool receiveAToken
     ) external;
 
-    function flashLoanSimple(
-        address receiverAddress,
-        address asset,
-        uint256 amount,
-        bytes calldata params,
-        uint16 referralCode
-    ) external;
-
     function getUserAccountData(
         address user
     )
@@ -80,22 +75,35 @@ interface IAaveV3Pool {
             uint256 ltv,
             uint256 healthFactor
         );
-}
 
-interface IFlashLoanSimpleReceiver {
-    function executeOperation(
-        address asset,
-        uint256 amount,
-        uint256 premium,
-        address initiator,
-        bytes calldata params
-    ) external returns (bool);
-    function ADDRESSES_PROVIDER() external view returns (address);
-    function POOL() external view returns (IAaveV3Pool);
+    function flashLoan(
+        address receiverAddress,
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata modes,
+        address onBehalfOf,
+        bytes calldata params,
+        uint16 referralCode
+    ) external;
+
+    function FLASHLOAN_PREMIUM_TOTAL() external view returns (uint128);
 }
 
 /// ----------------------
-/// Uniswap v3 SwapRouter02
+/// Aave V3 Flashloan Receiver
+/// ----------------------
+interface IFlashLoanSimpleReceiver {
+    function executeOperation(
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata premiums,
+        address initiator,
+        bytes calldata params
+    ) external returns (bool);
+}
+
+/// ----------------------
+/// Uniswap v3 SwapRouter
 /// ----------------------
 interface ISwapRouter {
     struct ExactInputParams {
@@ -169,7 +177,7 @@ abstract contract ReentrancyGuard {
 }
 
 /// ---------------------------------------------------------------------------
-/// Aave V3 MEV Liquidator
+/// Aave V3 MEV Liquidator with Aave V3 Flashloans
 ///
 /// Features:
 /// 1. Minimal gas usage - pre-approvals, off-chain routing, no events
@@ -178,6 +186,7 @@ abstract contract ReentrancyGuard {
 /// 4. EOA whitelist for liquidators (separate from admin)
 /// 5. Correct MEV flow: flashloan debt → liquidate → swap exact for repayment →
 ///    remainder to WETH → ETH → send to block.coinbase
+/// 6. Uses Aave V3 flashloans (0.05% fee)
 /// ---------------------------------------------------------------------------
 contract AaveV3MEVLiquidator is
     Ownable,
@@ -189,7 +198,7 @@ contract AaveV3MEVLiquidator is
     IAaveV3Pool public constant POOL =
         IAaveV3Pool(0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2);
     ISwapRouter public constant ROUTER =
-        ISwapRouter(0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45);
+        ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     // ---------- Whitelists ----------
@@ -204,21 +213,18 @@ contract AaveV3MEVLiquidator is
         uint256 debtToCover;
     }
 
-    // ---------- Constructor ----------
-    constructor() {}
-
     receive() external payable {}
 
     // ---------- Whitelist Management (Admin Only) ----------
 
-    /// @notice Add debt asset to whitelist and pre-approve to pool
+    /// @notice Add debt asset to whitelist and pre-approve to pool (for both liquidation and flashloan repayment)
     function addWhitelistedDebtAsset(address asset) external onlyOwner {
         if (asset == address(0)) revert ZeroAddress();
         if (whitelistedDebtAssets[asset]) revert AlreadyWhitelisted();
 
         whitelistedDebtAssets[asset] = true;
 
-        // Pre-approve debt asset to pool (for liquidation repayment)
+        // Pre-approve debt asset to pool (for liquidation repayment and flashloan repayment)
         // Reset to 0 first for USDT compatibility
         asset.safeApprove(address(POOL), 0);
         asset.safeApprove(address(POOL), type(uint256).max);
@@ -304,41 +310,63 @@ contract AaveV3MEVLiquidator is
         // Encode params for callback (including bribe and liquidator address)
         bytes memory callbackData = abi.encode(params, bribe, msg.sender);
 
-        // Execute flashloan
-        POOL.flashLoanSimple(
+        // Prepare arrays for Aave V3 flashloan
+        address[] memory assets = new address[](1);
+        assets[0] = debtAsset;
+
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = totalFlashloanAmount;
+
+        uint256[] memory modes = new uint256[](1);
+        modes[0] = 0; // 0 = no debt, just flashloan
+
+        // Execute flashloan (0.05% fee on Aave V3)
+        POOL.flashLoan(
             address(this),
-            debtAsset,
-            totalFlashloanAmount,
+            assets,
+            amounts,
+            modes,
+            address(this),
             callbackData,
-            0
+            0 // referralCode
         );
     }
 
     // ---------- Flashloan Callback ----------
 
+    /// @notice Aave V3 flashloan callback
+    /// @dev Called by Aave pool after flashloan is sent to this contract
     function executeOperation(
-        address asset,
-        uint256 amount,
-        uint256 premium,
+        address[] calldata /* assets */,
+        uint256[] calldata amounts,
+        uint256[] calldata premiums,
         address initiator,
         bytes calldata params
     ) external override returns (bool) {
         if (msg.sender != address(POOL)) revert NotPool();
         if (initiator != address(this)) revert BadInitiator();
 
+        _executeFlashloanCallback(amounts[0], premiums[0], params);
+
+        return true;
+    }
+
+    /// @notice Internal callback logic for flashloan execution
+    /// @param amount Flashloan amount borrowed
+    /// @param premium Flashloan fee (0.05% on Aave V3)
+    /// @param userData Encoded liquidation parameters
+    function _executeFlashloanCallback(
+        uint256 amount,
+        uint256 premium,
+        bytes memory userData
+    ) internal {
         (
             LiquidationParams[] memory liquidations,
             uint256 bribe,
             address liquidator
-        ) = abi.decode(params, (LiquidationParams[], uint256, address));
+        ) = abi.decode(userData, (LiquidationParams[], uint256, address));
 
         address collateralAsset = liquidations[0].collateralAsset;
-
-        // Get balance before all liquidations (single read)
-        uint256 balanceBefore = IERC20(collateralAsset).balanceOf(
-            address(this)
-        );
-
         uint256 successCount = 0;
 
         // Execute liquidations with try-catch
@@ -363,48 +391,47 @@ contract AaveV3MEVLiquidator is
             }
         }
 
-        // Calculate total collateral received (single read)
-        uint256 totalCollateralReceived = IERC20(collateralAsset).balanceOf(
-            address(this)
-        ) - balanceBefore;
-
         // Require at least 1 successful liquidation
         if (successCount == 0) revert NoSuccessfulLiquidations();
 
-        // Calculate flashloan repayment amount
-        uint256 flashloanRepayment = amount + premium;
-
-        // Swap EXACT amount of collateral needed to repay flashloan
-        // Uses exactOutput: we want exactly flashloanRepayment of debt asset
-        uint256 collateralUsedForRepayment = 0;
-
         address debtAsset = liquidations[0].debtAsset;
 
-        if (collateralAsset != debtAsset) {
-            // Only swap if collateral != debt asset
-            bytes memory pathCollateralToDebt;
+        // Calculate flashloan repayment amount (Aave V3 charges 0.05% premium)
+        uint256 flashloanRepayment = amount + premium;
 
-            // Check if we need to route through WETH
-            if (collateralAsset == WETH || debtAsset == WETH) {
-                // Direct swap: one of them is WETH
-                // Encode path for exactOutput (reversed): debtAsset <- collateralAsset
+        // Swap collateral to debt asset to repay flashloan
+        uint256 collateralUsedForRepayment = 0;
+
+        // Calculate total collateral received
+        uint256 totalCollateralReceived = IERC20(collateralAsset).balanceOf(
+            address(this)
+        );
+
+        if (collateralAsset != debtAsset) {
+            // Swap collateral -> debt asset via WETH routing if needed
+            // NOTE: For exactOutput, path is REVERSED (output token first, input token last)
+
+            bytes memory pathCollateralToDebt;
+            if (debtAsset == WETH || collateralAsset == WETH) {
+                // If either debtAsset or collateralAsset is WETH, do direct swap
+                // Path: WETH <- collateralAsset (for exactOutput, output token first)
                 pathCollateralToDebt = abi.encodePacked(
                     debtAsset,
                     uint24(500),
                     collateralAsset
                 );
             } else {
-                // Two-hop swap through WETH: debtAsset <- WETH <- collateralAsset
-                // For exactOutput, path is reversed
+                // Route through WETH: debtAsset <- WETH <- collateralAsset
                 pathCollateralToDebt = abi.encodePacked(
                     debtAsset,
                     uint24(500),
                     WETH,
-                    uint24(3000),
+                    uint24(500),
                     collateralAsset
                 );
             }
 
+            // Swap exact output: get exactly flashloanRepayment of debt asset
             collateralUsedForRepayment = ROUTER.exactOutput(
                 ISwapRouter.ExactOutputParams({
                     path: pathCollateralToDebt,
@@ -423,12 +450,11 @@ contract AaveV3MEVLiquidator is
         uint256 remainingCollateral = totalCollateralReceived -
             collateralUsedForRepayment;
 
-        // Convert remaining collateral to WETH (if not already WETH)
+        // Convert remaining collateral (profit) to WETH
         if (remainingCollateral > 0 && collateralAsset != WETH) {
-            // Encode path for exactInput: collateralAsset -> WETH (natural order for exactInput)
             bytes memory pathCollateralToWETH = abi.encodePacked(
                 collateralAsset,
-                uint24(500),
+                uint24(500), // 0.3% fee tier (better liquidity for WBTC/WETH)
                 WETH
             );
 
@@ -438,23 +464,27 @@ contract AaveV3MEVLiquidator is
                     recipient: address(this),
                     deadline: block.timestamp,
                     amountIn: remainingCollateral,
-                    amountOutMinimum: 0 // Already profitable if we got here
+                    amountOutMinimum: 0
                 })
             );
         }
 
-        // Unwrap all WETH to ETH
-        uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
-        if (wethBalance > 0) {
-            IWETH(WETH).withdraw(wethBalance);
+        if (debtAsset == WETH) {
+            // If debt asset is WETH, some of the balance will be used to repay the flashloan
+            uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
+            if (wethBalance > 0) {
+                IWETH(WETH).withdraw(wethBalance - flashloanRepayment);
+            }
+        } else {
+            // If debt asset is not WETH, flashloan repayment is being held in another token
+            uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
+            if (wethBalance > 0) {
+                IWETH(WETH).withdraw(wethBalance);
+            }
         }
 
-        // Split ETH between validator and liquidator based on bribe percentage
+        // Split profit between validator (bribe) and liquidator
         uint256 ethBalance = address(this).balance;
-        // It's generally recommended to use .call for sending ETH, with proper checks (which is being done here).
-        // .send and .transfer are not recommended because of gas cost restrictions due to EIP-1884 and may revert unexpectedly.
-        // To be extra safe, you may consider also checking if the recipient is a contract and handling reentrancy, but for payment
-        // to EOAs like liquidator or block.coinbase this pattern is broadly accepted.
 
         if (ethBalance > 0) {
             if (bribe == 0) {
@@ -476,31 +506,26 @@ contract AaveV3MEVLiquidator is
                     validatorAmount = (ethBalance * bribe) / 100;
                 }
 
-                (bool success1, ) = payable(block.coinbase).call{
+                (bool successValidator, ) = payable(block.coinbase).call{
                     value: validatorAmount
                 }("");
-                if (!success1) revert ValidatorTransferFailed();
+                if (!successValidator) revert ValidatorTransferFailed();
 
                 // Send remainder to liquidator
+                uint256 liquidatorAmount;
                 unchecked {
-                    uint256 liquidatorAmount = ethBalance - validatorAmount;
-                    (bool success2, ) = payable(liquidator).call{
-                        value: liquidatorAmount
-                    }("");
-                    if (!success2) revert LiquidatorTransferFailed();
+                    liquidatorAmount = ethBalance - validatorAmount;
                 }
+                (bool successLiquidator, ) = payable(liquidator).call{
+                    value: liquidatorAmount
+                }("");
+                if (!successLiquidator) revert LiquidatorTransferFailed();
             }
         }
 
-        // Approve exact repayment amount to pool (already pre-approved, but being explicit)
-        // Note: Pre-approval should handle this, but Aave pulls during return
-        return true;
-    }
-
-    // ---------- Interface completeness ----------
-
-    function ADDRESSES_PROVIDER() external pure override returns (address) {
-        return address(0);
+        // Repay flashloan to Aave Pool
+        // Approval already set in addWhitelistedDebtAsset
+        // Aave will automatically pull the repayment amount from this contract
     }
 
     // ---------- Emergency Functions ----------
