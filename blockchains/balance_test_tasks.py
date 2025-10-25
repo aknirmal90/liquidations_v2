@@ -32,7 +32,7 @@ class CompareCollateralBalanceTask(Task):
     def run(
         self,
         csv_output_path: str = "/tmp",
-        fix_errors: bool = False,
+        fix_errors: bool = True,
         batch_size: int = 100,
     ):
         """
@@ -460,7 +460,7 @@ class CompareDebtBalanceTask(Task):
     def run(
         self,
         csv_output_path: str = "/tmp",
-        fix_errors: bool = False,
+        fix_errors: bool = True,
         batch_size: int = 100,
     ):
         """

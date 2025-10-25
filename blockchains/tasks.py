@@ -1403,9 +1403,12 @@ class CompareUserCollateralTask(Task):
     with the CollateralStatusDictionary in ClickHouse.
     """
 
-    def run(self):
+    def run(self, fix_errors: bool = True):
         """
         Execute the user collateral status comparison test.
+
+        Args:
+            fix_errors: If True, automatically fix mismatched collateral status records
 
         Returns:
             Dict[str, Any]: Test results summary
@@ -1413,6 +1416,10 @@ class CompareUserCollateralTask(Task):
         import time
 
         logger.info("Starting CompareUserCollateralTask")
+        if fix_errors:
+            logger.info(
+                "Error correction is ENABLED - will fix mismatched collateral statuses"
+            )
         start_time = time.time()
 
         try:
@@ -1435,6 +1442,7 @@ class CompareUserCollateralTask(Task):
                     "total_user_assets": 0,
                     "matching_records": 0,
                     "mismatched_records": 0,
+                    "fixed_count": 0,
                 }
 
             # Get ClickHouse collateral status for these pairs
@@ -1451,9 +1459,9 @@ class CompareUserCollateralTask(Task):
                 f"Retrieved {len(rpc_data)} user-asset collateral statuses from RPC"
             )
 
-            # Compare the data
+            # Compare the data and optionally fix errors
             comparison_results = self._compare_collateral_status(
-                clickhouse_data, rpc_data
+                clickhouse_data, rpc_data, fix_errors=fix_errors
             )
 
             # Calculate test duration
@@ -1469,6 +1477,10 @@ class CompareUserCollateralTask(Task):
             logger.info(
                 f"Match percentage: {comparison_results['match_percentage']:.2f}%"
             )
+            if fix_errors and comparison_results.get("fixed_count", 0) > 0:
+                logger.info(
+                    f"Fixed {comparison_results['fixed_count']} mismatched records"
+                )
 
             # Send notification if mismatches found
             if comparison_results["mismatched_records"] > 0:
@@ -1664,7 +1676,10 @@ class CompareUserCollateralTask(Task):
         return collateral_status
 
     def _compare_collateral_status(
-        self, clickhouse_data: Dict[tuple, bool], rpc_data: Dict[tuple, bool]
+        self,
+        clickhouse_data: Dict[tuple, bool],
+        rpc_data: Dict[tuple, bool],
+        fix_errors: bool = False,
     ) -> Dict[str, Any]:
         """
         Compare collateral status from ClickHouse and RPC.
@@ -1672,9 +1687,10 @@ class CompareUserCollateralTask(Task):
         Args:
             clickhouse_data: Collateral status from ClickHouse
             rpc_data: Collateral status from RPC
+            fix_errors: If True, automatically fix mismatched records
 
         Returns:
-            Dict containing comparison statistics
+            Dict containing comparison statistics including fixed_count
         """
         clickhouse_pairs = set(clickhouse_data.keys())
         rpc_pairs = set(rpc_data.keys())
@@ -1686,6 +1702,7 @@ class CompareUserCollateralTask(Task):
         matching_count = 0
         mismatched_count = 0
         mismatches = []
+        mismatches_to_fix = []
 
         # Compare common pairs
         for pair in common_pairs:
@@ -1702,6 +1719,23 @@ class CompareUserCollateralTask(Task):
                     f"RPC={'enabled' if rpc_enabled else 'disabled'}"
                 )
 
+                # Collect for fixing if enabled
+                if fix_errors:
+                    mismatches_to_fix.append((user, asset, rpc_enabled))
+
+        # Fix errors if enabled
+        fixed_count = 0
+        if fix_errors and mismatches_to_fix:
+            logger.info(
+                f"Fixing {len(mismatches_to_fix)} mismatched collateral statuses"
+            )
+            try:
+                self._batch_update_collateral_status(mismatches_to_fix)
+                fixed_count = len(mismatches_to_fix)
+                logger.info(f"Successfully fixed {fixed_count} collateral statuses")
+            except Exception as e:
+                logger.error(f"Error fixing collateral statuses: {e}", exc_info=True)
+
         total_pairs = len(clickhouse_pairs | rpc_pairs)
         match_percentage = (
             (matching_count / len(common_pairs) * 100) if common_pairs else 0
@@ -1717,6 +1751,7 @@ class CompareUserCollateralTask(Task):
             "mismatches_detail": "; ".join(
                 mismatches[:50]
             ),  # Limit to first 50 mismatches
+            "fixed_count": fixed_count,
         }
 
     def _store_test_results(self, results: Dict[str, Any], duration: float):
