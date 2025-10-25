@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS aave_ethereum.LiquidationCandidates_Memory
     user String,
     collateral_asset String,
     debt_asset String,
-    debt_to_cover Decimal256(18),
+    debt_to_cover Decimal256(0),
     profit Decimal256(18),
     health_factor Decimal256(18),
     effective_collateral Decimal256(18),

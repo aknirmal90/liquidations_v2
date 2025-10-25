@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS aave_ethereum.LiquidationDetections
     debt_asset String,
     current_health_factor Decimal256(18),
     predicted_health_factor Decimal256(18),
-    debt_to_cover Decimal256(18),
+    debt_to_cover Decimal256(0),
     profit Decimal256(18),
     effective_collateral Decimal256(18),
     effective_debt Decimal256(18),

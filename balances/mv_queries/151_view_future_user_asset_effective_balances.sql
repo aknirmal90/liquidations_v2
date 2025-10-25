@@ -41,22 +41,22 @@ accrual_factors AS (
         cb.debt_updated_at_block,
         -- Collateral interest accrual factor
         (
-            1 +
+            toDecimal256(1, 0) +
             (
-                toFloat64(cb.collateral_interest_rate) / 1e27
-                / 31536000
-                * toFloat64(GREATEST(ni.latest_block_number - cb.collateral_updated_at_block + 1, 0))
-                * 12
+                toDecimal256(cb.collateral_interest_rate, 18) / toDecimal256(1e27, 0)
+                / toDecimal256(31536000, 0)
+                * toDecimal256(GREATEST(ni.latest_block_number - cb.collateral_updated_at_block + 1, 0), 0)
+                * toDecimal256(12, 0)
             )
         ) AS collateral_interest_accrual_factor,
         -- Debt interest accrual factor
         (
-            1 +
+            toDecimal256(1, 0) +
             (
-                toFloat64(cb.debt_interest_rate) / 1e27
-                / 31536000
-                * toFloat64(GREATEST(ni.latest_block_number - cb.debt_updated_at_block + 1, 0))
-                * 12
+                toDecimal256(cb.debt_interest_rate, 18) / toDecimal256(1e27, 0)
+                / toDecimal256(31536000, 0)
+                * toDecimal256(GREATEST(ni.latest_block_number - cb.debt_updated_at_block + 1, 0), 0)
+                * toDecimal256(12, 0)
             )
         ) AS debt_interest_accrual_factor
     FROM current_balances AS cb
