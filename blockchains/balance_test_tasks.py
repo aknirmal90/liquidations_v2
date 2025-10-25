@@ -256,7 +256,7 @@ class CompareCollateralBalanceTask(Task):
 
                         # Calculate corrected scaled balance
                         # scaled_balance = balance / (liquidity_index / 10^27)
-                        corrected_scaled_balance = (
+                        corrected_scaled_balance = int(
                             rpc_balance * (10**27) / liquidity_index
                         )
 
@@ -667,7 +667,7 @@ class CompareDebtBalanceTask(Task):
 
                         # Calculate corrected scaled balance
                         # scaled_balance = balance / (variable_borrow_index / 10^27)
-                        corrected_scaled_balance = (
+                        corrected_scaled_balance = int(
                             rpc_debt * (10**27) / variable_borrow_index
                         )
 
