@@ -264,20 +264,24 @@ class CompareCollateralBalanceTask(Task):
                             )
                             continue
 
-                        # Fetch scaled balances from aToken contract for all users of this asset
+                        # Fetch scaled balances in batches of 100 users
                         atoken = AaveToken(atoken_address)
-                        scaled_balances = atoken.get_scaled_balance(users)
+                        rpc_batch_size = 100
 
-                        # Prepare updates for each user
-                        for user in users:
-                            scaled_balance = scaled_balances.get(user, 0)
-                            updates.append(
-                                {
-                                    "user": user,
-                                    "asset": asset,
-                                    "corrected_scaled_balance": scaled_balance,
-                                }
-                            )
+                        for i in range(0, len(users), rpc_batch_size):
+                            users_batch = users[i : i + rpc_batch_size]
+                            scaled_balances = atoken.get_scaled_balance(users_batch)
+
+                            # Prepare updates for each user in this batch
+                            for user in users_batch:
+                                scaled_balance = scaled_balances.get(user, 0)
+                                updates.append(
+                                    {
+                                        "user": user,
+                                        "asset": asset,
+                                        "corrected_scaled_balance": scaled_balance,
+                                    }
+                                )
 
                     # Batch update the scaled balances retrieved from RPC
                     self._batch_update_collateral_balances(updates)
