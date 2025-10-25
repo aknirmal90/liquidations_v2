@@ -9,7 +9,6 @@ from eth_account import Account
 from web3 import Web3
 
 from liquidations_v2.celery_app import app
-from utils.clickhouse.client import clickhouse_client
 
 logger = logging.getLogger(__name__)
 
@@ -182,19 +181,24 @@ class ExecuteLiquidationsTask(Task):
     Main task to execute liquidations after opportunities are detected.
 
     This task:
-    1. Retrieves detected liquidation opportunities from LiquidationDetections table
-    2. Prepares transaction payloads for each liquidation
-    3. Dispatches transactions to multiple MEV builders in parallel
-    4. Logs execution status
+    1. Receives liquidation opportunities directly from detection task
+    2. Groups opportunities by debt asset for batch liquidation
+    3. Prepares batch transaction payloads for each debt asset group
+    4. Dispatches transactions to multiple MEV builders in parallel
+    5. Logs execution status
     """
 
-    clickhouse_client = clickhouse_client
-
-    def run(self, detection_timestamp: int, updated_assets: List[str]):
+    def run(
+        self,
+        opportunities: List[Dict[str, Any]],
+        detection_timestamp: int,
+        updated_assets: List[str],
+    ):
         """
         Execute liquidations for detected opportunities.
 
         Args:
+            opportunities: List of liquidation opportunities to execute
             detection_timestamp: Unix timestamp of when liquidations were detected
             updated_assets: List of assets that triggered the detection
         """
@@ -204,18 +208,14 @@ class ExecuteLiquidationsTask(Task):
                 f"detection at timestamp {detection_timestamp}"
             )
 
-            # Step 1: Retrieve liquidation opportunities from ClickHouse
-            opportunities = self._get_liquidation_opportunities(detection_timestamp)
-
             if not opportunities:
                 logger.warning(
-                    f"[LIQUIDATION_EXECUTION] No liquidation opportunities found "
-                    f"for timestamp {detection_timestamp}"
+                    "[LIQUIDATION_EXECUTION] No liquidation opportunities provided"
                 )
                 return
 
             logger.info(
-                f"[LIQUIDATION_EXECUTION] Found {len(opportunities)} liquidation "
+                f"[LIQUIDATION_EXECUTION] Received {len(opportunities)} liquidation "
                 f"opportunities to execute"
             )
 
@@ -330,81 +330,6 @@ class ExecuteLiquidationsTask(Task):
                 f"[LIQUIDATION_EXECUTION_ERROR] Error in ExecuteLiquidationsTask: {e}",
                 exc_info=True,
             )
-
-    def _get_liquidation_opportunities(
-        self, detection_timestamp: int
-    ) -> List[Dict[str, Any]]:
-        """
-        Retrieve liquidation opportunities from ClickHouse LiquidationDetections table.
-
-        Args:
-            detection_timestamp: Unix timestamp to filter by
-
-        Returns:
-            List of liquidation opportunities
-        """
-        query = f"""
-        SELECT
-            user,
-            collateral_asset,
-            debt_asset,
-            current_health_factor,
-            predicted_health_factor,
-            debt_to_cover,
-            profit,
-            effective_collateral,
-            effective_debt,
-            collateral_balance,
-            debt_balance,
-            liquidation_bonus,
-            collateral_price,
-            debt_price,
-            collateral_decimals,
-            debt_decimals,
-            is_priority_debt,
-            is_priority_collateral
-        FROM aave_ethereum.LiquidationDetections
-        WHERE detected_at = {detection_timestamp}
-        ORDER BY profit DESC
-        """
-
-        try:
-            result = self.clickhouse_client.execute_query(query)
-            opportunities = []
-
-            if result.result_rows:
-                for row in result.result_rows:
-                    opportunities.append(
-                        {
-                            "user": row[0],
-                            "collateral_asset": row[1],
-                            "debt_asset": row[2],
-                            "current_health_factor": float(row[3]),
-                            "predicted_health_factor": float(row[4]),
-                            "debt_to_cover": float(row[5]),
-                            "profit": float(row[6]),
-                            "effective_collateral": float(row[7]),
-                            "effective_debt": float(row[8]),
-                            "collateral_balance": float(row[9]),
-                            "debt_balance": float(row[10]),
-                            "liquidation_bonus": int(row[11]),
-                            "collateral_price": float(row[12]),
-                            "debt_price": float(row[13]),
-                            "collateral_decimals": int(row[14]),
-                            "debt_decimals": int(row[15]),
-                            "is_priority_debt": int(row[16]),
-                            "is_priority_collateral": int(row[17]),
-                        }
-                    )
-
-            return opportunities
-
-        except Exception as e:
-            logger.error(
-                f"[LIQUIDATION_EXECUTION_ERROR] Error retrieving opportunities: {e}",
-                exc_info=True,
-            )
-            return []
 
     def _get_current_nonce(self, address: str) -> int:
         """

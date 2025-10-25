@@ -89,11 +89,37 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             # Step 5: Send SimplePush notification
             self._send_notification(liquidation_candidates, updated_assets)
 
-            # Step 6: Trigger liquidation execution
+            # Step 6: Convert liquidation_candidates to opportunities format for executor
+            opportunities = []
+            for row in liquidation_candidates:
+                opportunities.append(
+                    {
+                        "user": row[0],
+                        "collateral_asset": row[1],
+                        "debt_asset": row[2],
+                        "current_health_factor": float(row[3]),
+                        "predicted_health_factor": float(row[4]),
+                        "debt_to_cover": float(row[5]),
+                        "profit": float(row[6]),
+                        "effective_collateral": float(row[7]),
+                        "effective_debt": float(row[8]),
+                        "collateral_balance": float(row[9]),
+                        "debt_balance": float(row[10]),
+                        "liquidation_bonus": int(row[11]),
+                        "collateral_price": float(row[12]),
+                        "debt_price": float(row[13]),
+                        "collateral_decimals": int(row[14]),
+                        "debt_decimals": int(row[15]),
+                    }
+                )
+
+            # Step 7: Trigger liquidation execution with opportunities data
             from payments.liquidation_executor import ExecuteLiquidationsTask
 
             ExecuteLiquidationsTask.delay(
-                detection_timestamp=detection_timestamp, updated_assets=updated_assets
+                opportunities=opportunities,
+                detection_timestamp=detection_timestamp,
+                updated_assets=updated_assets,
             )
 
             logger.warning(
