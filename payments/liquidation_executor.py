@@ -1,4 +1,6 @@
+import json
 import logging
+from collections import defaultdict
 from typing import Any, Dict, List
 
 from celery import Task
@@ -15,27 +17,37 @@ logger = logging.getLogger(__name__)
 
 class AaveV3LiquidationPayloadBuilder:
     """
-    Builds transaction payloads for Aave V3 liquidations.
+    Builds transaction payloads for Aave V3 liquidations using the AaveV3MEVLiquidator helper contract.
 
-    Aave V3 Pool.liquidationCall signature:
-    function liquidationCall(
-        address collateralAsset,
-        address debtAsset,
-        address user,
-        uint256 debtToCover,
-        bool receiveAToken
+    The helper contract supports batch liquidations through the executeLiquidations function:
+    function executeLiquidations(
+        LiquidationParams[] calldata params,
+        uint256 totalFlashloanAmount,
+        uint256 bribe
     ) external;
+
+    where LiquidationParams is:
+    struct LiquidationParams {
+        address user;
+        address debtAsset;
+        address collateralAsset;
+        uint256 debtToCover;
+    }
     """
 
     AAVE_V3_POOL_ADDRESS = config("POOL_V3_POOL")
 
-    # Aave V3 liquidationCall function selector
-    LIQUIDATION_CALL_SELECTOR = Web3.keccak(
-        text="liquidationCall(address,address,address,uint256,bool)"
-    )[:4].hex()
+    # Helper contract address (deployed on Ethereum)
+    HELPER_CONTRACT_ADDRESS = config("AAVE_V3_LIQUIDATOR_HELPER")
 
+    # Load ABI for the helper contract
     def __init__(self):
         self.w3 = Web3()  # Not connected to provider, just for encoding
+
+        # Load the ABI from the compiled contract
+        with open("contracts/out/liquidator.sol/AaveV3MEVLiquidator.json", "r") as f:
+            contract_json = json.load(f)
+            self.helper_contract_abi = contract_json["abi"]
 
     def build_liquidation_calldata(
         self,
@@ -129,6 +141,96 @@ class AaveV3LiquidationPayloadBuilder:
 
         return transaction
 
+    def build_batch_liquidation_calldata(
+        self,
+        liquidations: List[Dict[str, Any]],
+    ) -> str:
+        """
+        Build the calldata for batch liquidations using the helper contract's executeLiquidations function.
+
+        Args:
+            liquidations: List of liquidation parameters, each with keys:
+                - user: Address of the user to liquidate
+                - debt_asset: Address of the debt asset
+                - collateral_asset: Address of the collateral asset
+                - debt_to_cover: Amount of debt to cover (in asset decimals)
+
+        Returns:
+            Hex string of the encoded calldata
+        """
+        # Get bribe from environment variable (default 90%)
+        bribe = int(config("LIQUIDATION_BRIBE", default="90"))
+
+        # Calculate total flashloan amount by summing debt to cover
+        total_flashloan_amount = sum(int(liq["debt_to_cover"]) for liq in liquidations)
+
+        # Create contract instance
+        helper_contract = self.w3.eth.contract(
+            address=Web3.to_checksum_address(self.HELPER_CONTRACT_ADDRESS),
+            abi=self.helper_contract_abi,
+        )
+
+        # Prepare liquidation params as tuples
+        liquidation_params = [
+            (
+                Web3.to_checksum_address(liq["user"]),
+                Web3.to_checksum_address(liq["debt_asset"]),
+                Web3.to_checksum_address(liq["collateral_asset"]),
+                int(liq["debt_to_cover"]),
+            )
+            for liq in liquidations
+        ]
+
+        # Build the transaction data using contract.encodeABI
+        calldata = helper_contract.encodeABI(
+            fn_name="executeLiquidations",
+            args=[liquidation_params, total_flashloan_amount, bribe],
+        )
+
+        return calldata
+
+    def build_batch_liquidation_transaction(
+        self,
+        liquidations: List[Dict[str, Any]],
+        liquidator_address: str,
+        nonce: int,
+        max_priority_fee_per_gas: int,
+        max_fee_per_gas: int,
+        gas_limit: int = 2000000,
+        chain_id: int = 1,
+    ) -> Dict[str, Any]:
+        """
+        Build a complete EIP-1559 transaction for batch liquidations using the helper contract.
+
+        Args:
+            liquidations: List of liquidation parameters
+            liquidator_address: Address of the liquidator (transaction sender)
+            nonce: Transaction nonce
+            max_priority_fee_per_gas: Max priority fee (tip) in wei
+            max_fee_per_gas: Max total fee per gas in wei
+            gas_limit: Gas limit for the transaction
+            chain_id: Chain ID (1 for Ethereum mainnet)
+
+        Returns:
+            Dictionary containing the transaction parameters
+        """
+        calldata = self.build_batch_liquidation_calldata(liquidations=liquidations)
+
+        transaction = {
+            "chainId": chain_id,
+            "from": Web3.to_checksum_address(liquidator_address),
+            "to": Web3.to_checksum_address(self.HELPER_CONTRACT_ADDRESS),
+            "value": 0,
+            "nonce": nonce,
+            "gas": gas_limit,
+            "maxPriorityFeePerGas": max_priority_fee_per_gas,
+            "maxFeePerGas": max_fee_per_gas,
+            "data": calldata,
+            "type": 2,  # EIP-1559 transaction
+        }
+
+        return transaction
+
     def sign_transaction(self, transaction: Dict[str, Any], private_key: str) -> str:
         """
         Sign a transaction with the provided private key.
@@ -148,6 +250,26 @@ class AaveV3LiquidationPayloadBuilder:
         signed_txn = account.sign_transaction(transaction)
 
         return signed_txn.rawTransaction.hex()
+
+    @staticmethod
+    def group_opportunities_by_debt_asset(
+        opportunities: List[Dict[str, Any]],
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Group liquidation opportunities by debt asset to enable batching.
+
+        Args:
+            opportunities: List of liquidation opportunities
+
+        Returns:
+            Dictionary mapping debt_asset -> list of opportunities with that debt asset
+        """
+        grouped = defaultdict(list)
+        for opp in opportunities:
+            debt_asset = opp["debt_asset"]
+            grouped[debt_asset].append(opp)
+
+        return dict(grouped)
 
 
 class ExecuteLiquidationsTask(Task):
@@ -204,29 +326,53 @@ class ExecuteLiquidationsTask(Task):
             # Step 4: Get current gas prices
             gas_prices = self._get_gas_prices()
 
-            # Step 5: Prepare and submit transactions for each opportunity
+            # Step 5: Group opportunities by debt asset
+            payload_builder = AaveV3LiquidationPayloadBuilder()
+            grouped_opportunities = payload_builder.group_opportunities_by_debt_asset(
+                opportunities
+            )
+
+            logger.info(
+                f"[LIQUIDATION_EXECUTION] Grouped {len(opportunities)} opportunities into "
+                f"{len(grouped_opportunities)} batches by debt asset"
+            )
+
+            # Step 6: Prepare and submit batch transactions for each debt asset group
             from payments.mev_builders import (
                 SubmitToBuildernetTask,
                 SubmitToFlashbotsTask,
                 SubmitToTitanTask,
             )
 
-            for idx, opportunity in enumerate(opportunities):
+            transaction_idx = 0
+            for debt_asset, debt_asset_opportunities in grouped_opportunities.items():
                 try:
+                    total_profit = sum(
+                        opp["profit"] for opp in debt_asset_opportunities
+                    )
                     logger.info(
-                        f"[LIQUIDATION_EXECUTION] Processing opportunity {idx + 1}/{len(opportunities)} | "
-                        f"User: {opportunity['user'][:10]}... | Profit: ${opportunity['profit']:,.2f}"
+                        f"[LIQUIDATION_EXECUTION] Processing batch {transaction_idx + 1}/{len(grouped_opportunities)} | "
+                        f"Debt Asset: {debt_asset[:10]}... | "
+                        f"Liquidations: {len(debt_asset_opportunities)} | "
+                        f"Total Profit: ${total_profit:,.2f}"
                     )
 
-                    # Build transaction payload
-                    payload_builder = AaveV3LiquidationPayloadBuilder()
-                    transaction = payload_builder.build_liquidation_transaction(
-                        collateral_asset=opportunity["collateral_asset"],
-                        debt_asset=opportunity["debt_asset"],
-                        user=opportunity["user"],
-                        debt_to_cover=int(opportunity["debt_to_cover"]),
+                    # Prepare liquidation parameters for batch transaction
+                    liquidations = [
+                        {
+                            "user": opp["user"],
+                            "debt_asset": opp["debt_asset"],
+                            "collateral_asset": opp["collateral_asset"],
+                            "debt_to_cover": int(opp["debt_to_cover"]),
+                        }
+                        for opp in debt_asset_opportunities
+                    ]
+
+                    # Build batch transaction payload
+                    transaction = payload_builder.build_batch_liquidation_transaction(
+                        liquidations=liquidations,
                         liquidator_address=liquidator_address,
-                        nonce=base_nonce + idx,
+                        nonce=base_nonce + transaction_idx,
                         max_priority_fee_per_gas=gas_prices["priority_fee"],
                         max_fee_per_gas=gas_prices["max_fee"],
                         chain_id=chain_id,
@@ -241,8 +387,10 @@ class ExecuteLiquidationsTask(Task):
                     submission_data = {
                         "signed_tx": signed_tx,
                         "transaction": transaction,
-                        "opportunity": opportunity,
+                        "opportunities": debt_asset_opportunities,
                         "timestamp": detection_timestamp,
+                        "debt_asset": debt_asset,
+                        "batch_size": len(debt_asset_opportunities),
                     }
 
                     # Fire off to all builders concurrently
@@ -251,20 +399,25 @@ class ExecuteLiquidationsTask(Task):
                     SubmitToBuildernetTask.delay(submission_data)
 
                     logger.warning(
-                        f"[LIQUIDATION_TX_SUBMITTED] Transaction submitted to all builders | "
-                        f"User: {opportunity['user'][:10]}... | Nonce: {base_nonce + idx} | "
-                        f"Profit: ${opportunity['profit']:,.2f}"
+                        f"[LIQUIDATION_TX_SUBMITTED] Batch transaction submitted to all builders | "
+                        f"Debt Asset: {debt_asset[:10]}... | "
+                        f"Nonce: {base_nonce + transaction_idx} | "
+                        f"Liquidations: {len(debt_asset_opportunities)} | "
+                        f"Total Profit: ${total_profit:,.2f}"
                     )
+
+                    transaction_idx += 1
 
                 except Exception as e:
                     logger.error(
-                        f"[LIQUIDATION_EXECUTION_ERROR] Error processing opportunity {idx + 1}: {e}",
+                        f"[LIQUIDATION_EXECUTION_ERROR] Error processing batch for debt asset {debt_asset}: {e}",
                         exc_info=True,
                     )
                     continue
 
             logger.warning(
-                f"[LIQUIDATION_EXECUTION_COMPLETE] Submitted {len(opportunities)} liquidations to builders"
+                f"[LIQUIDATION_EXECUTION_COMPLETE] Submitted {len(grouped_opportunities)} batch transactions "
+                f"covering {len(opportunities)} total liquidations to builders"
             )
 
         except Exception as e:
