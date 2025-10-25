@@ -39,25 +39,19 @@ effective_balances AS (
         accrued_debt_balance,
         decimals_places,
         -- Effective Collateral: apply liquidation threshold based on eMode, collateral status, and price
-        cast(floor(
-            toFloat64(accrued_collateral_balance)
-            * toFloat64(
-                if(
-                    is_in_emode = 1,
-                    emode_liquidation_threshold,
-                    collateral_liquidation_threshold
-                )
-            )
-            * toFloat64(is_collateral_enabled)
-            * price
-            / (10000 * toFloat64(decimals_places))
-        ) as UInt256) AS effective_collateral,
+        (
+            accrued_collateral_balance
+            * toDecimal256(if(is_in_emode = 1, emode_liquidation_threshold, collateral_liquidation_threshold), 0)
+            * toDecimal256(is_collateral_enabled, 0)
+            * toDecimal256(price, 18)
+            / (toDecimal256(10000, 0) * toDecimal256(decimals_places, 0))
+        ) AS effective_collateral,
         -- Effective Debt: apply price adjustment
-        cast(floor(
-            toFloat64(accrued_debt_balance)
-            * price
-            / (toFloat64(decimals_places))
-        ) as UInt256) AS effective_debt
+        (
+            accrued_debt_balance
+            * toDecimal256(price, 18)
+            / toDecimal256(decimals_places, 0)
+        ) AS effective_debt
     FROM asset_effective_balances
 ),
 effective_balances_usd AS (
@@ -70,8 +64,8 @@ effective_balances_usd AS (
         decimals_places,
         effective_collateral,
         effective_debt,
-        effective_collateral / 1e8 AS effective_collateral_usd,
-        effective_debt / 1e8 AS effective_debt_usd
+        effective_collateral / toDecimal256(1e8, 0) AS effective_collateral_usd,
+        effective_debt / toDecimal256(1e8, 0) AS effective_debt_usd
     FROM effective_balances
 ),
 user_totals AS (
@@ -101,7 +95,7 @@ SELECT
     -- If collateral is 0 and debt > 0, health factor is 0 (liquidatable)
     if(
         total_effective_debt = 0,
-        999.9,
-        total_effective_collateral / total_effective_debt
+        toDecimal256(999.9, 18),
+        total_effective_collateral / toDecimal256(total_effective_debt, 18)
     ) AS health_factor
 FROM user_totals;

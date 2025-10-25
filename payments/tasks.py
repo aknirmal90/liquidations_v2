@@ -10,6 +10,7 @@ from celery import Task
 from web3 import Web3
 
 from liquidations_v2.celery_app import app
+from payments.liquidation_executor import ExecuteLiquidationsTask
 from utils.clickhouse.client import clickhouse_client
 from utils.interfaces.base import BaseContractInterface
 from utils.simplepush import send_simplepush_notification
@@ -79,17 +80,7 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             # Step 3: Append results to ClickHouse LiquidationDetections log table
             self._append_liquidation_detections(liquidation_candidates)
 
-            # Calculate summary statistics
-            num_users = len(set([c[0] for c in liquidation_candidates]))
-            total_profit = sum([float(c[6]) for c in liquidation_candidates])
-
-            # Get detection timestamp for execution tracking
-            detection_timestamp = int(datetime.now().timestamp())
-
-            # Step 5: Send SimplePush notification
-            self._send_notification(liquidation_candidates, updated_assets)
-
-            # Step 6: Convert liquidation_candidates to opportunities format for executor
+            # Step 4: Convert liquidation_candidates to opportunities format for executor
             opportunities = []
             for row in liquidation_candidates:
                 opportunities.append(
@@ -113,9 +104,17 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                     }
                 )
 
-            # Step 7: Trigger liquidation execution with opportunities data
-            from payments.liquidation_executor import ExecuteLiquidationsTask
+            # Calculate summary statistics
+            num_users = len(set([c[0] for c in liquidation_candidates]))
+            total_profit = sum([float(c[6]) for c in liquidation_candidates])
 
+            # Get detection timestamp for execution tracking
+            detection_timestamp = int(datetime.now().timestamp())
+
+            # Step 5: Send SimplePush notification
+            self._send_notification(liquidation_candidates, updated_assets)
+
+            # Step 7: Trigger liquidation execution with opportunities data
             ExecuteLiquidationsTask.delay(
                 opportunities=opportunities,
                 detection_timestamp=detection_timestamp,
@@ -298,13 +297,13 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             lc.debt_asset AS debt_asset,
             aru.current_health_factor AS current_health_factor,
             aru.predicted_health_factor AS predicted_health_factor,
-            lc.debt_to_cover AS debt_to_cover,
-            lc.profit AS profit,
-            lc.effective_collateral AS effective_collateral,
-            lc.effective_debt AS effective_debt,
-            lc.collateral_balance AS collateral_balance,
-            lc.debt_balance AS debt_balance,
-            lc.liquidation_bonus AS liquidation_bonus,
+            toDecimal256(lc.debt_to_cover, 0) AS debt_to_cover,
+            toDecimal256(lc.profit, 0) AS profit,
+            toDecimal256(lc.effective_collateral, 0) AS effective_collateral,
+            toDecimal256(lc.effective_debt, 0) AS effective_debt,
+            toDecimal256(lc.collateral_balance, 0) AS collateral_balance,
+            toDecimal256(lc.debt_balance, 0) AS debt_balance,
+            toDecimal256(lc.liquidation_bonus, 0) AS liquidation_bonus,
             lc.collateral_price AS collateral_price,
             lc.debt_price AS debt_price,
             lc.collateral_decimals AS collateral_decimals,
@@ -315,31 +314,23 @@ class EstimateFutureLiquidationCandidatesTask(Task):
         """
 
         try:
+            # Execute query and get result as list of dictionaries for key-value pairs
             result = self.clickhouse_client.execute_query(query)
-            liquidation_candidates = []
 
-            if result.result_rows:
+            # fallback to rows with column names if available
+            rows = [dict(zip(result.column_names, row)) for row in result.result_rows]
+            if rows:
                 num_users = len(set([row[0] for row in result.result_rows]))
                 logger.info(
                     f"[LIQUIDATION_DETECTION] Found {len(result.result_rows)} liquidation opportunities "
                     f"for {num_users} users with declining health factors"
                 )
 
-                for row in result.result_rows:
-                    user = row[0]
-                    current_hf = float(row[3])
-                    predicted_hf = float(row[4])
-                    profit = float(row[6])
-
-                    # Convert tuple to list and append updated_assets array and timestamp
-                    row_data = list(row)
-                    row_data.append(
-                        updated_assets
-                    )  # Add updated_assets as the 17th field
-                    row_data.append(
-                        datetime.now()
-                    )  # Add detected_at timestamp as the 18th field
-                    liquidation_candidates.append(row_data)
+                for row in rows:
+                    user = row["user"]
+                    current_hf = float(row["current_health_factor"])
+                    predicted_hf = float(row["predicted_health_factor"])
+                    profit = float(row["profit"])
 
                     # Log individual liquidation opportunity
                     logger.info(
@@ -348,7 +339,7 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                         f"Profit: ${profit:,.2f}"
                     )
 
-            return liquidation_candidates
+            return rows
 
         except Exception as e:
             logger.error(
