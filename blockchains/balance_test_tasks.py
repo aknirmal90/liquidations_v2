@@ -10,6 +10,7 @@ Against getUserReserveData RPC calls.
 
 import logging
 import time
+from decimal import Decimal
 from typing import Any, Dict, List
 
 from celery import Task
@@ -155,7 +156,7 @@ class CompareCollateralBalanceTask(Task):
             for row in result.result_rows:
                 user = row[0].lower()
                 asset = row[1].lower()
-                collateral_balance = float(row[2])
+                collateral_balance = Decimal(str(row[2]))
 
                 user_assets.append((user, asset))
                 clickhouse_data[(user, asset)] = collateral_balance
@@ -172,12 +173,12 @@ class CompareCollateralBalanceTask(Task):
 
                     # Get currentATokenBalance from result
                     if isinstance(result_data, dict):
-                        current_atoken_balance = float(
-                            result_data.get("currentATokenBalance", 0)
+                        current_atoken_balance = Decimal(
+                            str(result_data.get("currentATokenBalance", 0))
                         )
                     else:
-                        current_atoken_balance = float(
-                            result_data[0] if len(result_data) > 0 else 0
+                        current_atoken_balance = Decimal(
+                            str(result_data[0] if len(result_data) > 0 else 0)
                         )
 
                     rpc_data[(user_lower, asset_lower)] = current_atoken_balance
@@ -198,25 +199,25 @@ class CompareCollateralBalanceTask(Task):
                 total_user_assets += 1
 
                 # Skip if CH collateral is zero
-                if ch_collateral == 0:
-                    if rpc_collateral == 0:
+                if ch_collateral == Decimal("0"):
+                    if rpc_collateral == Decimal("0"):
                         matching_count += 1
                     continue
 
                 # Calculate difference in basis points and absolute value
                 difference = abs(ch_collateral - rpc_collateral)
-                difference_bps = (difference / ch_collateral) * 10000
+                difference_bps = float((difference / ch_collateral) * 10000)
 
                 differences_bps.append(difference_bps)
 
                 # Match if difference < 1 bps OR absolute difference <= 1
                 # Mismatch only if BOTH: difference >= 1 bps AND absolute difference > 1
-                if difference_bps < 1.0 or difference <= 1.0:
+                if difference_bps < 1.0 or difference <= Decimal("1"):
                     matching_count += 1
                 else:
                     mismatched_count += 1
                     mismatches.append(
-                        f"{user},{asset}: CH={ch_collateral:.2f} RPC={rpc_collateral:.2f} diff={difference:.2f} ({difference_bps:.2f}bps)"
+                        f"{user},{asset}: CH={float(ch_collateral):.2f} RPC={float(rpc_collateral):.2f} diff={float(difference):.2f} ({difference_bps:.2f}bps)"
                     )
 
                     # Collect for fixing if enabled
@@ -581,7 +582,7 @@ class CompareDebtBalanceTask(Task):
             for row in result.result_rows:
                 user = row[0].lower()
                 asset = row[1].lower()
-                debt_balance = float(row[2])
+                debt_balance = Decimal(str(row[2]))
 
                 user_assets.append((user, asset))
                 clickhouse_data[(user, asset)] = debt_balance
@@ -598,12 +599,12 @@ class CompareDebtBalanceTask(Task):
 
                     # Get currentVariableDebt from result
                     if isinstance(result_data, dict):
-                        current_variable_debt = float(
-                            result_data.get("currentVariableDebt", 0)
+                        current_variable_debt = Decimal(
+                            str(result_data.get("currentVariableDebt", 0))
                         )
                     else:
-                        current_variable_debt = float(
-                            result_data[1] if len(result_data) > 1 else 0
+                        current_variable_debt = Decimal(
+                            str(result_data[1] if len(result_data) > 1 else 0)
                         )
 
                     rpc_data[(user_lower, asset_lower)] = current_variable_debt
@@ -624,25 +625,25 @@ class CompareDebtBalanceTask(Task):
                 total_user_assets += 1
 
                 # Skip if CH debt is zero
-                if ch_debt == 0:
-                    if rpc_debt == 0:
+                if ch_debt == Decimal("0"):
+                    if rpc_debt == Decimal("0"):
                         matching_count += 1
                     continue
 
                 # Calculate difference in basis points and absolute value
                 difference = abs(ch_debt - rpc_debt)
-                difference_bps = (difference / ch_debt) * 10000
+                difference_bps = float((difference / ch_debt) * 10000)
 
                 differences_bps.append(difference_bps)
 
                 # Match if difference < 1 bps OR absolute difference <= 1
                 # Mismatch only if BOTH: difference >= 1 bps AND absolute difference > 1
-                if difference_bps < 1.0 or difference <= 1.0:
+                if difference_bps < 1.0 or difference <= Decimal("1"):
                     matching_count += 1
                 else:
                     mismatched_count += 1
                     mismatches.append(
-                        f"{user},{asset}: CH={ch_debt:.2f} RPC={rpc_debt:.2f} diff={difference:.2f} ({difference_bps:.2f}bps)"
+                        f"{user},{asset}: CH={float(ch_debt):.2f} RPC={float(rpc_debt):.2f} diff={float(difference):.2f} ({difference_bps:.2f}bps)"
                     )
 
                     # Collect for fixing if enabled
