@@ -10,9 +10,7 @@ from django.core.cache import cache
 from django.core.management.base import BaseCommand
 from sseclient import SSEClient
 
-from utils.oracle import (
-    parse_forwarder_call,
-)
+from utils.oracle import parse_forwarder_call
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +114,7 @@ class Command(BaseCommand):
                 function_selector == FORWARDER_SELECTOR
                 and to_address in allowed_transmitters
             ):
+                logger.info(f"Processing forwarder call {function_selector}")
                 calldata = tx.get("callData")
                 logger.info(f"Processing forwarder call {calldata}")
                 parsed_data = parse_forwarder_call(calldata)

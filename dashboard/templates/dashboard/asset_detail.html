@@ -226,50 +226,7 @@
 
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="{% url 'dashboard:asset_list' %}">
-                <i class="fas fa-chart-line me-2"></i>
-                Aave Asset Dashboard
-            </a>
-            <div class="navbar-nav ms-auto me-4">
-                <a class="nav-link" href="{% url 'dashboard:asset_list' %}">
-                    <i class="fas fa-coins me-2"></i>
-                    Assets
-                </a>
-                <a class="nav-link" href="{% url 'dashboard:prices_summary' %}">
-                    <i class="fas fa-dollar-sign me-2"></i>
-                    Prices
-                </a>
-                <a class="nav-link" href="{% url 'dashboard:debt' %}">
-                    <i class="fas fa-money-bill-wave me-2"></i>
-                    Debt
-                </a>
-                <a class="nav-link" href="{% url 'dashboard:liquidation_candidates' %}">
-                    <i class="fas fa-exclamation-circle me-2"></i>
-                    Liquidation Candidates
-                </a>
-                <a class="nav-link" href="{% url 'dashboard:liquidations' %}">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    Liquidations
-                </a>
-                <a class="nav-link" href="{% url 'dashboard:users' %}">
-                    <i class="fas fa-users me-2"></i>
-                    Users
-                </a>
-                <a class="nav-link" href="{% url 'dashboard:tests' %}">
-                    <i class="fas fa-vial me-2"></i>
-                    Tests
-                </a>
-            </div>
-            <div class="navbar-nav">
-                <a href="{% url 'dashboard:asset_list' %}" class="back-button">
-                    <i class="fas fa-arrow-left me-2"></i>
-                    Back to Assets
-                </a>
-            </div>
-        </div>
-    </nav>
+    {% include "dashboard/navbar_include.html" %}
 
     <!-- Main Content -->
     <div class="main-container">

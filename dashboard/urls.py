@@ -5,8 +5,12 @@ from . import views
 app_name = "dashboard"
 
 urlpatterns = [
-    path("", views.prices_summary, name="prices_summary"),
+    # Homepage - Tests Dashboard
+    path("", views.tests, name="home"),
+    path("tests/", views.tests, name="tests"),
+    # Main Pages
     path("assets/", views.asset_list, name="asset_list"),
+    path("prices/", views.prices_summary, name="prices_summary"),
     path("liquidations/", views.liquidations, name="liquidations"),
     path("asset/<str:asset_address>/", views.asset_detail, name="asset_detail"),
     path("api/asset/<str:asset_address>/", views.asset_data_api, name="asset_data_api"),
@@ -81,7 +85,7 @@ urlpatterns = [
         name="liquidator_detail",
     ),
     path("users/", views.users, name="users"),
-    path("tests/", views.tests, name="tests"),
+    # Test Pages
     path(
         "tests/reserve-config/", views.reserve_config_tests, name="reserve_config_tests"
     ),
@@ -131,8 +135,10 @@ urlpatterns = [
         views.debt_interest_rate_tests,
         name="debt_interest_rate_tests",
     ),
+    # Debt Pages
     path("debt/", views.debt, name="debt"),
     path("api/debt-metrics/", views.debt_metrics, name="debt_metrics"),
+    # Liquidation Pages
     path(
         "liquidation-candidates/",
         views.liquidation_candidates,
@@ -142,5 +148,15 @@ urlpatterns = [
         "api/liquidation-candidates/",
         views.liquidation_candidates_api,
         name="liquidation_candidates_api",
+    ),
+    path(
+        "liquidation-detections/",
+        views.liquidation_detections,
+        name="liquidation_detections",
+    ),
+    path(
+        "api/liquidation-detections/",
+        views.liquidation_detections_api,
+        name="liquidation_detections_api",
     ),
 ]

@@ -7,7 +7,6 @@ from balances.tasks import ParentBalancesSynchronizeTask
 from blockchains.tasks import ParentSynchronizeTask, UpdateNetworkBlockInfoTask
 from oracles.management.commands.listen_base import WebsocketCommand
 from oracles.tasks import PriceEventDynamicSynchronizeTask
-from payments.tasks import EstimateFutureLiquidationCandidatesTask
 from utils.constants import NETWORK_NAME
 
 logger = logging.getLogger(__name__)
@@ -80,9 +79,9 @@ class Command(WebsocketCommand, BaseCommand):
             ParentSynchronizeTask.delay()
             PriceEventDynamicSynchronizeTask.delay()
             ParentBalancesSynchronizeTask.delay()
-            EstimateFutureLiquidationCandidatesTask.delay(
-                [["newBlock", block_number, block_timestamp]]
-            )
+            # EstimateFutureLiquidationCandidatesTask.delay(
+            #     [["newBlock", block_number, block_timestamp]]
+            # )
 
         except Exception as e:
             logger.error(f"Error processing block data: {e}")
