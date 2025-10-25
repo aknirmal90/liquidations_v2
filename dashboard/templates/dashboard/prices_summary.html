@@ -1,648 +1,543 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "dashboard/base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Price Verification Summary | Aave Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+{% block title %}Price Verification Summary | Aave Dashboard{% endblock %}
 
-    <!-- Bokeh CSS and JS imports -->
-    <link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.css" type="text/css" />
-    <link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.7.3.min.css" type="text/css" />
-    <link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.7.3.min.css" type="text/css" />
+{% block extra_css %}
+<!-- Bokeh CSS imports -->
+<link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.css" type="text/css" />
+<link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.7.3.min.css" type="text/type" />
+<link rel="stylesheet" href="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.7.3.min.css" type="text/css" />
 
-    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.js"></script>
-    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.7.3.min.js"></script>
-    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.7.3.min.js"></script>
-    <script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-api-3.7.3.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .page-header {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        border: none;
+        border-radius: 16px;
+        text-align: center;
+        padding: 3rem 2rem;
+    }
 
-    <style>
-        :root {
-            --primary-color: #6366f1;
-            --secondary-color: #8b5cf6;
-            --success-color: #10b981;
-            --warning-color: #f59e0b;
-            --danger-color: #ef4444;
-            --dark-color: #1f2937;
-            --light-color: #f9fafb;
-        }
+    .page-title {
+        font-size: 3rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
 
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        }
+    .page-subtitle {
+        font-size: 1.2rem;
+        opacity: 0.9;
+    }
 
-        .navbar {
-            background: rgba(255, 255, 255, 0.1) !important;
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-        }
+    .table-container {
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
 
-        .navbar-nav .nav-link {
-            color: rgba(255, 255, 255, 0.8) !important;
-            font-weight: 600;
-            padding: 0.75rem 1.5rem !important;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            margin-right: 0.5rem;
-        }
+    .table {
+        margin-bottom: 0;
+    }
 
-        .navbar-nav .nav-link:hover {
-            color: white !important;
-            background: rgba(255, 255, 255, 0.1);
-        }
+    .table th {
+        background: var(--primary-color);
+        color: white;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border: none;
+        padding: 1rem;
+    }
 
-        .navbar-nav .nav-link.active {
-            color: white !important;
-            background: rgba(255, 255, 255, 0.2);
-        }
+    .table td {
+        padding: 1rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        vertical-align: middle;
+    }
 
-        .navbar .dropdown-menu {
-            background: rgba(255, 255, 255, 0.98);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-            margin-top: 0.5rem;
-        }
+    .table tbody tr:hover {
+        background: rgba(99, 102, 241, 0.05);
+    }
 
-        .navbar .dropdown-item {
-            color: var(--dark-color);
-            padding: 0.75rem 1.5rem;
-            transition: all 0.2s ease;
-        }
+    .address-link {
+        color: var(--primary-color);
+        text-decoration: none;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+        padding: 0.25rem 0.5rem;
+        background: rgba(99, 102, 241, 0.1);
+        border-radius: 4px;
+        transition: all 0.3s ease;
+    }
 
-        .navbar .dropdown-item:hover,
-        .navbar .dropdown-item.active {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-        }
+    .address-link:hover {
+        color: var(--primary-color);
+        background: rgba(99, 102, 241, 0.2);
+        text-decoration: none;
+    }
 
-        .navbar .dropdown-divider {
-            margin: 0.5rem 0;
-            border-color: rgba(0, 0, 0, 0.1);
-        }
+    .error-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
 
-        .main-container {
-            padding: 2rem 0;
-        }
+    .error-low {
+        background: rgba(16, 185, 129, 0.1);
+        color: #059669;
+    }
 
-        .card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
+    .error-medium {
+        background: rgba(245, 158, 11, 0.1);
+        color: #d97706;
+    }
 
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-        }
+    .error-high {
+        background: rgba(239, 68, 68, 0.1);
+        color: #dc2626;
+    }
 
-        .page-header {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            border: none;
-            border-radius: 16px;
-            text-align: center;
-            padding: 3rem 2rem;
-        }
+    .error-none {
+        background: rgba(107, 114, 128, 0.1);
+        color: #6b7280;
+    }
 
-        .page-title {
-            font-size: 3rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-        }
+    .stats-card {
+        text-align: center;
+        padding: 1.5rem;
+    }
 
-        .page-subtitle {
-            font-size: 1.2rem;
-            opacity: 0.9;
-        }
+    .stats-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
 
-        .table-container {
-            background: white;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        }
+    .stats-label {
+        font-size: 0.9rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 0.5rem;
+    }
 
-        .table {
-            margin-bottom: 0;
-        }
+    #mismatchCountsContainer {
+        height: 400px;
+        position: relative;
+    }
+</style>
+{% endblock %}
 
-        .table th {
-            background: var(--primary-color);
-            color: white;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border: none;
-            padding: 1rem;
-        }
-
-        .table td {
-            padding: 1rem;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-            vertical-align: middle;
-        }
-
-        .table tbody tr:hover {
-            background: rgba(99, 102, 241, 0.05);
-        }
-
-        .address-link {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
-            padding: 0.25rem 0.5rem;
-            background: rgba(99, 102, 241, 0.1);
-            border-radius: 4px;
-            transition: all 0.3s ease;
-        }
-
-        .address-link:hover {
-            color: var(--primary-color);
-            background: rgba(99, 102, 241, 0.2);
-            text-decoration: none;
-        }
-
-        .error-badge {
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-
-        .error-low {
-            background: rgba(16, 185, 129, 0.1);
-            color: #059669;
-        }
-
-        .error-medium {
-            background: rgba(245, 158, 11, 0.1);
-            color: #d97706;
-        }
-
-        .error-high {
-            background: rgba(239, 68, 68, 0.1);
-            color: #dc2626;
-        }
-
-        .error-none {
-            background: rgba(107, 114, 128, 0.1);
-            color: #6b7280;
-        }
-
-        .stats-card {
-            text-align: center;
-            padding: 1.5rem;
-        }
-
-        .stats-value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--primary-color);
-        }
-
-        .stats-label {
-            font-size: 0.9rem;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 0.5rem;
-        }
-
-        #mismatchCountsContainer {
-            height: 400px;
-            position: relative;
-        }
-    </style>
-</head>
-
-<body>
-    <!-- Navigation -->
-    {% include "dashboard/navbar_include.html" %}
-
-    <!-- Main Content -->
-    <div class="main-container">
-        <div class="container">
-            <!-- Page Header -->
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card page-header">
-                        <div class="page-title">
-                            <i class="fas fa-chart-bar me-3"></i>
-                            Price Verification Summary
-                        </div>
-                        <div class="page-subtitle">
-                            Latest error percentages across all assets, sources, and price types
-                        </div>
-                    </div>
-                </div>
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card page-header">
+            <div class="page-title">
+                <i class="fas fa-chart-bar me-3"></i>
+                Price Verification Summary
             </div>
-
-            <!-- Summary Stats -->
-            <div class="row mb-4">
-                <div class="col-md-3">
-                    <div class="card">
-                        <div class="card-body stats-card">
-                            <div class="stats-value">{{ price_records|length }}</div>
-                            <div class="stats-label">Total Records</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card">
-                        <div class="card-body stats-card">
-                            <div class="stats-value">{{ unique_assets_count }}</div>
-                            <div class="stats-label">Unique Assets</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card">
-                        <div class="card-body stats-card">
-                            <div class="stats-value">{{ unique_sources_count }}</div>
-                            <div class="stats-label">Unique Sources</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card">
-                        <div class="card-body stats-card">
-                            <div class="stats-value">30</div>
-                            <div class="stats-label">Days Coverage</div>
-                        </div>
-                    </div>
-                </div>
+            <div class="page-subtitle">
+                Latest error percentages across all assets, sources, and price types
             </div>
+        </div>
+    </div>
+</div>
 
-            <!-- Tabs Navigation -->
-            <div class="row">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <ul class="nav nav-tabs card-header-tabs" id="pricesTabs" role="tablist">
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link active" id="mismatch-counts-tab" data-bs-toggle="tab"
-                                        data-bs-target="#mismatch-counts" type="button" role="tab"
-                                        aria-controls="mismatch-counts" aria-selected="true">
-                                        <i class="fas fa-chart-line me-2"></i>Mismatch Counts
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="box-plots-tab" data-bs-toggle="tab"
-                                        data-bs-target="#box-plots" type="button" role="tab" aria-controls="box-plots"
-                                        aria-selected="false">
-                                        <i class="fas fa-chart-bar me-2"></i>Box Plots
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="table-tab" data-bs-toggle="tab" data-bs-target="#table"
-                                        type="button" role="tab" aria-controls="table" aria-selected="false">
-                                        <i class="fas fa-table me-2"></i>Latest Pricing Diffs
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="zero-stats-tab" data-bs-toggle="tab"
-                                        data-bs-target="#zero-stats" type="button" role="tab" aria-controls="zero-stats"
-                                        aria-selected="false">
-                                        <i class="fas fa-bullseye me-2"></i>Accuracy by Time
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="transaction-coverage-tab" data-bs-toggle="tab"
-                                        data-bs-target="#transaction-coverage" type="button" role="tab"
-                                        aria-controls="transaction-coverage" aria-selected="false">
-                                        <i class="fas fa-exchange-alt me-2"></i>Transaction Coverage
-                                    </button>
-                                </li>
-                            </ul>
+<!-- Summary Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body stats-card">
+                <div class="stats-value">{{ price_records|length }}</div>
+                <div class="stats-label">Total Records</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body stats-card">
+                <div class="stats-value">{{ unique_assets_count }}</div>
+                <div class="stats-label">Unique Assets</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body stats-card">
+                <div class="stats-value">{{ unique_sources_count }}</div>
+                <div class="stats-label">Unique Sources</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body stats-card">
+                <div class="stats-value">30</div>
+                <div class="stats-label">Days Coverage</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs Navigation -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs" id="pricesTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="mismatch-counts-tab" data-bs-toggle="tab"
+                            data-bs-target="#mismatch-counts" type="button" role="tab"
+                            aria-controls="mismatch-counts" aria-selected="true">
+                            <i class="fas fa-chart-line me-2"></i>Mismatch Counts
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="box-plots-tab" data-bs-toggle="tab"
+                            data-bs-target="#box-plots" type="button" role="tab" aria-controls="box-plots"
+                            aria-selected="false">
+                            <i class="fas fa-chart-bar me-2"></i>Box Plots
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="table-tab" data-bs-toggle="tab" data-bs-target="#table"
+                            type="button" role="tab" aria-controls="table" aria-selected="false">
+                            <i class="fas fa-table me-2"></i>Latest Pricing Diffs
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="zero-stats-tab" data-bs-toggle="tab"
+                            data-bs-target="#zero-stats" type="button" role="tab" aria-controls="zero-stats"
+                            aria-selected="false">
+                            <i class="fas fa-bullseye me-2"></i>Accuracy by Time
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="transaction-coverage-tab" data-bs-toggle="tab"
+                            data-bs-target="#transaction-coverage" type="button" role="tab"
+                            aria-controls="transaction-coverage" aria-selected="false">
+                            <i class="fas fa-exchange-alt me-2"></i>Transaction Coverage
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content" id="pricesTabsContent">
+                    <!-- Mismatch Counts Tab -->
+                    <div class="tab-pane fade show active" id="mismatch-counts" role="tabpanel"
+                        aria-labelledby="mismatch-counts-tab">
+                        <!-- Time Window Selector -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="mismatchTimeWindow" class="form-label">Time Window:</label>
+                                    <select class="form-select" id="mismatchTimeWindow"
+                                        onchange="updateMismatchCounts()">
+                                        <option value="1_hour" selected>Last 1 Hour</option>
+                                        <option value="1_day">Last 1 Day</option>
+                                        <option value="1_week">Last 1 Week</option>
+                                        <option value="1_month">Last 1 Month</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <div class="tab-content" id="pricesTabsContent">
-                                <!-- Mismatch Counts Tab -->
-                                <div class="tab-pane fade show active" id="mismatch-counts" role="tabpanel"
-                                    aria-labelledby="mismatch-counts-tab">
-                                    <!-- Time Window Selector -->
-                                    <div class="row mb-4">
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label for="mismatchTimeWindow" class="form-label">Time Window:</label>
-                                                <select class="form-select" id="mismatchTimeWindow"
-                                                    onchange="updateMismatchCounts()">
-                                                    <option value="1_hour" selected>Last 1 Hour</option>
-                                                    <option value="1_day">Last 1 Day</option>
-                                                    <option value="1_week">Last 1 Week</option>
-                                                    <option value="1_month">Last 1 Month</option>
-                                                </select>
-                                            </div>
+
+                        <!-- Mismatch Counts Chart Container -->
+                        <div id="mismatchCountsContainer">
+                            <canvas id="mismatchCountsChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Box Plots Tab -->
+                    <div class="tab-pane fade" id="box-plots" role="tabpanel"
+                        aria-labelledby="box-plots-tab">
+                        <!-- Time Window Selector -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="timeWindow" class="form-label">Time Window:</label>
+                                    <select class="form-select" id="timeWindow" onchange="updateBoxPlots()">
+                                        <option value="1_hour" {% if current_time_window == '1_hour' %}selected{% endif %}>Last 1 Hour</option>
+                                        <option value="1_day" {% if current_time_window == '1_day' %}selected{% endif %}>Last 1 Day</option>
+                                        <option value="1_week" {% if current_time_window == '1_week' %}selected{% endif %}>Last 1 Week</option>
+                                        <option value="1_month" {% if current_time_window == '1_month' %}selected{% endif %}>Last 1 Month</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Box Plots Container -->
+                        <div id="boxPlotsContainer">
+                            {% for price_type, div in box_plot_divs.items %}
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">{{ price_type|title }}</h6>
                                         </div>
-                                    </div>
-
-                                    <!-- Mismatch Counts Chart Container -->
-                                    <div id="mismatchCountsContainer">
-                                        <canvas id="mismatchCountsChart" width="400" height="200"></canvas>
+                                        <div class="card-body">
+                                            {{ div|safe }}
+                                        </div>
                                     </div>
                                 </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
 
-                                <!-- Box Plots Tab -->
-                                <div class="tab-pane fade" id="box-plots" role="tabpanel"
-                                    aria-labelledby="box-plots-tab">
-                                    <!-- Time Window Selector -->
-                                    <div class="row mb-4">
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label for="timeWindow" class="form-label">Time Window:</label>
-                                                <select class="form-select" id="timeWindow" onchange="updateBoxPlots()">
-                                                    <option value="1_hour" {% if current_time_window == '1_hour' %}selected{% endif %}>Last 1 Hour</option>
-                                                    <option value="1_day" {% if current_time_window == '1_day' %}selected{% endif %}>Last 1 Day</option>
-                                                    <option value="1_week" {% if current_time_window == '1_week' %}selected{% endif %}>Last 1 Week</option>
-                                                    <option value="1_month" {% if current_time_window == '1_month' %}selected{% endif %}>Last 1 Month</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Box Plots Container -->
-                                    <div id="boxPlotsContainer">
-                                        {% for price_type, div in box_plot_divs.items %}
-                                        <div class="row mb-4">
-                                            <div class="col-12">
-                                                <div class="card">
-                                                    <div class="card-header">
-                                                        <h6 class="mb-0">{{ price_type|title }}</h6>
-                                                    </div>
-                                                    <div class="card-body">
-                                                        {{ div|safe }}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                    <!-- Data Table Tab -->
+                    <div class="tab-pane fade" id="table" role="tabpanel" aria-labelledby="table-tab">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">
+                                <i class="fas fa-table me-2"></i>
+                                Price Verification Records (Last 30 Days)
+                            </h6>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="hideZeroRows" checked
+                                    onchange="toggleZeroRows()">
+                                <label class="form-check-label" for="hideZeroRows">
+                                    Hide rows with all zero errors
+                                </label>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            {% if price_records %}
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Asset</th>
+                                            <th>Asset Source</th>
+                                            <th>Name</th>
+                                            <th>Historical Event Error (BPS)</th>
+                                            <th>Historical Transaction Error (BPS)</th>
+                                            <th>Predicted Transaction Error (BPS)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for record in price_records %}
+                                        <tr>
+                                            <td>{{ record.row_number }}</td>
+                                            <td>
+                                                {% if record.asset_url %}
+                                                <a href="{{ record.asset_url }}" target="_blank"
+                                                    class="address-link">
+                                                    {{ record.asset|truncatechars:20 }}
+                                                </a>
+                                                {% else %}
+                                                {{ record.asset|truncatechars:20 }}
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if record.asset_source_url %}
+                                                <a href="{{ record.asset_source_url }}" target="_blank"
+                                                    class="address-link">
+                                                    {{ record.asset_source|truncatechars:20 }}
+                                                </a>
+                                                {% else %}
+                                                {{ record.asset_source|truncatechars:20 }}
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <span class="fw-medium">{{ record.name }}</span>
+                                            </td>
+                                            <td>
+                                                {% if record.historical_event_error is not None %}
+                                                <span class="error-badge {% if record.historical_event_error == 0.0 %}error-low{% elif record.historical_event_error <= 0.1 %}error-medium{% else %}error-high{% endif %}">{{ record.historical_event_error|floatformat:2 }}</span>
+                                                {% else %}
+                                                <span class="error-badge error-none">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if record.historical_transaction_error is not None %}
+                                                <span class="error-badge {% if record.historical_transaction_error == 0.0 %}error-low{% elif record.historical_transaction_error <= 0.1 %}error-medium{% else %}error-high{% endif %}">{{ record.historical_transaction_error|floatformat:2 }}</span>
+                                                {% else %}
+                                                <span class="error-badge error-none">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if record.predicted_transaction_error is not None %}
+                                                <span class="error-badge {% if record.predicted_transaction_error == 0.0 %}error-low{% elif record.predicted_transaction_error <= 0.1 %}error-medium{% else %}error-high{% endif %}">{{ record.predicted_transaction_error|floatformat:2 }}</span>
+                                                {% else %}
+                                                <span class="error-badge error-none">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
                                         {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-5">
+                                <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No Price Verification Records Found</h5>
+                                <p class="text-muted">No price verification data is available for the last
+                                    30 days.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Accuracy by Time Tab -->
+                    <div class="tab-pane fade" id="zero-stats" role="tabpanel"
+                        aria-labelledby="zero-stats-tab">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">
+                                <i class="fas fa-bullseye me-2"></i>
+                                Accuracy by Time
+                            </h6>
+                            <div class="d-flex gap-3 align-items-end">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="hideAccuracyRows"
+                                        checked onchange="toggleAccuracyRows()">
+                                    <label class="form-check-label" for="hideAccuracyRows">
+                                        Hide rows with 100% validity
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label for="zeroStatsTimeWindow" class="form-label">Time Window:</label>
+                                    <select class="form-select" id="zeroStatsTimeWindow"
+                                        onchange="updateZeroStats()">
+                                        <option value="1_hour" selected>Last 1 Hour</option>
+                                        <option value="1_day">Last 1 Day</option>
+                                        <option value="1_week">Last 1 Week</option>
+                                        <option value="1_month">Last 1 Month</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="zeroStatsContainer">
+                            <div id="zeroStatsLoading" class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-3 text-muted">Loading validity statistics...</p>
+                            </div>
+                            <div id="zeroStatsTable" class="table-responsive" style="display: none;">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Total Records</th>
+                                            <th>Historical Event Accuracy</th>
+                                            <th>Historical Transaction Accuracy</th>
+                                            <th>Predicted Transaction Accuracy</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="zeroStatsTableBody">
+                                        <!-- Data will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="zeroStatsError" class="text-center py-5" style="display: none;">
+                                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                                <h5 class="text-muted">Error Loading Data</h5>
+                                <p class="text-muted" id="zeroStatsErrorMessage">Failed to load validity
+                                    statistics.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Transaction Coverage Tab -->
+                    <div class="tab-pane fade" id="transaction-coverage" role="tabpanel"
+                        aria-labelledby="transaction-coverage-tab">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">
+                                <i class="fas fa-exchange-alt me-2"></i>
+                                Transaction Coverage Analysis
+                            </h6>
+                            <div class="form-group">
+                                <label for="coverageTimeWindow" class="form-label">Time Window:</label>
+                                <select class="form-select" id="coverageTimeWindow"
+                                    onchange="updateCoverageData()">
+                                    <option value="1_hour" selected>Last 1 Hour</option>
+                                    <option value="1_day">Last 1 Day</option>
+                                    <option value="1_week">Last 1 Week</option>
+                                    <option value="1_month">Last 1 Month</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Detection Timing Histogram -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-chart-bar me-2"></i>
+                                            Websocket Detection Lead Time Distribution
+                                            <span class="badge bg-info ms-2" id="histogramRecordCount">0 records</span>
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="histogramContainer">
+                                            <div id="histogramLoading" class="text-center py-5">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                                <p class="mt-3 text-muted">Loading detection timing histogram...</p>
+                                            </div>
+                                            <div id="histogramChart" style="display: none; height: 400px;">
+                                                <canvas id="detectionTimingChart"></canvas>
+                                            </div>
+                                            <div id="histogramError" class="text-center py-5"
+                                                style="display: none;">
+                                                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                                                <h5 class="text-muted">Error Loading Data</h5>
+                                                <p class="text-muted" id="histogramErrorMessage">Failed
+                                                    to load histogram data.</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
 
-                                <!-- Data Table Tab -->
-                                <div class="tab-pane fade" id="table" role="tabpanel" aria-labelledby="table-tab">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <!-- Asset Source Statistics Table -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
                                         <h6 class="mb-0">
                                             <i class="fas fa-table me-2"></i>
-                                            Price Verification Records (Last 30 Days)
+                                            Asset Source Detection Statistics
                                         </h6>
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="hideZeroRows" checked
-                                                onchange="toggleZeroRows()">
-                                            <label class="form-check-label" for="hideZeroRows">
-                                                Hide rows with all zero errors
-                                            </label>
-                                        </div>
                                     </div>
-                                    <div class="card-body p-0">
-                                        {% if price_records %}
-                                        <div class="table-responsive">
-                                            <table class="table">
-                                                <thead>
-                                                    <tr>
-                                                        <th>#</th>
-                                                        <th>Asset</th>
-                                                        <th>Asset Source</th>
-                                                        <th>Name</th>
-                                                        <th>Historical Event Error (BPS)</th>
-                                                        <th>Historical Transaction Error (BPS)</th>
-                                                        <th>Predicted Transaction Error (BPS)</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {% for record in price_records %}
-                                                    <tr>
-                                                        <td>{{ record.row_number }}</td>
-                                                        <td>
-                                                            {% if record.asset_url %}
-                                                            <a href="{{ record.asset_url }}" target="_blank"
-                                                                class="address-link">
-                                                                {{ record.asset|truncatechars:20 }}
-                                                            </a>
-                                                            {% else %}
-                                                            {{ record.asset|truncatechars:20 }}
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>
-                                                            {% if record.asset_source_url %}
-                                                            <a href="{{ record.asset_source_url }}" target="_blank"
-                                                                class="address-link">
-                                                                {{ record.asset_source|truncatechars:20 }}
-                                                            </a>
-                                                            {% else %}
-                                                            {{ record.asset_source|truncatechars:20 }}
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>
-                                                            <span class="fw-medium">{{ record.name }}</span>
-                                                        </td>
-                                                        <td>
-                                                            {% if record.historical_event_error is not None %}
-                                                            <span class="error-badge {% if record.historical_event_error == 0.0 %}error-low{% elif record.historical_event_error <= 0.1 %}error-medium{% else %}error-high{% endif %}">{{ record.historical_event_error|floatformat:2 }}</span>
-                                                            {% else %}
-                                                            <span class="error-badge error-none">N/A</span>
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>
-                                                            {% if record.historical_transaction_error is not None %}
-                                                            <span class="error-badge {% if record.historical_transaction_error == 0.0 %}error-low{% elif record.historical_transaction_error <= 0.1 %}error-medium{% else %}error-high{% endif %}">{{ record.historical_transaction_error|floatformat:2 }}</span>
-                                                            {% else %}
-                                                            <span class="error-badge error-none">N/A</span>
-                                                            {% endif %}
-                                                        </td>
-                                                        <td>
-                                                            {% if record.predicted_transaction_error is not None %}
-                                                            <span class="error-badge {% if record.predicted_transaction_error == 0.0 %}error-low{% elif record.predicted_transaction_error <= 0.1 %}error-medium{% else %}error-high{% endif %}">{{ record.predicted_transaction_error|floatformat:2 }}</span>
-                                                            {% else %}
-                                                            <span class="error-badge error-none">N/A</span>
-                                                            {% endif %}
-                                                        </td>
-                                                    </tr>
-                                                    {% endfor %}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        {% else %}
-                                        <div class="text-center py-5">
-                                            <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
-                                            <h5 class="text-muted">No Price Verification Records Found</h5>
-                                            <p class="text-muted">No price verification data is available for the last
-                                                30 days.</p>
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-
-                                <!-- Accuracy by Time Tab -->
-                                <div class="tab-pane fade" id="zero-stats" role="tabpanel"
-                                    aria-labelledby="zero-stats-tab">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="mb-0">
-                                            <i class="fas fa-bullseye me-2"></i>
-                                            Accuracy by Time
-                                        </h6>
-                                        <div class="d-flex gap-3 align-items-end">
-                                            <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" id="hideAccuracyRows"
-                                                    checked onchange="toggleAccuracyRows()">
-                                                <label class="form-check-label" for="hideAccuracyRows">
-                                                    Hide rows with 100% validity
-                                                </label>
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="zeroStatsTimeWindow" class="form-label">Time Window:</label>
-                                                <select class="form-select" id="zeroStatsTimeWindow"
-                                                    onchange="updateZeroStats()">
-                                                    <option value="1_hour" selected>Last 1 Hour</option>
-                                                    <option value="1_day">Last 1 Day</option>
-                                                    <option value="1_week">Last 1 Week</option>
-                                                    <option value="1_month">Last 1 Month</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div id="zeroStatsContainer">
-                                        <div id="zeroStatsLoading" class="text-center py-5">
-                                            <div class="spinner-border text-primary" role="status">
-                                                <span class="visually-hidden">Loading...</span>
-                                            </div>
-                                            <p class="mt-3 text-muted">Loading validity statistics...</p>
-                                        </div>
-                                        <div id="zeroStatsTable" class="table-responsive" style="display: none;">
-                                            <table class="table table-striped">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Name</th>
-                                                        <th>Total Records</th>
-                                                        <th>Historical Event Accuracy</th>
-                                                        <th>Historical Transaction Accuracy</th>
-                                                        <th>Predicted Transaction Accuracy</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody id="zeroStatsTableBody">
-                                                    <!-- Data will be populated by JavaScript -->
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        <div id="zeroStatsError" class="text-center py-5" style="display: none;">
-                                            <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                                            <h5 class="text-muted">Error Loading Data</h5>
-                                            <p class="text-muted" id="zeroStatsErrorMessage">Failed to load validity
-                                                statistics.</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Transaction Coverage Tab -->
-                                <div class="tab-pane fade" id="transaction-coverage" role="tabpanel"
-                                    aria-labelledby="transaction-coverage-tab">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="mb-0">
-                                            <i class="fas fa-exchange-alt me-2"></i>
-                                            Transaction Coverage Analysis
-                                        </h6>
-                                        <div class="form-group">
-                                            <label for="coverageTimeWindow" class="form-label">Time Window:</label>
-                                            <select class="form-select" id="coverageTimeWindow"
-                                                onchange="updateCoverageData()">
-                                                <option value="1_hour" selected>Last 1 Hour</option>
-                                                <option value="1_day">Last 1 Day</option>
-                                                <option value="1_week">Last 1 Week</option>
-                                                <option value="1_month">Last 1 Month</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <!-- Detection Timing Histogram -->
-                                    <div class="row">
-                                        <div class="col-12">
-                                            <div class="card">
-                                                <div class="card-header">
-                                                    <h6 class="mb-0">
-                                                        <i class="fas fa-chart-bar me-2"></i>
-                                                        Websocket Detection Lead Time Distribution
-                                                        <span class="badge bg-info ms-2" id="histogramRecordCount">0 records</span>
-                                                    </h6>
+                                    <div class="card-body">
+                                        <div id="assetSourceStatsContainer">
+                                            <div id="assetSourceStatsLoading" class="text-center py-5">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
                                                 </div>
-                                                <div class="card-body">
-                                                    <div id="histogramContainer">
-                                                        <div id="histogramLoading" class="text-center py-5">
-                                                            <div class="spinner-border text-primary" role="status">
-                                                                <span class="visually-hidden">Loading...</span>
-                                                            </div>
-                                                            <p class="mt-3 text-muted">Loading detection timing histogram...</p>
-                                                        </div>
-                                                        <div id="histogramChart" style="display: none; height: 400px;">
-                                                            <canvas id="detectionTimingChart"></canvas>
-                                                        </div>
-                                                        <div id="histogramError" class="text-center py-5"
-                                                            style="display: none;">
-                                                            <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                                                            <h5 class="text-muted">Error Loading Data</h5>
-                                                            <p class="text-muted" id="histogramErrorMessage">Failed
-                                                                to load histogram data.</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                                <p class="mt-3 text-muted">Loading asset source statistics...</p>
                                             </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Asset Source Statistics Table -->
-                                    <div class="row mt-4">
-                                        <div class="col-12">
-                                            <div class="card">
-                                                <div class="card-header">
-                                                    <h6 class="mb-0">
-                                                        <i class="fas fa-table me-2"></i>
-                                                        Asset Source Detection Statistics
-                                                    </h6>
-                                                </div>
-                                                <div class="card-body">
-                                                    <div id="assetSourceStatsContainer">
-                                                        <div id="assetSourceStatsLoading" class="text-center py-5">
-                                                            <div class="spinner-border text-primary" role="status">
-                                                                <span class="visually-hidden">Loading...</span>
-                                                            </div>
-                                                            <p class="mt-3 text-muted">Loading asset source statistics...</p>
-                                                        </div>
-                                                        <div id="assetSourceStatsTable" class="table-responsive" style="display: none;">
-                                                            <table class="table table-striped table-hover">
-                                                                <thead>
-                                                                    <tr>
-                                                                        <th>#</th>
-                                                                        <th>Name</th>
-                                                                        <th>Asset Source</th>
-                                                                        <th>Total Records</th>
-                                                                        <th>Min Lead Time (s)</th>
-                                                                        <th>Avg Lead Time (s)</th>
-                                                                        <th>Max Lead Time (s)</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody id="assetSourceStatsTableBody">
-                                                                    <!-- Data will be populated by JavaScript -->
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
-                                                        <div id="assetSourceStatsError" class="text-center py-5" style="display: none;">
-                                                            <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                                                            <h5 class="text-muted">Error Loading Data</h5>
-                                                            <p class="text-muted" id="assetSourceStatsErrorMessage">Failed to load asset source statistics.</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                            <div id="assetSourceStatsTable" class="table-responsive" style="display: none;">
+                                                <table class="table table-striped table-hover">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>#</th>
+                                                            <th>Name</th>
+                                                            <th>Asset Source</th>
+                                                            <th>Total Records</th>
+                                                            <th>Min Lead Time (s)</th>
+                                                            <th>Avg Lead Time (s)</th>
+                                                            <th>Max Lead Time (s)</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="assetSourceStatsTableBody">
+                                                        <!-- Data will be populated by JavaScript -->
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <div id="assetSourceStatsError" class="text-center py-5" style="display: none;">
+                                                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                                                <h5 class="text-muted">Error Loading Data</h5>
+                                                <p class="text-muted" id="assetSourceStatsErrorMessage">Failed to load asset source statistics.</p>
                                             </div>
                                         </div>
                                     </div>
@@ -653,528 +548,519 @@
                 </div>
             </div>
         </div>
+    </div>
+</div>
+{% endblock %}
 
-        <!-- Scripts -->
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_js %}
+<!-- Bokeh JS imports -->
+<script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.3.min.js"></script>
+<script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.7.3.min.js"></script>
+<script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.7.3.min.js"></script>
+<script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-api-3.7.3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-        <!-- Bokeh scripts -->
-        {% for name, script in box_plot_scripts.items %}
-        {{ script|safe }}
-        {% endfor %}
+<!-- Bokeh scripts -->
+{% for name, script in box_plot_scripts.items %}
+{{ script|safe }}
+{% endfor %}
 
-        <script>
-            // Add loading animation
-            document.addEventListener('DOMContentLoaded', function () {
-                const cards = document.querySelectorAll('.card');
-                cards.forEach((card, index) => {
-                    card.style.opacity = '0';
-                    card.style.transform = 'translateY(20px)';
+<script>
+    // Update box plots based on time window selection
+    function updateBoxPlots() {
+        const timeWindow = document.getElementById('timeWindow').value;
+        const container = document.getElementById('boxPlotsContainer');
 
-                    setTimeout(() => {
-                        card.style.transition = 'all 0.5s ease';
-                        card.style.opacity = '1';
-                        card.style.transform = 'translateY(0)';
-                    }, index * 100);
-                });
+        // Show loading state
+        container.innerHTML = '<div class="col-12 text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Loading box plots...</p></div>';
+
+        // Fetch new data
+        fetch(`/api/price-box-plot-data/?time_window=${timeWindow}`)
+            .then(response => response.json())
+            .then(data => {
+                // Redirect to reload page with new time window
+                window.location.href = `?time_window=${timeWindow}`;
+            })
+            .catch(error => {
+                console.error('Error fetching box plot data:', error);
+                container.innerHTML = '<div class="col-12 text-center text-danger"><i class="fas fa-exclamation-triangle"></i> Error loading data</div>';
+            });
+    }
+
+    // Initialize mismatch counts chart
+    let mismatchCountsChart;
+
+    function initializeMismatchCountsChart() {
+        const ctx = document.getElementById('mismatchCountsChart').getContext('2d');
+
+        mismatchCountsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Historical Event vs RPC',
+                    data: [],
+                    borderColor: 'rgb(99, 102, 241)',
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    tension: 0.1
+                }, {
+                    label: 'Historical Transaction vs RPC',
+                    data: [],
+                    borderColor: 'rgb(139, 92, 246)',
+                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                    tension: 0.1
+                }, {
+                    label: 'Predicted Transaction vs RPC',
+                    data: [],
+                    borderColor: 'rgb(16, 185, 129)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Mismatch Count'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Price Mismatch Counts Over Time'
+                    }
+                }
+            }
+        });
+
+        // Load initial data
+        updateMismatchCounts();
+    }
+
+    // Update mismatch counts chart based on time window selection
+    function updateMismatchCounts() {
+        const timeWindow = document.getElementById('mismatchTimeWindow').value;
+
+        // Show loading state
+        const container = document.getElementById('mismatchCountsContainer');
+        container.style.opacity = '0.5';
+
+        // Fetch new data
+        fetch(`/api/price-mismatch-counts-data/?time_window=${timeWindow}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error fetching mismatch counts data:', data.error);
+                    return;
+                }
+
+                // Update chart data
+                const chartData = data.data.reverse(); // Reverse to show chronological order
+
+                mismatchCountsChart.data.labels = chartData.map(item =>
+                    new Date(item.timestamp).toLocaleString()
+                );
+
+                mismatchCountsChart.data.datasets[0].data = chartData.map(item =>
+                    item.historical_event_vs_rpc
+                );
+                mismatchCountsChart.data.datasets[1].data = chartData.map(item =>
+                    item.historical_transaction_vs_rpc
+                );
+                mismatchCountsChart.data.datasets[2].data = chartData.map(item =>
+                    item.predicted_transaction_vs_rpc
+                );
+
+                mismatchCountsChart.update();
+                container.style.opacity = '1';
+            })
+            .catch(error => {
+                console.error('Error fetching mismatch counts data:', error);
+                container.style.opacity = '1';
+            });
+    }
+
+    // Function to toggle visibility of rows with all zero errors
+    function toggleZeroRows() {
+        const hideZeroRows = document.getElementById('hideZeroRows').checked;
+        const tableRows = document.querySelectorAll('#table table tbody tr');
+
+        tableRows.forEach(row => {
+            const errorCells = row.querySelectorAll('td:nth-child(5), td:nth-child(6), td:nth-child(7)');
+            let allZero = true;
+
+            errorCells.forEach(cell => {
+                const errorText = cell.textContent.trim();
+                // Check if the error value is not 0.00, N/A, or empty
+                if (errorText !== '0.00' && errorText !== 'N/A' && errorText !== '') {
+                    const errorValue = parseFloat(errorText);
+                    if (!isNaN(errorValue) && errorValue !== 0.0) {
+                        allZero = false;
+                    }
+                }
             });
 
-            // Update box plots based on time window selection
-            function updateBoxPlots() {
-                const timeWindow = document.getElementById('timeWindow').value;
-                const container = document.getElementById('boxPlotsContainer');
-
-                // Show loading state
-                container.innerHTML = '<div class="col-12 text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Loading box plots...</p></div>';
-
-                // Fetch new data
-                fetch(`/api/price-box-plot-data/?time_window=${timeWindow}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        // Redirect to reload page with new time window
-                        window.location.href = `?time_window=${timeWindow}`;
-                    })
-                    .catch(error => {
-                        console.error('Error fetching box plot data:', error);
-                        container.innerHTML = '<div class="col-12 text-center text-danger"><i class="fas fa-exclamation-triangle"></i> Error loading data</div>';
-                    });
+            if (hideZeroRows && allZero) {
+                row.style.display = 'none';
+            } else {
+                row.style.display = '';
             }
+        });
+    }
 
-            // Initialize mismatch counts chart
-            let mismatchCountsChart;
+    // Function to update zero error statistics based on time window selection
+    function updateZeroStats() {
+        const timeWindow = document.getElementById('zeroStatsTimeWindow').value;
 
-            function initializeMismatchCountsChart() {
-                const ctx = document.getElementById('mismatchCountsChart').getContext('2d');
+        // Show loading state
+        document.getElementById('zeroStatsLoading').style.display = 'block';
+        document.getElementById('zeroStatsTable').style.display = 'none';
+        document.getElementById('zeroStatsError').style.display = 'none';
 
-                mismatchCountsChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: [],
-                        datasets: [{
-                            label: 'Historical Event vs RPC',
-                            data: [],
-                            borderColor: 'rgb(99, 102, 241)',
-                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                            tension: 0.1
-                        }, {
-                            label: 'Historical Transaction vs RPC',
-                            data: [],
-                            borderColor: 'rgb(139, 92, 246)',
-                            backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                            tension: 0.1
-                        }, {
-                            label: 'Predicted Transaction vs RPC',
-                            data: [],
-                            borderColor: 'rgb(16, 185, 129)',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                            tension: 0.1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Mismatch Count'
-                                }
-                            },
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Time'
-                                }
-                            }
-                        },
-                        plugins: {
-                            legend: {
-                                display: true,
-                                position: 'top'
-                            },
-                            title: {
-                                display: true,
-                                text: 'Price Mismatch Counts Over Time'
-                            }
-                        }
-                    }
-                });
+        // Fetch new data
+        fetch(`/api/price-zero-error-stats-data/?time_window=${timeWindow}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error fetching zero error stats:', data.error);
+                    showZeroStatsError(data.error);
+                    return;
+                }
 
-                // Load initial data
-                updateMismatchCounts();
-            }
+                // Update table with new data
+                populateZeroStatsTable(data.data);
 
-            // Update mismatch counts chart based on time window selection
-            function updateMismatchCounts() {
-                const timeWindow = document.getElementById('mismatchTimeWindow').value;
-
-                // Show loading state
-                const container = document.getElementById('mismatchCountsContainer');
-                container.style.opacity = '0.5';
-
-                // Fetch new data
-                fetch(`/api/price-mismatch-counts-data/?time_window=${timeWindow}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.error) {
-                            console.error('Error fetching mismatch counts data:', data.error);
-                            return;
-                        }
-
-                        // Update chart data
-                        const chartData = data.data.reverse(); // Reverse to show chronological order
-
-                        mismatchCountsChart.data.labels = chartData.map(item =>
-                            new Date(item.timestamp).toLocaleString()
-                        );
-
-                        mismatchCountsChart.data.datasets[0].data = chartData.map(item =>
-                            item.historical_event_vs_rpc
-                        );
-                        mismatchCountsChart.data.datasets[1].data = chartData.map(item =>
-                            item.historical_transaction_vs_rpc
-                        );
-                        mismatchCountsChart.data.datasets[2].data = chartData.map(item =>
-                            item.predicted_transaction_vs_rpc
-                        );
-
-                        mismatchCountsChart.update();
-                        container.style.opacity = '1';
-                    })
-                    .catch(error => {
-                        console.error('Error fetching mismatch counts data:', error);
-                        container.style.opacity = '1';
-                    });
-            }
-
-            // Function to toggle visibility of rows with all zero errors
-            function toggleZeroRows() {
-                const hideZeroRows = document.getElementById('hideZeroRows').checked;
-                const tableRows = document.querySelectorAll('#table table tbody tr');
-
-                tableRows.forEach(row => {
-                    const errorCells = row.querySelectorAll('td:nth-child(5), td:nth-child(6), td:nth-child(7)');
-                    let allZero = true;
-
-                    errorCells.forEach(cell => {
-                        const errorText = cell.textContent.trim();
-                        // Check if the error value is not 0.00, N/A, or empty
-                        if (errorText !== '0.00' && errorText !== 'N/A' && errorText !== '') {
-                            const errorValue = parseFloat(errorText);
-                            if (!isNaN(errorValue) && errorValue !== 0.0) {
-                                allZero = false;
-                            }
-                        }
-                    });
-
-                    if (hideZeroRows && allZero) {
-                        row.style.display = 'none';
-                    } else {
-                        row.style.display = '';
-                    }
-                });
-            }
-
-            // Function to update zero error statistics based on time window selection
-            function updateZeroStats() {
-                const timeWindow = document.getElementById('zeroStatsTimeWindow').value;
-
-                // Show loading state
-                document.getElementById('zeroStatsLoading').style.display = 'block';
-                document.getElementById('zeroStatsTable').style.display = 'none';
-                document.getElementById('zeroStatsError').style.display = 'none';
-
-                // Fetch new data
-                fetch(`/api/price-zero-error-stats-data/?time_window=${timeWindow}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.error) {
-                            console.error('Error fetching zero error stats:', data.error);
-                            showZeroStatsError(data.error);
-                            return;
-                        }
-
-                        // Update table with new data
-                        populateZeroStatsTable(data.data);
-
-                        // Hide loading and show table
-                        document.getElementById('zeroStatsLoading').style.display = 'none';
-                        document.getElementById('zeroStatsTable').style.display = 'block';
-                    })
-                    .catch(error => {
-                        console.error('Error fetching zero error stats:', error);
-                        showZeroStatsError('Failed to fetch data from server');
-                    });
-            }
-
-            // Function to populate the zero stats table
-            function populateZeroStatsTable(data) {
-                const tbody = document.getElementById('zeroStatsTableBody');
-                tbody.innerHTML = ''; // Clear existing data
-
-                data.forEach(row => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                    <td><strong>${row.error_type}</strong></td>
-                    <td>${row.total_records.toLocaleString()}</td>
-                    <td>
-                        ${row.historical_event_total_count > 0 ?
-                            `<span class="badge bg-success me-2">${row.historical_event_zero_percentage}%</span>
-                             <small class="text-muted">(${row.historical_event_zero_count.toLocaleString()} of ${row.historical_event_total_count.toLocaleString()})</small>`
-                            : '<span class="text-muted">N/A</span>'
-                        }
-                    </td>
-                    <td>
-                        ${row.historical_transaction_total_count > 0 ?
-                            `<span class="badge bg-info me-2">${row.historical_transaction_zero_percentage}%</span>
-                             <small class="text-muted">(${row.historical_transaction_zero_count.toLocaleString()} of ${row.historical_transaction_total_count.toLocaleString()})</small>`
-                            : '<span class="text-muted">N/A</span>'
-                        }
-                    </td>
-                    <td>
-                        ${row.predicted_transaction_total_count > 0 ?
-                            `<span class="badge bg-warning me-2">${row.predicted_transaction_zero_percentage}%</span>
-                             <small class="text-muted">(${row.predicted_transaction_zero_count.toLocaleString()} of ${row.predicted_transaction_total_count.toLocaleString()})</small>`
-                            : '<span class="text-muted">N/A</span>'
-                        }
-                    </td>
-                `;
-                    tbody.appendChild(tr);
-                });
-
-                // Apply accuracy filter after populating the table
-                setTimeout(toggleAccuracyRows, 10);
-            }
-
-            // Function to toggle visibility of rows with 100% accuracy
-            function toggleAccuracyRows() {
-                const hideAccuracyRows = document.getElementById('hideAccuracyRows').checked;
-                const tableRows = document.querySelectorAll('#zeroStatsTableBody tr');
-
-                tableRows.forEach(row => {
-                    const accuracyCells = row.querySelectorAll('td:nth-child(3), td:nth-child(4), td:nth-child(5)');
-                    let allHundredPercent = true;
-
-                    accuracyCells.forEach(cell => {
-                        const badgeElement = cell.querySelector('.badge');
-                        if (badgeElement) {
-                            const accuracyText = badgeElement.textContent.trim();
-                            const accuracyValue = parseFloat(accuracyText.replace('%', ''));
-                            if (!isNaN(accuracyValue) && accuracyValue !== 100.0) {
-                                allHundredPercent = false;
-                            }
-                        } else {
-                            // If there's no badge (N/A case), don't consider it as 100%
-                            const cellText = cell.textContent.trim();
-                            if (cellText === 'N/A') {
-                                allHundredPercent = false;
-                            }
-                        }
-                    });
-
-                    if (hideAccuracyRows && allHundredPercent) {
-                        row.style.display = 'none';
-                    } else {
-                        row.style.display = '';
-                    }
-                });
-            }
-
-            // Function to show error state
-            function showZeroStatsError(errorMessage) {
+                // Hide loading and show table
                 document.getElementById('zeroStatsLoading').style.display = 'none';
-                document.getElementById('zeroStatsTable').style.display = 'none';
-                document.getElementById('zeroStatsError').style.display = 'block';
-                document.getElementById('zeroStatsErrorMessage').textContent = errorMessage;
-            }
+                document.getElementById('zeroStatsTable').style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error fetching zero error stats:', error);
+                showZeroStatsError('Failed to fetch data from server');
+            });
+    }
 
-            // Function to update transaction coverage data
-            function updateCoverageData() {
-                const timeWindow = document.getElementById('coverageTimeWindow').value;
+    // Function to populate the zero stats table
+    function populateZeroStatsTable(data) {
+        const tbody = document.getElementById('zeroStatsTableBody');
+        tbody.innerHTML = ''; // Clear existing data
 
-                // Update detection timing histogram
-                updateDetectionTimingHistogram(timeWindow);
-
-                // Update asset source statistics
-                updateAssetSourceStats(timeWindow);
-            }
-
-            // Initialize detection timing histogram chart
-            let detectionTimingChart = null;
-
-            // Function to update detection timing histogram
-            function updateDetectionTimingHistogram(timeWindow) {
-                // Show loading state
-                document.getElementById('histogramLoading').style.display = 'block';
-                document.getElementById('histogramChart').style.display = 'none';
-                document.getElementById('histogramError').style.display = 'none';
-
-                fetch(`/api/transaction-detection-timing-histogram/?time_window=${timeWindow}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.error) {
-                            console.error('Error fetching histogram:', data.error);
-                            showHistogramError(data.error);
-                            return;
-                        }
-
-                        // Update record count badge
-                        document.getElementById('histogramRecordCount').textContent =
-                            `${data.total_records.toLocaleString()} records`;
-
-                        // Create or update the histogram chart
-                        createDetectionTimingHistogram(data.data);
-
-                        // Hide loading and show chart
-                        document.getElementById('histogramLoading').style.display = 'none';
-                        document.getElementById('histogramChart').style.display = 'block';
-                    })
-                    .catch(error => {
-                        console.error('Error fetching histogram:', error);
-                        showHistogramError('Failed to fetch data from server');
-                    });
-            }
-
-            // Function to create the histogram chart
-            function createDetectionTimingHistogram(data) {
-                const ctx = document.getElementById('detectionTimingChart').getContext('2d');
-
-                // Destroy existing chart if it exists
-                if (detectionTimingChart) {
-                    detectionTimingChart.destroy();
+        data.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+            <td><strong>${row.error_type}</strong></td>
+            <td>${row.total_records.toLocaleString()}</td>
+            <td>
+                ${row.historical_event_total_count > 0 ?
+                    `<span class="badge bg-success me-2">${row.historical_event_zero_percentage}%</span>
+                     <small class="text-muted">(${row.historical_event_zero_count.toLocaleString()} of ${row.historical_event_total_count.toLocaleString()})</small>`
+                    : '<span class="text-muted">N/A</span>'
                 }
+            </td>
+            <td>
+                ${row.historical_transaction_total_count > 0 ?
+                    `<span class="badge bg-info me-2">${row.historical_transaction_zero_percentage}%</span>
+                     <small class="text-muted">(${row.historical_transaction_zero_count.toLocaleString()} of ${row.historical_transaction_total_count.toLocaleString()})</small>`
+                    : '<span class="text-muted">N/A</span>'
+                }
+            </td>
+            <td>
+                ${row.predicted_transaction_total_count > 0 ?
+                    `<span class="badge bg-warning me-2">${row.predicted_transaction_zero_percentage}%</span>
+                     <small class="text-muted">(${row.predicted_transaction_zero_count.toLocaleString()} of ${row.predicted_transaction_total_count.toLocaleString()})</small>`
+                    : '<span class="text-muted">N/A</span>'
+                }
+            </td>
+        `;
+            tbody.appendChild(tr);
+        });
 
-                if (data.length === 0) {
-                    showHistogramError('No data available for the selected time period');
+        // Apply accuracy filter after populating the table
+        setTimeout(toggleAccuracyRows, 10);
+    }
+
+    // Function to toggle visibility of rows with 100% accuracy
+    function toggleAccuracyRows() {
+        const hideAccuracyRows = document.getElementById('hideAccuracyRows').checked;
+        const tableRows = document.querySelectorAll('#zeroStatsTableBody tr');
+
+        tableRows.forEach(row => {
+            const accuracyCells = row.querySelectorAll('td:nth-child(3), td:nth-child(4), td:nth-child(5)');
+            let allHundredPercent = true;
+
+            accuracyCells.forEach(cell => {
+                const badgeElement = cell.querySelector('.badge');
+                if (badgeElement) {
+                    const accuracyText = badgeElement.textContent.trim();
+                    const accuracyValue = parseFloat(accuracyText.replace('%', ''));
+                    if (!isNaN(accuracyValue) && accuracyValue !== 100.0) {
+                        allHundredPercent = false;
+                    }
+                } else {
+                    // If there's no badge (N/A case), don't consider it as 100%
+                    const cellText = cell.textContent.trim();
+                    if (cellText === 'N/A') {
+                        allHundredPercent = false;
+                    }
+                }
+            });
+
+            if (hideAccuracyRows && allHundredPercent) {
+                row.style.display = 'none';
+            } else {
+                row.style.display = '';
+            }
+        });
+    }
+
+    // Function to show error state
+    function showZeroStatsError(errorMessage) {
+        document.getElementById('zeroStatsLoading').style.display = 'none';
+        document.getElementById('zeroStatsTable').style.display = 'none';
+        document.getElementById('zeroStatsError').style.display = 'block';
+        document.getElementById('zeroStatsErrorMessage').textContent = errorMessage;
+    }
+
+    // Function to update transaction coverage data
+    function updateCoverageData() {
+        const timeWindow = document.getElementById('coverageTimeWindow').value;
+
+        // Update detection timing histogram
+        updateDetectionTimingHistogram(timeWindow);
+
+        // Update asset source statistics
+        updateAssetSourceStats(timeWindow);
+    }
+
+    // Initialize detection timing histogram chart
+    let detectionTimingChart = null;
+
+    // Function to update detection timing histogram
+    function updateDetectionTimingHistogram(timeWindow) {
+        // Show loading state
+        document.getElementById('histogramLoading').style.display = 'block';
+        document.getElementById('histogramChart').style.display = 'none';
+        document.getElementById('histogramError').style.display = 'none';
+
+        fetch(`/api/transaction-detection-timing-histogram/?time_window=${timeWindow}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error fetching histogram:', data.error);
+                    showHistogramError(data.error);
                     return;
                 }
 
-                // Extract labels and counts
-                const labels = data.map(item => item.time_diff_seconds);
-                const counts = data.map(item => item.count);
+                // Update record count badge
+                document.getElementById('histogramRecordCount').textContent =
+                    `${data.total_records.toLocaleString()} records`;
 
-                detectionTimingChart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Number of Transactions',
-                            data: counts,
-                            backgroundColor: 'rgba(99, 102, 241, 0.6)',
-                            borderColor: 'rgba(99, 102, 241, 1)',
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: {
-                                    precision: 0
-                                },
-                                title: {
-                                    display: true,
-                                    text: 'Number of Transactions'
-                                }
-                            },
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Detection Lead Time (seconds)'
-                                },
-                                ticks: {
-                                    maxRotation: 45,
-                                    minRotation: 45
-                                }
-                            }
+                // Create or update the histogram chart
+                createDetectionTimingHistogram(data.data);
+
+                // Hide loading and show chart
+                document.getElementById('histogramLoading').style.display = 'none';
+                document.getElementById('histogramChart').style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error fetching histogram:', error);
+                showHistogramError('Failed to fetch data from server');
+            });
+    }
+
+    // Function to create the histogram chart
+    function createDetectionTimingHistogram(data) {
+        const ctx = document.getElementById('detectionTimingChart').getContext('2d');
+
+        // Destroy existing chart if it exists
+        if (detectionTimingChart) {
+            detectionTimingChart.destroy();
+        }
+
+        if (data.length === 0) {
+            showHistogramError('No data available for the selected time period');
+            return;
+        }
+
+        // Extract labels and counts
+        const labels = data.map(item => item.time_diff_seconds);
+        const counts = data.map(item => item.count);
+
+        detectionTimingChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Number of Transactions',
+                    data: counts,
+                    backgroundColor: 'rgba(99, 102, 241, 0.6)',
+                    borderColor: 'rgba(99, 102, 241, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
                         },
-                        plugins: {
-                            legend: {
-                                display: true,
-                                position: 'top'
+                        title: {
+                            display: true,
+                            text: 'Number of Transactions'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Detection Lead Time (seconds)'
+                        },
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Distribution of Time Between Websocket Detection and On-Chain Confirmation'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `Transactions: ${context.parsed.y}`;
                             },
-                            title: {
-                                display: true,
-                                text: 'Distribution of Time Between Websocket Detection and On-Chain Confirmation'
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return `Transactions: ${context.parsed.y}`;
-                                    },
-                                    afterLabel: function(context) {
-                                        return `Lead time: ${context.label}s`;
-                                    }
-                                }
+                            afterLabel: function(context) {
+                                return `Lead time: ${context.label}s`;
                             }
                         }
                     }
-                });
+                }
             }
+        });
+    }
 
-            // Function to show histogram error
-            function showHistogramError(errorMessage) {
-                document.getElementById('histogramLoading').style.display = 'none';
-                document.getElementById('histogramChart').style.display = 'none';
-                document.getElementById('histogramError').style.display = 'block';
-                document.getElementById('histogramErrorMessage').textContent = errorMessage;
-            }
+    // Function to show histogram error
+    function showHistogramError(errorMessage) {
+        document.getElementById('histogramLoading').style.display = 'none';
+        document.getElementById('histogramChart').style.display = 'none';
+        document.getElementById('histogramError').style.display = 'block';
+        document.getElementById('histogramErrorMessage').textContent = errorMessage;
+    }
 
-            // Function to update asset source statistics
-            function updateAssetSourceStats(timeWindow) {
-                // Show loading state
-                document.getElementById('assetSourceStatsLoading').style.display = 'block';
-                document.getElementById('assetSourceStatsTable').style.display = 'none';
-                document.getElementById('assetSourceStatsError').style.display = 'none';
+    // Function to update asset source statistics
+    function updateAssetSourceStats(timeWindow) {
+        // Show loading state
+        document.getElementById('assetSourceStatsLoading').style.display = 'block';
+        document.getElementById('assetSourceStatsTable').style.display = 'none';
+        document.getElementById('assetSourceStatsError').style.display = 'none';
 
-                fetch(`/api/asset-source-timing-stats/?time_window=${timeWindow}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.error) {
-                            console.error('Error fetching asset source stats:', data.error);
-                            showAssetSourceStatsError(data.error);
-                            return;
-                        }
-
-                        // Populate the table
-                        populateAssetSourceStatsTable(data.data);
-
-                        // Hide loading and show table
-                        document.getElementById('assetSourceStatsLoading').style.display = 'none';
-                        document.getElementById('assetSourceStatsTable').style.display = 'block';
-                    })
-                    .catch(error => {
-                        console.error('Error fetching asset source stats:', error);
-                        showAssetSourceStatsError('Failed to fetch data from server');
-                    });
-            }
-
-            // Function to populate asset source statistics table
-            function populateAssetSourceStatsTable(data) {
-                const tbody = document.getElementById('assetSourceStatsTableBody');
-                tbody.innerHTML = ''; // Clear existing data
-
-                if (data.length === 0) {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = '<td colspan="7" class="text-center py-5 text-muted">No data available for the selected time period.</td>';
-                    tbody.appendChild(tr);
+        fetch(`/api/asset-source-timing-stats/?time_window=${timeWindow}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error fetching asset source stats:', data.error);
+                    showAssetSourceStatsError(data.error);
                     return;
                 }
 
-                data.forEach((row, index) => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                    <td>${index + 1}</td>
-                    <td>
-                        <strong>${row.asset_source_name}</strong>
-                    </td>
-                    <td>
-                        <span class="text-muted text-truncate" style="max-width: 150px; display: inline-block; font-family: monospace; font-size: 0.85rem;" title="${row.asset_source}">
-                            ${row.asset_source.substring(0, 10)}...${row.asset_source.substring(row.asset_source.length - 8)}
-                        </span>
-                    </td>
-                    <td>
-                        <span class="badge bg-primary">${row.total_records.toLocaleString()}</span>
-                    </td>
-                    <td>
-                        <span class="text-success">${row.min_lead_time}s</span>
-                    </td>
-                    <td>
-                        <span class="text-info fw-bold">${row.avg_lead_time.toFixed(2)}s</span>
-                    </td>
-                    <td>
-                        <span class="text-warning">${row.max_lead_time}s</span>
-                    </td>
-                `;
-                    tbody.appendChild(tr);
-                });
-            }
+                // Populate the table
+                populateAssetSourceStatsTable(data.data);
 
-            // Function to show asset source stats error
-            function showAssetSourceStatsError(errorMessage) {
+                // Hide loading and show table
                 document.getElementById('assetSourceStatsLoading').style.display = 'none';
-                document.getElementById('assetSourceStatsTable').style.display = 'none';
-                document.getElementById('assetSourceStatsError').style.display = 'block';
-                document.getElementById('assetSourceStatsErrorMessage').textContent = errorMessage;
-            }
-
-            // Initialize mismatch counts chart when page loads
-            document.addEventListener('DOMContentLoaded', function () {
-                // Delay initialization to ensure tab content is visible
-                setTimeout(initializeMismatchCountsChart, 500);
-
-                // Apply initial filter to hide zero rows (since toggle is checked by default)
-                setTimeout(toggleZeroRows, 100);
-
-                // Load initial zero stats data
-                setTimeout(updateZeroStats, 100);
-
-                // Load initial transaction coverage data
-                setTimeout(updateCoverageData, 100);
+                document.getElementById('assetSourceStatsTable').style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error fetching asset source stats:', error);
+                showAssetSourceStatsError('Failed to fetch data from server');
             });
-        </script>
-</body>
+    }
 
-</html>
+    // Function to populate asset source statistics table
+    function populateAssetSourceStatsTable(data) {
+        const tbody = document.getElementById('assetSourceStatsTableBody');
+        tbody.innerHTML = ''; // Clear existing data
+
+        if (data.length === 0) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="7" class="text-center py-5 text-muted">No data available for the selected time period.</td>';
+            tbody.appendChild(tr);
+            return;
+        }
+
+        data.forEach((row, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+            <td>${index + 1}</td>
+            <td>
+                <strong>${row.asset_source_name}</strong>
+            </td>
+            <td>
+                <span class="text-muted text-truncate" style="max-width: 150px; display: inline-block; font-family: monospace; font-size: 0.85rem;" title="${row.asset_source}">
+                    ${row.asset_source.substring(0, 10)}...${row.asset_source.substring(row.asset_source.length - 8)}
+                </span>
+            </td>
+            <td>
+                <span class="badge bg-primary">${row.total_records.toLocaleString()}</span>
+            </td>
+            <td>
+                <span class="text-success">${row.min_lead_time}s</span>
+            </td>
+            <td>
+                <span class="text-info fw-bold">${row.avg_lead_time.toFixed(2)}s</span>
+            </td>
+            <td>
+                <span class="text-warning">${row.max_lead_time}s</span>
+            </td>
+        `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Function to show asset source stats error
+    function showAssetSourceStatsError(errorMessage) {
+        document.getElementById('assetSourceStatsLoading').style.display = 'none';
+        document.getElementById('assetSourceStatsTable').style.display = 'none';
+        document.getElementById('assetSourceStatsError').style.display = 'block';
+        document.getElementById('assetSourceStatsErrorMessage').textContent = errorMessage;
+    }
+
+    // Initialize mismatch counts chart when page loads
+    document.addEventListener('DOMContentLoaded', function () {
+        // Delay initialization to ensure tab content is visible
+        setTimeout(initializeMismatchCountsChart, 500);
+
+        // Apply initial filter to hide zero rows (since toggle is checked by default)
+        setTimeout(toggleZeroRows, 100);
+
+        // Load initial zero stats data
+        setTimeout(updateZeroStats, 100);
+
+        // Load initial transaction coverage data
+        setTimeout(updateCoverageData, 100);
+    });
+</script>
+{% endblock %}
