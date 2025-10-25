@@ -54,6 +54,10 @@ class InitializeAppTask(Task):
     associated with contract addresses and contain their ABI definitions.
     """
 
+    # Lock key for preventing concurrent execution
+    LOCK_KEY = "initialize_app_task_lock"
+    LOCK_TIMEOUT = 3600  # 1 hour lock timeout
+
     def run(self):
         """Execute the initialization task.
 
@@ -61,23 +65,36 @@ class InitializeAppTask(Task):
         Logs the start and completion of the task.
         """
         logger.info(f"Starting InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}")
-        clickhouse_client.create_database()
-        self.create_protocol_events()
-        self.create_materialized_views()
-        logger.info(
-            f"Completed InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}"
-        )
 
-        tables = [
-            "EventRawNumerator",
-            "EventRawDenominator",
-            "EventRawMaxCap",
-            "EventRawMultiplier",
-            "TransactionRawNumerator",
-            "TransactionRawMultiplier",
-        ]
-        for table in tables:
-            clickhouse_client.optimize_table(table)
+        # Try to acquire lock to prevent concurrent execution
+        lock_acquired = cache.add(self.LOCK_KEY, "locked", self.LOCK_TIMEOUT)
+        if not lock_acquired:
+            logger.warning("InitializeAppTask already running, skipping execution")
+            return {"status": "skipped", "reason": "task_already_running"}
+
+        try:
+            clickhouse_client.create_database()
+            self.create_protocol_events()
+            self.create_materialized_views()
+            logger.info(
+                f"Completed InitializeAppTask for {PROTOCOL_NAME} on {NETWORK_NAME}"
+            )
+
+            tables = [
+                "EventRawNumerator",
+                "EventRawDenominator",
+                "EventRawMaxCap",
+                "EventRawMultiplier",
+                "TransactionRawNumerator",
+                "TransactionRawMultiplier",
+            ]
+            for table in tables:
+                clickhouse_client.optimize_table(table)
+
+            return {"status": "completed"}
+        finally:
+            # Always release the lock
+            cache.delete(self.LOCK_KEY)
 
     def create_materialized_views(self):
         """Create materialized views in Clickhouse."""
