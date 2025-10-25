@@ -1521,13 +1521,17 @@ class CompareUserCollateralTask(Task):
         Returns:
             List[tuple]: List of (user, asset) tuples
         """
-        # Use a simpler approach with subquery to ensure proper type handling
+        # Use UNION ALL with DISTINCT in outer query for better compatibility
         query = """
-        SELECT user, reserve as asset
-        FROM aave_ethereum.ReserveUsedAsCollateralEnabled
-        UNION DISTINCT
-        SELECT user, reserve as asset
-        FROM aave_ethereum.ReserveUsedAsCollateralDisabled
+        SELECT DISTINCT user, asset
+        FROM (
+            SELECT user, reserve as asset
+            FROM aave_ethereum.ReserveUsedAsCollateralEnabled
+            UNION ALL
+            SELECT user, reserve as asset
+            FROM aave_ethereum.ReserveUsedAsCollateralDisabled
+        )
+        ORDER BY user, asset
         """
         parameters = {}
 
