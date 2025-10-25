@@ -5,7 +5,6 @@ from typing import Any, Dict, List
 
 from celery import Task
 from decouple import config
-from eth_abi import encode
 from eth_account import Account
 from web3 import Web3
 
@@ -35,8 +34,6 @@ class AaveV3LiquidationPayloadBuilder:
     }
     """
 
-    AAVE_V3_POOL_ADDRESS = config("POOL_V3_POOL")
-
     # Helper contract address (deployed on Ethereum)
     HELPER_CONTRACT_ADDRESS = config("AAVE_V3_LIQUIDATOR_HELPER")
 
@@ -48,98 +45,6 @@ class AaveV3LiquidationPayloadBuilder:
         with open("contracts/out/liquidator.sol/AaveV3MEVLiquidator.json", "r") as f:
             contract_json = json.load(f)
             self.helper_contract_abi = contract_json["abi"]
-
-    def build_liquidation_calldata(
-        self,
-        collateral_asset: str,
-        debt_asset: str,
-        user: str,
-        debt_to_cover: int,
-        receive_atoken: bool = False,
-    ) -> str:
-        """
-        Build the calldata for Aave V3 liquidationCall.
-
-        Args:
-            collateral_asset: Address of the collateral asset to receive
-            debt_asset: Address of the debt asset to repay
-            user: Address of the user to liquidate
-            debt_to_cover: Amount of debt to cover (in asset decimals)
-            receive_atoken: Whether to receive aTokens instead of underlying
-
-        Returns:
-            Hex string of the encoded calldata
-        """
-        # Encode the function parameters
-        encoded_params = encode(
-            ["address", "address", "address", "uint256", "bool"],
-            [
-                Web3.to_checksum_address(collateral_asset),
-                Web3.to_checksum_address(debt_asset),
-                Web3.to_checksum_address(user),
-                debt_to_cover,
-                receive_atoken,
-            ],
-        )
-
-        # Combine selector + encoded params
-        calldata = self.LIQUIDATION_CALL_SELECTOR + encoded_params.hex()
-
-        return calldata
-
-    def build_liquidation_transaction(
-        self,
-        collateral_asset: str,
-        debt_asset: str,
-        user: str,
-        debt_to_cover: int,
-        liquidator_address: str,
-        nonce: int,
-        max_priority_fee_per_gas: int,
-        max_fee_per_gas: int,
-        gas_limit: int = 500000,
-        chain_id: int = 1,
-    ) -> Dict[str, Any]:
-        """
-        Build a complete EIP-1559 transaction for liquidation.
-
-        Args:
-            collateral_asset: Address of the collateral asset
-            debt_asset: Address of the debt asset
-            user: Address of the user to liquidate
-            debt_to_cover: Amount of debt to cover
-            liquidator_address: Address of the liquidator (transaction sender)
-            nonce: Transaction nonce
-            max_priority_fee_per_gas: Max priority fee (tip) in wei
-            max_fee_per_gas: Max total fee per gas in wei
-            gas_limit: Gas limit for the transaction
-            chain_id: Chain ID (1 for Ethereum mainnet)
-
-        Returns:
-            Dictionary containing the transaction parameters
-        """
-        calldata = self.build_liquidation_calldata(
-            collateral_asset=collateral_asset,
-            debt_asset=debt_asset,
-            user=user,
-            debt_to_cover=debt_to_cover,
-            receive_atoken=False,
-        )
-
-        transaction = {
-            "chainId": chain_id,
-            "from": Web3.to_checksum_address(liquidator_address),
-            "to": Web3.to_checksum_address(self.AAVE_V3_POOL_ADDRESS),
-            "value": 0,
-            "nonce": nonce,
-            "gas": gas_limit,
-            "maxPriorityFeePerGas": max_priority_fee_per_gas,
-            "maxFeePerGas": max_fee_per_gas,
-            "data": calldata,
-            "type": 2,  # EIP-1559 transaction
-        }
-
-        return transaction
 
     def build_batch_liquidation_calldata(
         self,
