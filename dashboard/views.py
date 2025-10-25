@@ -4993,3 +4993,121 @@ def liquidation_candidates_api(request):
     except Exception as e:
         logger.error(f"Error fetching liquidation candidates: {e}", exc_info=True)
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+def liquidation_detections(request):
+    """Liquidation detections dashboard page"""
+    return render(request, "dashboard/liquidation_detections.html")
+
+
+def liquidation_detections_api(request):
+    """API endpoint to get liquidation detections log"""
+    try:
+        # Get pagination parameters
+        page = int(request.GET.get("page", 1))
+        page_size = int(request.GET.get("page_size", 50))
+        offset = (page - 1) * page_size
+
+        # Get filter parameters
+        min_profit = float(request.GET.get("min_profit", 0))
+        time_window = request.GET.get("time_window", "24h")
+
+        # Build time filter
+        time_filters = {
+            "1h": "detected_at >= now() - INTERVAL 1 HOUR",
+            "24h": "detected_at >= now() - INTERVAL 24 HOUR",
+            "7d": "detected_at >= now() - INTERVAL 7 DAY",
+            "30d": "detected_at >= now() - INTERVAL 30 DAY",
+            "all": "1=1",
+        }
+        time_filter = time_filters.get(time_window, time_filters["24h"])
+
+        # Query liquidation detections with asset names
+        query = f"""
+        SELECT
+            ld.user,
+            ld.collateral_asset,
+            ld.debt_asset,
+            ld.current_health_factor,
+            ld.predicted_health_factor,
+            ld.debt_to_cover,
+            ld.profit,
+            ld.effective_collateral,
+            ld.effective_debt,
+            ld.collateral_balance,
+            ld.debt_balance,
+            ld.liquidation_bonus,
+            ld.collateral_price,
+            ld.debt_price,
+            ld.collateral_decimals,
+            ld.debt_decimals,
+            ld.updated_assets,
+            ld.detected_at,
+            -- Get asset symbols
+            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'symbol', ld.collateral_asset, '') AS collateral_symbol,
+            dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'symbol', ld.debt_asset, '') AS debt_symbol
+        FROM aave_ethereum.LiquidationDetections ld
+        WHERE {time_filter}
+            AND ld.profit >= {min_profit}
+        ORDER BY ld.detected_at DESC, ld.profit DESC
+        LIMIT {page_size}
+        OFFSET {offset}
+        """
+
+        result = clickhouse_client.execute_query(query)
+
+        # Get total count for pagination
+        count_query = f"""
+        SELECT count() as total
+        FROM aave_ethereum.LiquidationDetections
+        WHERE {time_filter}
+            AND profit >= {min_profit}
+        """
+        count_result = clickhouse_client.execute_query(count_query)
+        total_count = count_result.result_rows[0][0] if count_result.result_rows else 0
+
+        # Format results
+        detections = []
+        for row in result.result_rows:
+            detections.append(
+                {
+                    "user": row[0],
+                    "collateral_asset": row[1],
+                    "debt_asset": row[2],
+                    "current_health_factor": float(row[3]),
+                    "predicted_health_factor": float(row[4]),
+                    "debt_to_cover": float(row[5]),
+                    "profit": float(row[6]),
+                    "effective_collateral": float(row[7]),
+                    "effective_debt": float(row[8]),
+                    "collateral_balance": float(row[9]),
+                    "debt_balance": float(row[10]),
+                    "liquidation_bonus": int(row[11]),
+                    "collateral_price": float(row[12]),
+                    "debt_price": float(row[13]),
+                    "collateral_decimals": int(row[14]),
+                    "debt_decimals": int(row[15]),
+                    "updated_assets": list(row[16]) if row[16] else [],
+                    "detected_at": row[17].strftime("%Y-%m-%d %H:%M:%S")
+                    if row[17]
+                    else None,
+                    "collateral_symbol": row[18] or "Unknown",
+                    "debt_symbol": row[19] or "Unknown",
+                    "explorer_url": get_simple_explorer_url(row[0]),
+                }
+            )
+
+        return JsonResponse(
+            {
+                "detections": detections,
+                "total_count": total_count,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": (total_count + page_size - 1) // page_size,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error fetching liquidation detections: {e}", exc_info=True)
+        return JsonResponse({"error": str(e)}, status=500)

@@ -32,7 +32,7 @@ class CompareCollateralBalanceTask(Task):
     def run(
         self,
         csv_output_path: str = "/tmp",
-        fix_errors: bool = False,
+        fix_errors: bool = True,
         batch_size: int = 100,
     ):
         """
@@ -102,6 +102,7 @@ class CompareCollateralBalanceTask(Task):
         1. Fetch user-asset pairs from view_user_asset_effective_balances with collateral_balance
         2. Immediately fetch RPC data for those user-asset pairs
         3. Compare collateral balance values
+        4. If fix_errors=True, fix mismatched balances by un-scaling and re-scaling with RPC balance
 
         Args:
             batch_size: Number of user-asset pairs to process per batch
@@ -120,6 +121,7 @@ class CompareCollateralBalanceTask(Task):
         mismatched_count = 0
         mismatches = []
         differences_bps = []
+        fixed_count = 0
 
         offset = 0
 
@@ -184,7 +186,8 @@ class CompareCollateralBalanceTask(Task):
                 logger.error(f"Error querying RPC for batch at offset {offset}: {e}")
                 raise
 
-            # Step 4: Compare this batch
+            # Step 4: Compare this batch and collect mismatches to fix
+            mismatches_to_fix = []
             for user, asset in clickhouse_data.keys():
                 if (user, asset) not in rpc_data:
                     continue
@@ -216,6 +219,80 @@ class CompareCollateralBalanceTask(Task):
                         f"{user},{asset}: CH={ch_collateral:.2f} RPC={rpc_collateral:.2f} diff={difference:.2f} ({difference_bps:.2f}bps)"
                     )
 
+                    # Collect for fixing if enabled
+                    if fix_errors:
+                        mismatches_to_fix.append((user, asset, rpc_collateral))
+
+            # Step 5: Fix errors if enabled
+            if fix_errors and mismatches_to_fix:
+                logger.info(
+                    f"Fixing {len(mismatches_to_fix)} mismatched collateral balances"
+                )
+
+                try:
+                    # Get aToken addresses for the assets
+                    unique_assets = list(
+                        set([asset for _, asset, _ in mismatches_to_fix])
+                    )
+                    reserve_tokens = data_provider.get_reserve_tokens_addresses(
+                        unique_assets
+                    )
+
+                    # Group users by asset to batch scaled balance queries
+                    from utils.interfaces.tokens import AaveToken
+
+                    asset_to_users = {}
+                    for user, asset, _ in mismatches_to_fix:
+                        if asset not in asset_to_users:
+                            asset_to_users[asset] = []
+                        asset_to_users[asset].append(user)
+
+                    updates = []
+                    for asset, users in asset_to_users.items():
+                        if asset not in reserve_tokens:
+                            logger.warning(
+                                f"Reserve tokens not found for asset {asset}, skipping fix"
+                            )
+                            continue
+
+                        tokens = reserve_tokens[asset]
+                        atoken_address = tokens.get("aTokenAddress", "")
+
+                        if not atoken_address:
+                            logger.warning(
+                                f"Empty aToken address for asset {asset}, skipping fix"
+                            )
+                            continue
+
+                        # Fetch scaled balances in batches of 100 users
+                        atoken = AaveToken(atoken_address)
+                        rpc_batch_size = 100
+
+                        for i in range(0, len(users), rpc_batch_size):
+                            users_batch = users[i : i + rpc_batch_size]
+                            scaled_balances = atoken.get_scaled_balance(users_batch)
+
+                            # Prepare updates for each user in this batch
+                            for user in users_batch:
+                                scaled_balance = scaled_balances.get(user, 0)
+                                updates.append(
+                                    {
+                                        "user": user,
+                                        "asset": asset,
+                                        "corrected_scaled_balance": scaled_balance,
+                                    }
+                                )
+
+                    # Batch update the scaled balances retrieved from RPC
+                    self._batch_update_collateral_balances(updates)
+                    fixed_count += len(updates)
+                    logger.info(f"Fixed {len(updates)} collateral balances")
+
+                except Exception as e:
+                    logger.error(
+                        f"Error fixing collateral balances: {e}", exc_info=True
+                    )
+
             offset += batch_size
 
             if len(result.result_rows) < batch_size:
@@ -238,7 +315,7 @@ class CompareCollateralBalanceTask(Task):
             "avg_difference_bps": avg_difference_bps,
             "max_difference_bps": max_difference_bps,
             "mismatches_detail": "; ".join(mismatches[:50]),
-            "fixed_count": 0,
+            "fixed_count": fixed_count,
         }
 
     def _store_test_results(
@@ -383,7 +460,7 @@ class CompareDebtBalanceTask(Task):
     def run(
         self,
         csv_output_path: str = "/tmp",
-        fix_errors: bool = False,
+        fix_errors: bool = True,
         batch_size: int = 100,
     ):
         """
@@ -451,6 +528,7 @@ class CompareDebtBalanceTask(Task):
         1. Fetch user-asset pairs from view_user_asset_effective_balances with debt_balance
         2. Immediately fetch RPC data for those user-asset pairs
         3. Compare debt balance values
+        4. If fix_errors=True, fix mismatched balances by un-scaling and re-scaling with RPC balance
 
         Args:
             batch_size: Number of user-asset pairs to process per batch
@@ -469,6 +547,7 @@ class CompareDebtBalanceTask(Task):
         mismatched_count = 0
         mismatches = []
         differences_bps = []
+        fixed_count = 0
 
         offset = 0
 
@@ -533,7 +612,8 @@ class CompareDebtBalanceTask(Task):
                 logger.error(f"Error querying RPC for batch at offset {offset}: {e}")
                 raise
 
-            # Step 4: Compare this batch
+            # Step 4: Compare this batch and collect mismatches to fix
+            mismatches_to_fix = []
             for user, asset in clickhouse_data.keys():
                 if (user, asset) not in rpc_data:
                     continue
@@ -565,6 +645,59 @@ class CompareDebtBalanceTask(Task):
                         f"{user},{asset}: CH={ch_debt:.2f} RPC={rpc_debt:.2f} diff={difference:.2f} ({difference_bps:.2f}bps)"
                     )
 
+                    # Collect for fixing if enabled
+                    if fix_errors:
+                        mismatches_to_fix.append((user, asset, rpc_debt))
+
+            # Step 5: Fix errors if enabled
+            if fix_errors and mismatches_to_fix:
+                logger.info(f"Fixing {len(mismatches_to_fix)} mismatched debt balances")
+
+                try:
+                    # Fetch scaled debt balances from RPC using getUserReserveData
+                    # which returns scaledVariableDebt at index 4
+                    user_asset_pairs = [
+                        (user, asset) for user, asset, _ in mismatches_to_fix
+                    ]
+                    batch_results = data_provider.get_user_reserve_data(
+                        user_asset_pairs
+                    )
+
+                    # Prepare updates
+                    updates = []
+                    for user, asset, _ in mismatches_to_fix:
+                        if (user, asset) not in batch_results:
+                            logger.warning(
+                                f"RPC data not found for {user}, {asset}, skipping fix"
+                            )
+                            continue
+
+                        result_data = batch_results[(user, asset)]
+
+                        # Get scaledVariableDebt from result (index 4)
+                        if isinstance(result_data, dict):
+                            scaled_debt = int(result_data.get("scaledVariableDebt", 0))
+                        else:
+                            scaled_debt = int(
+                                result_data[4] if len(result_data) > 4 else 0
+                            )
+
+                        updates.append(
+                            {
+                                "user": user,
+                                "asset": asset,
+                                "corrected_scaled_balance": scaled_debt,
+                            }
+                        )
+
+                    # Batch update the scaled balances retrieved from RPC
+                    self._batch_update_debt_balances(updates)
+                    fixed_count += len(updates)
+                    logger.info(f"Fixed {len(updates)} debt balances")
+
+                except Exception as e:
+                    logger.error(f"Error fixing debt balances: {e}", exc_info=True)
+
             offset += batch_size
 
             if len(result.result_rows) < batch_size:
@@ -587,7 +720,7 @@ class CompareDebtBalanceTask(Task):
             "avg_difference_bps": avg_difference_bps,
             "max_difference_bps": max_difference_bps,
             "mismatches_detail": "; ".join(mismatches[:50]),
-            "fixed_count": 0,
+            "fixed_count": fixed_count,
         }
 
     def _store_test_results(

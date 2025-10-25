@@ -1,0 +1,548 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Liquidation Detections | Aave Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: white;
+        border: none;
+        border-radius: 16px;
+        text-align: center;
+        padding: 3rem 3rem;
+        margin-bottom: 2rem;
+    }
+
+    .page-title {
+        font-size: 3rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+
+    .page-subtitle {
+        font-size: 1.2rem;
+        opacity: 0.9;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stats-card {
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .stats-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--warning-color);
+        margin-bottom: 0.5rem;
+    }
+
+    .stats-label {
+        font-size: 1rem;
+        color: #6b7280;
+        font-weight: 500;
+    }
+
+    .table-container {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        margin-top: 2rem;
+    }
+
+    .table-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        color: var(--dark-color);
+    }
+
+    .table {
+        margin-bottom: 0;
+    }
+
+    .table thead th {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: white;
+        font-weight: 600;
+        border: none;
+        padding: 1rem;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        font-size: 0.9rem;
+    }
+
+    .table tbody tr {
+        transition: all 0.3s ease;
+    }
+
+    .table tbody tr:hover {
+        background: rgba(245, 158, 11, 0.05);
+        transform: scale(1.005);
+    }
+
+    .loading-spinner {
+        text-align: center;
+        padding: 3rem;
+        color: var(--warning-color);
+    }
+
+    .error-message {
+        background: #fee;
+        color: #c33;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+
+    .user-address {
+        font-family: monospace;
+        font-size: 0.85rem;
+    }
+
+    .health-factor-critical {
+        color: #dc2626;
+        font-weight: bold;
+    }
+
+    .health-factor-warning {
+        color: #f59e0b;
+        font-weight: bold;
+    }
+
+    .health-factor-safe {
+        color: #10b981;
+        font-weight: bold;
+    }
+
+    .info-box {
+        background: #dbeafe;
+        border-left: 4px solid #3b82f6;
+        padding: 1rem;
+        margin-bottom: 2rem;
+        border-radius: 8px;
+    }
+
+    .info-box-title {
+        font-weight: 700;
+        color: #1e3a8a;
+        margin-bottom: 0.5rem;
+    }
+
+    .info-box-text {
+        color: #1e40af;
+        font-size: 0.9rem;
+    }
+
+    .table-responsive {
+        max-height: 700px;
+        overflow-y: auto;
+    }
+
+    .pagination-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .pagination-info {
+        color: #6b7280;
+        font-weight: 500;
+    }
+
+    .pagination-buttons button {
+        margin: 0 0.25rem;
+    }
+
+    .filter-controls {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .updated-assets-badge {
+        display: inline-block;
+        background: #e0e7ff;
+        color: #4338ca;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin: 0.125rem;
+    }
+
+    .asset-symbol {
+        font-weight: 600;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+    }
+
+    .collateral-badge {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .debt-badge {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="card page-header">
+    <h1 class="page-title">
+        <i class="fas fa-bell me-3"></i>
+        Liquidation Detections
+    </h1>
+    <p class="page-subtitle">Predicted liquidation opportunities detected based on asset price updates</p>
+</div>
+
+<!-- Info Box -->
+<div class="info-box">
+    <div class="info-box-title">
+        <i class="fas fa-info-circle me-2"></i>
+        About Liquidation Detections
+    </div>
+    <div class="info-box-text">
+        This table logs users whose <strong>current health factor > 1.0</strong> but <strong>predicted health factor ≤ 1.0</strong>
+        after asset price updates. These detections represent potential liquidation opportunities based on predicted transaction prices.
+    </div>
+</div>
+
+<!-- Filter Controls -->
+<div class="card" style="padding: 1.5rem; margin-bottom: 2rem;">
+    <div class="filter-controls">
+        <div style="flex: 1; min-width: 150px;">
+            <h5 style="margin: 0; font-weight: 600; color: #374151;">
+                <i class="fas fa-filter me-2"></i>
+                Filters
+            </h5>
+        </div>
+        <div>
+            <label for="timeWindow" style="font-weight: 500; margin-right: 0.5rem;">Time Period:</label>
+            <select id="timeWindow" class="form-select" style="display: inline-block; width: auto;">
+                <option value="1h">Last Hour</option>
+                <option value="24h" selected>Last 24 Hours</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+                <option value="all">All Time</option>
+            </select>
+        </div>
+        <div>
+            <label for="minProfit" style="font-weight: 500; margin-right: 0.5rem;">Min Profit:</label>
+            <input type="number" id="minProfit" class="form-control" value="0" min="0" step="100"
+                   style="display: inline-block; width: 150px;">
+        </div>
+        <button id="applyFilters" class="btn btn-primary">
+            <i class="fas fa-search me-2"></i>
+            Apply Filters
+        </button>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div id="loading-stats" class="loading-spinner">
+    <i class="fas fa-spinner fa-spin fa-3x"></i>
+    <p class="mt-3">Loading liquidation detections...</p>
+</div>
+
+<div id="stats-content" style="display: none;">
+    <div class="stats-grid">
+        <div class="card stats-card">
+            <div class="stats-value" id="total-detections">-</div>
+            <div class="stats-label">Total Detections</div>
+        </div>
+        <div class="card stats-card">
+            <div class="stats-value" id="total-profit">-</div>
+            <div class="stats-label">Total Potential Profit</div>
+        </div>
+        <div class="card stats-card">
+            <div class="stats-value" id="avg-profit">-</div>
+            <div class="stats-label">Avg Profit per Detection</div>
+        </div>
+        <div class="card stats-card">
+            <div class="stats-value" id="unique-users">-</div>
+            <div class="stats-label">Unique Users</div>
+        </div>
+    </div>
+
+    <!-- Table Container -->
+    <div class="table-container" id="table-container">
+        <h2 class="table-title">
+            <i class="fas fa-table me-2"></i>
+            Recent Liquidation Detections
+        </h2>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">#</th>
+                        <th style="width: 15%;">Detected At</th>
+                        <th style="width: 15%;">User Address</th>
+                        <th style="width: 8%;" class="text-center">Collateral</th>
+                        <th style="width: 8%;" class="text-center">Debt</th>
+                        <th style="width: 8%;" class="text-end">Current HF</th>
+                        <th style="width: 8%;" class="text-end">Predicted HF</th>
+                        <th style="width: 10%;" class="text-end">Profit</th>
+                        <th style="width: 10%;" class="text-end">Debt to Cover</th>
+                        <th style="width: 13%;">Updated Assets</th>
+                    </tr>
+                </thead>
+                <tbody id="detections-table-body">
+                    <!-- Table rows will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="pagination-controls">
+            <div class="pagination-info">
+                Showing <span id="showing-start">0</span> to <span id="showing-end">0</span> of <span id="total-count">0</span> detections
+            </div>
+            <div>
+                <label for="pageSize" style="font-weight: 500; margin-right: 0.5rem;">Per page:</label>
+                <select id="pageSize" class="form-select" style="display: inline-block; width: auto;">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                </select>
+            </div>
+            <div class="pagination-buttons">
+                <button id="firstPage" class="btn btn-sm btn-outline-primary" disabled>
+                    <i class="fas fa-angle-double-left"></i>
+                </button>
+                <button id="prevPage" class="btn btn-sm btn-outline-primary" disabled>
+                    <i class="fas fa-angle-left"></i> Prev
+                </button>
+                <span style="margin: 0 1rem; font-weight: 500;">
+                    Page <span id="currentPage">1</span> of <span id="totalPages">1</span>
+                </span>
+                <button id="nextPage" class="btn btn-sm btn-outline-primary">
+                    Next <i class="fas fa-angle-right"></i>
+                </button>
+                <button id="lastPage" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-angle-double-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="error-container"></div>
+{% endblock %}
+
+{% block extra_js %}
+    let currentPage = 1;
+    let pageSize = 50;
+    let timeWindow = '24h';
+    let minProfit = 0;
+
+    // Fetch liquidation detections from API
+    async function fetchLiquidationDetections() {
+        try {
+            document.getElementById('loading-stats').style.display = 'flex';
+            document.getElementById('stats-content').style.display = 'none';
+            document.getElementById('error-container').innerHTML = '';
+
+            const url = `/api/liquidation-detections/?page=${currentPage}&page_size=${pageSize}&time_window=${timeWindow}&min_profit=${minProfit}`;
+
+            console.log('Fetching liquidation detections from', url);
+            const response = await fetch(url);
+            console.log('Response status:', response.status);
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch liquidation detections: ${response.status}`);
+            }
+            const data = await response.json();
+            console.log('Received data:', data);
+
+            // Calculate stats
+            const totalDetections = data.total_count;
+            const uniqueUsers = new Set(data.detections.map(d => d.user)).size;
+            const totalProfit = data.detections.reduce((sum, d) => sum + d.profit, 0);
+            const avgProfit = totalDetections > 0 ? totalProfit / data.detections.length : 0;
+
+            // Update stats
+            document.getElementById('total-detections').textContent = totalDetections.toLocaleString();
+            document.getElementById('total-profit').textContent = '$' + totalProfit.toLocaleString('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            });
+            document.getElementById('avg-profit').textContent = '$' + avgProfit.toLocaleString('en-US', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            });
+            document.getElementById('unique-users').textContent = uniqueUsers.toLocaleString();
+
+            document.getElementById('loading-stats').style.display = 'none';
+            document.getElementById('stats-content').style.display = 'block';
+
+            // Populate table
+            const tableBody = document.getElementById('detections-table-body');
+            tableBody.innerHTML = '';
+
+            data.detections.forEach((detection, index) => {
+                const row = document.createElement('tr');
+
+                // Determine health factor color classes
+                let currentHfClass = 'health-factor-safe';
+                if (detection.current_health_factor < 1.00) {
+                    currentHfClass = 'health-factor-critical';
+                } else if (detection.current_health_factor < 1.10) {
+                    currentHfClass = 'health-factor-warning';
+                }
+
+                let predictedHfClass = 'health-factor-safe';
+                if (detection.predicted_health_factor < 1.00) {
+                    predictedHfClass = 'health-factor-critical';
+                } else if (detection.predicted_health_factor < 1.10) {
+                    predictedHfClass = 'health-factor-warning';
+                }
+
+                const profitUSD = detection.profit.toLocaleString('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+
+                const debtToCoverUSD = detection.debt_to_cover.toLocaleString('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+
+                // Format updated assets
+                const updatedAssetsHtml = detection.updated_assets.slice(0, 3).map(asset => {
+                    const shortAddr = asset.slice(0, 6) + '...' + asset.slice(-4);
+                    return `<span class="updated-assets-badge" title="${asset}">${shortAddr}</span>`;
+                }).join('');
+
+                const moreAssetsText = detection.updated_assets.length > 3
+                    ? ` <span style="color: #6b7280; font-size: 0.85rem;">+${detection.updated_assets.length - 3} more</span>`
+                    : '';
+
+                const rowNumber = (currentPage - 1) * pageSize + index + 1;
+
+                const userLink = detection.explorer_url
+                    ? `<a href="${detection.explorer_url}" target="_blank" class="user-address" style="text-decoration: none;">${detection.user}</a>`
+                    : `<span class="user-address">${detection.user}</span>`;
+
+                row.innerHTML = `
+                    <td><strong>${rowNumber}</strong></td>
+                    <td>${detection.detected_at || '-'}</td>
+                    <td>${userLink}</td>
+                    <td class="text-center">
+                        <span class="asset-symbol collateral-badge">${detection.collateral_symbol}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="asset-symbol debt-badge">${detection.debt_symbol}</span>
+                    </td>
+                    <td class="text-end ${currentHfClass}">${detection.current_health_factor.toFixed(4)}</td>
+                    <td class="text-end ${predictedHfClass}">${detection.predicted_health_factor.toFixed(4)}</td>
+                    <td class="text-end" style="color: #10b981; font-weight: bold;">${profitUSD}</td>
+                    <td class="text-end">${debtToCoverUSD}</td>
+                    <td style="font-size: 0.85rem;">${updatedAssetsHtml}${moreAssetsText}</td>
+                `;
+
+                tableBody.appendChild(row);
+            });
+
+            // Update pagination
+            updatePagination(data);
+
+        } catch (error) {
+            console.error('Error fetching liquidation detections:', error);
+            document.getElementById('loading-stats').style.display = 'none';
+            document.getElementById('error-container').innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Error loading liquidation detections: ${error.message}
+                </div>
+            `;
+        }
+    }
+
+    function updatePagination(data) {
+        const start = (data.page - 1) * data.page_size + 1;
+        const end = Math.min(data.page * data.page_size, data.total_count);
+
+        document.getElementById('showing-start').textContent = data.total_count > 0 ? start : 0;
+        document.getElementById('showing-end').textContent = end;
+        document.getElementById('total-count').textContent = data.total_count;
+        document.getElementById('currentPage').textContent = data.page;
+        document.getElementById('totalPages').textContent = data.total_pages || 1;
+
+        // Update button states
+        document.getElementById('firstPage').disabled = data.page === 1;
+        document.getElementById('prevPage').disabled = data.page === 1;
+        document.getElementById('nextPage').disabled = data.page >= data.total_pages;
+        document.getElementById('lastPage').disabled = data.page >= data.total_pages;
+    }
+
+    // Event Listeners
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM Content Loaded - initializing liquidation detections page');
+
+        // Load initial data
+        fetchLiquidationDetections();
+
+        // Filter controls
+        document.getElementById('applyFilters').addEventListener('click', function() {
+            timeWindow = document.getElementById('timeWindow').value;
+            minProfit = parseFloat(document.getElementById('minProfit').value) || 0;
+            currentPage = 1;
+            fetchLiquidationDetections();
+        });
+
+        // Page size change
+        document.getElementById('pageSize').addEventListener('change', function() {
+            pageSize = parseInt(this.value);
+            currentPage = 1;
+            fetchLiquidationDetections();
+        });
+
+        // Pagination buttons
+        document.getElementById('firstPage').addEventListener('click', function() {
+            currentPage = 1;
+            fetchLiquidationDetections();
+        });
+
+        document.getElementById('prevPage').addEventListener('click', function() {
+            if (currentPage > 1) {
+                currentPage--;
+                fetchLiquidationDetections();
+            }
+        });
+
+        document.getElementById('nextPage').addEventListener('click', function() {
+            currentPage++;
+            fetchLiquidationDetections();
+        });
+
+        document.getElementById('lastPage').addEventListener('click', function() {
+            const totalPages = parseInt(document.getElementById('totalPages').textContent);
+            currentPage = totalPages;
+            fetchLiquidationDetections();
+        });
+    });
+
+    console.log('Liquidation detections page script loaded');
+{% endblock %}

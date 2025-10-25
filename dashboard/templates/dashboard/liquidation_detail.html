@@ -50,6 +50,33 @@
             background: rgba(255, 255, 255, 0.2);
         }
 
+        .navbar .dropdown-menu {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            margin-top: 0.5rem;
+        }
+
+        .navbar .dropdown-item {
+            color: var(--dark-color);
+            padding: 0.75rem 1.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .navbar .dropdown-item:hover,
+        .navbar .dropdown-item.active {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+
+        .navbar .dropdown-divider {
+            margin: 0.5rem 0;
+            border-color: rgba(0, 0, 0, 0.1);
+        }
+
+
         .main-container {
             padding: 2rem 0;
         }
@@ -244,44 +271,7 @@
 
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="{% url 'dashboard:asset_list' %}">
-                <i class="fas fa-chart-line me-2"></i>
-                Aave Dashboard
-            </a>
-            <div class="navbar-nav ms-auto me-4">
-                <a class="nav-link" href="{% url 'dashboard:asset_list' %}">
-                    <i class="fas fa-coins me-2"></i>
-                    Assets
-                </a>
-                <a class="nav-link" href="{% url 'dashboard:prices_summary' %}">
-                    <i class="fas fa-dollar-sign me-2"></i>
-                    Prices
-                </a>
-                <a class="nav-link" href="{% url 'dashboard:debt' %}">
-                    <i class="fas fa-money-bill-wave me-2"></i>
-                    Debt
-                </a>
-                <a class="nav-link" href="{% url 'dashboard:liquidation_candidates' %}">
-                    <i class="fas fa-exclamation-circle me-2"></i>
-                    Liquidation Candidates
-                </a>
-                <a class="nav-link active" href="{% url 'dashboard:liquidations' %}">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    Liquidations
-                </a>
-                <a class="nav-link" href="{% url 'dashboard:users' %}">
-                    <i class="fas fa-users me-2"></i>
-                    Users
-                </a>
-                <a class="nav-link" href="{% url 'dashboard:tests' %}">
-                    <i class="fas fa-vial me-2"></i>
-                    Tests
-                </a>
-            </div>
-        </div>
-    </nav>
+    {% include "dashboard/navbar_include.html" %}
 
     <!-- Main Content -->
     <div class="main-container">
