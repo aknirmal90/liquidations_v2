@@ -216,40 +216,44 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 accrued_collateral_balance,
                 accrued_debt_balance,
                 -- Effective Collateral: apply liquidation threshold based on eMode, collateral status, and price
-                cast(floor(
-                    toFloat64(accrued_collateral_balance)
-                    * if(
-                        is_in_emode = 1,
-                        toFloat64(emode_liquidation_threshold),
-                        toFloat64(collateral_liquidation_threshold)
+                (
+                    accrued_collateral_balance
+                    * toDecimal256(
+                        if(
+                            is_in_emode = 1,
+                            emode_liquidation_threshold,
+                            collateral_liquidation_threshold
+                        ), 0
                     )
-                    * toFloat64(is_collateral_enabled)
-                    * price
-                    / (10000 * toFloat64(decimals_places))
-                ) as UInt256) AS effective_collateral,
+                    * toDecimal256(is_collateral_enabled, 0)
+                    * toDecimal256(price, 18)
+                    / (toDecimal256(10000, 0) * toDecimal256(decimals_places, 0))
+                ) AS effective_collateral,
                 -- Effective Debt: apply price adjustment
-                cast(floor(
-                    toFloat64(accrued_debt_balance)
-                    * price
-                    / (toFloat64(decimals_places))
-                ) as UInt256) AS effective_debt,
-                cast(floor(
-                    toFloat64(accrued_collateral_balance)
-                    * if(
-                        is_in_emode = 1,
-                        toFloat64(emode_liquidation_threshold),
-                        toFloat64(collateral_liquidation_threshold)
+                (
+                    accrued_debt_balance
+                    * toDecimal256(price, 18)
+                    / toDecimal256(decimals_places, 0)
+                ) AS effective_debt,
+                (
+                    accrued_collateral_balance
+                    * toDecimal256(
+                        if(
+                            is_in_emode = 1,
+                            emode_liquidation_threshold,
+                            collateral_liquidation_threshold
+                        ), 0
                     )
-                    * toFloat64(is_collateral_enabled)
-                    * price
-                    / (10000 * toFloat64(decimals_places) * 1e8)
-                ) as UInt256) AS effective_collateral_usd,
+                    * toDecimal256(is_collateral_enabled, 0)
+                    * toDecimal256(price, 18)
+                    / (toDecimal256(10000, 0) * toDecimal256(decimals_places, 0) * toDecimal256(1e8, 0))
+                ) AS effective_collateral_usd,
                 -- Effective Debt: apply price adjustment
-                cast(floor(
-                    toFloat64(accrued_debt_balance)
-                    * price
-                    / (toFloat64(decimals_places) * 1e8)
-                ) as UInt256) AS effective_debt_usd
+                (
+                    accrued_debt_balance
+                    * toDecimal256(price, 18)
+                    / (toDecimal256(decimals_places, 0) * toDecimal256(1e8, 0))
+                ) AS effective_debt_usd
             FROM asset_effective_balances
         ),
         predicted_health_factors AS (
@@ -262,8 +266,8 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 sum(effective_debt) AS total_effective_debt,
                 if(
                     sum(effective_debt) = 0,
-                    999.9,
-                    sum(effective_collateral) / sum(effective_debt)
+                    toDecimal256(999.9, 18),
+                    toDecimal256(sum(effective_collateral), 0) / toDecimal256(sum(effective_debt), 0)
                 ) AS predicted_health_factor
             FROM effective_balances
             GROUP BY user, is_in_emode
@@ -297,13 +301,13 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             lc.debt_asset AS debt_asset,
             aru.current_health_factor AS current_health_factor,
             aru.predicted_health_factor AS predicted_health_factor,
-            toDecimal256(lc.debt_to_cover, 0) AS debt_to_cover,
-            toDecimal256(lc.profit, 0) AS profit,
-            toDecimal256(lc.effective_collateral, 0) AS effective_collateral,
-            toDecimal256(lc.effective_debt, 0) AS effective_debt,
-            toDecimal256(lc.collateral_balance, 0) AS collateral_balance,
-            toDecimal256(lc.debt_balance, 0) AS debt_balance,
-            toDecimal256(lc.liquidation_bonus, 0) AS liquidation_bonus,
+            lc.debt_to_cover AS debt_to_cover,
+            lc.profit AS profit,
+            lc.effective_collateral AS effective_collateral,
+            lc.effective_debt AS effective_debt,
+            lc.collateral_balance AS collateral_balance,
+            lc.debt_balance AS debt_balance,
+            lc.liquidation_bonus AS liquidation_bonus,
             lc.collateral_price AS collateral_price,
             lc.debt_price AS debt_price,
             lc.collateral_decimals AS collateral_decimals,

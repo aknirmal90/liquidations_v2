@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS aave_ethereum.LiquidationSubmissions
     user String,
     collateral_asset String,
     debt_asset String,
-    expected_profit Float64,
+    expected_profit Decimal256(18),
     nonce UInt64,
     target_block UInt64,
     bundle_hash String,

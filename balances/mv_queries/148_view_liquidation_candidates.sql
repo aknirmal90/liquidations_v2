@@ -60,19 +60,19 @@ collateral_opportunities AS (
         up.collateral_balance,
         up.accrued_collateral_balance,
         -- Calculate effective collateral value using accrued balance
-        cast(floor(
-            toFloat64(up.accrued_collateral_balance)
-            * toFloat64(
+        (
+            up.accrued_collateral_balance
+            * toDecimal256(
                 if(
                     up.is_in_emode = 1,
                     up.emode_liquidation_threshold,
                     up.collateral_liquidation_threshold
-                )
+                ), 0
             )
-            * toFloat64(up.is_collateral_enabled)
-            * up.price
-            / (10000 * toFloat64(up.decimals_places))
-        ) as UInt256) AS collateral_effective_value,
+            * toDecimal256(up.is_collateral_enabled, 0)
+            * toDecimal256(up.price, 18)
+            / (toDecimal256(10000, 0) * toDecimal256(up.decimals_places, 0))
+        ) AS collateral_effective_value,
         up.price AS collateral_price,
         up.decimals_places AS collateral_decimals,
         up.health_factor,
@@ -87,16 +87,16 @@ collateral_opportunities AS (
 
         -- Calculate profit: (liquidation_bonus / 10000.0 - 1) * accrued_collateral_balance * price / decimals
         (
-            (toFloat64(
+            (toDecimal256(
                 if(
                     up.is_in_emode = 1,
                     dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'eModeLiquidationBonus', up.asset, toUInt256(10000)),
                     dictGetOrDefault('aave_ethereum.dict_latest_asset_configuration', 'collateralLiquidationBonus', up.asset, toUInt256(10000))
-                )
-            ) / 10000.0 - 1.0)
-            * toFloat64(up.accrued_collateral_balance)
-            * up.price
-            / (toFloat64(up.decimals_places))
+                ), 0
+            ) / toDecimal256(10000.0, 18) - toDecimal256(1.0, 18))
+            * up.accrued_collateral_balance
+            * toDecimal256(up.price, 18)
+            / toDecimal256(up.decimals_places, 0)
         ) AS profit
 
     FROM user_positions AS up
@@ -112,11 +112,11 @@ debt_positions AS (
         up.debt_balance,
         up.accrued_debt_balance,
         -- Calculate effective debt value using accrued balance
-        cast(floor(
-            toFloat64(up.accrued_debt_balance)
-            * up.price
-            / toFloat64(up.decimals_places)
-        ) as UInt256) AS debt_effective_value,
+        (
+            up.accrued_debt_balance
+            * toDecimal256(up.price, 18)
+            / toDecimal256(up.decimals_places, 0)
+        ) AS debt_effective_value,
         up.price AS debt_price,
         up.decimals_places AS debt_decimals
     FROM user_positions AS up
@@ -142,7 +142,7 @@ liquidation_pairs AS (
         dp.debt_effective_value,
 
         -- Calculate maximum debt that can be covered (50% of total accrued debt)
-        toFloat64(dp.debt_balance) * 0.5 AS max_debt_to_cover,
+        dp.debt_balance * toDecimal256(0.5, 18) AS max_debt_to_cover,
 
         -- Rank collateral assets for each user-debt pair
         -- Priority: Highest profit
@@ -166,8 +166,8 @@ SELECT
     health_factor,
     collateral_effective_value AS effective_collateral,
     debt_effective_value AS effective_debt,
-    toFloat64(collateral_balance) AS collateral_balance,
-    toFloat64(debt_balance) AS debt_balance,
+    collateral_balance,
+    debt_balance,
     liquidation_bonus,
     collateral_price,
     debt_price,
