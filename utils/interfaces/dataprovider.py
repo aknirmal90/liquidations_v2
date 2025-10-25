@@ -110,3 +110,44 @@ class DataProviderInterface(BaseContractInterface):
                 results_by_pair[(user, asset)] = decode_result(result_value)
             return results_by_pair
         return raw_results
+
+    def get_reserve_tokens_addresses(self, assets: List[str]) -> Dict[str, Dict]:
+        """
+        Issues a batch of getReserveTokensAddresses(address) calls.
+        Returns a dict mapping asset address to token addresses (aToken, stableDebtToken, variableDebtToken).
+
+        Args:
+            assets: List of asset addresses
+
+        Returns:
+            Dictionary mapping asset to dict with token addresses
+        """
+        call_targets = [
+            {
+                "method_signature": "getReserveTokensAddresses(address)",
+                "param_types": ["address"],
+                "params": [asset],
+            }
+            for asset in assets
+        ]
+        raw_results = self.batch_eth_call(call_targets)
+
+        def decode_result(hex_result):
+            return self.decode_eth_call_result(hex_result, "getReserveTokensAddresses")
+
+        results_by_asset = {}
+        if isinstance(raw_results, list):
+            for asset, rpc_result in zip(assets, raw_results):
+                result_value = rpc_result.get("result", "")
+                decoded = decode_result(result_value)
+                # Convert tuple result to dict for easier access
+                if isinstance(decoded, (list, tuple)) and len(decoded) >= 3:
+                    results_by_asset[asset] = {
+                        "aTokenAddress": decoded[0],
+                        "stableDebtTokenAddress": decoded[1],
+                        "variableDebtTokenAddress": decoded[2],
+                    }
+                else:
+                    results_by_asset[asset] = decoded
+            return results_by_asset
+        return raw_results

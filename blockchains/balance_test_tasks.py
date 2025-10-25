@@ -112,10 +112,8 @@ class CompareCollateralBalanceTask(Task):
             Dict containing comparison statistics
         """
         from utils.interfaces.dataprovider import DataProviderInterface
-        from utils.interfaces.pool import PoolInterface
 
         data_provider = DataProviderInterface()
-        pool = PoolInterface()
 
         # Accumulators for results
         total_user_assets = 0
@@ -231,44 +229,57 @@ class CompareCollateralBalanceTask(Task):
                     f"Fixing {len(mismatches_to_fix)} mismatched collateral balances"
                 )
 
-                # Get unique assets to fetch liquidity indices
-                unique_assets = list(set([asset for _, asset, _ in mismatches_to_fix]))
-
                 try:
-                    # Fetch reserve data with liquidity indices
-                    reserve_data = pool.get_reserve_data(unique_assets)
+                    # Get aToken addresses for the assets
+                    unique_assets = list(
+                        set([asset for _, asset, _ in mismatches_to_fix])
+                    )
+                    reserve_tokens = data_provider.get_reserve_tokens_addresses(
+                        unique_assets
+                    )
 
-                    # Prepare updates
+                    # Group users by asset to batch scaled balance queries
+                    from utils.interfaces.tokens import AaveToken
+
+                    asset_to_users = {}
+                    for user, asset, _ in mismatches_to_fix:
+                        if asset not in asset_to_users:
+                            asset_to_users[asset] = []
+                        asset_to_users[asset].append(user)
+
                     updates = []
-                    for user, asset, rpc_balance in mismatches_to_fix:
-                        if asset not in reserve_data:
+                    for asset, users in asset_to_users.items():
+                        if asset not in reserve_tokens:
                             logger.warning(
-                                f"Reserve data not found for asset {asset}, skipping fix"
+                                f"Reserve tokens not found for asset {asset}, skipping fix"
                             )
                             continue
 
-                        liquidity_index = reserve_data[asset].get("liquidityIndex", 0)
-                        if liquidity_index == 0:
+                        tokens = reserve_tokens[asset]
+                        atoken_address = tokens.get("aTokenAddress", "")
+
+                        if not atoken_address:
                             logger.warning(
-                                f"Liquidity index is 0 for asset {asset}, skipping fix"
+                                f"Empty aToken address for asset {asset}, skipping fix"
                             )
                             continue
 
-                        # Calculate corrected scaled balance
-                        # scaled_balance = balance / (liquidity_index / 10^27)
-                        corrected_scaled_balance = int(
-                            rpc_balance * (10**27) / liquidity_index
-                        )
+                        # Fetch scaled balances from aToken contract for all users of this asset
+                        atoken = AaveToken(atoken_address)
+                        scaled_balances = atoken.get_scaled_balance(users)
 
-                        updates.append(
-                            {
-                                "user": user,
-                                "asset": asset,
-                                "corrected_scaled_balance": corrected_scaled_balance,
-                            }
-                        )
+                        # Prepare updates for each user
+                        for user in users:
+                            scaled_balance = scaled_balances.get(user, 0)
+                            updates.append(
+                                {
+                                    "user": user,
+                                    "asset": asset,
+                                    "corrected_scaled_balance": scaled_balance,
+                                }
+                            )
 
-                    # Batch update the corrected scaled balances
+                    # Batch update the scaled balances retrieved from RPC
                     self._batch_update_collateral_balances(updates)
                     fixed_count += len(updates)
                     logger.info(f"Fixed {len(updates)} collateral balances")
@@ -523,10 +534,8 @@ class CompareDebtBalanceTask(Task):
             Dict containing comparison statistics
         """
         from utils.interfaces.dataprovider import DataProviderInterface
-        from utils.interfaces.pool import PoolInterface
 
         data_provider = DataProviderInterface()
-        pool = PoolInterface()
 
         # Accumulators for results
         total_user_assets = 0
@@ -640,46 +649,44 @@ class CompareDebtBalanceTask(Task):
             if fix_errors and mismatches_to_fix:
                 logger.info(f"Fixing {len(mismatches_to_fix)} mismatched debt balances")
 
-                # Get unique assets to fetch variable borrow indices
-                unique_assets = list(set([asset for _, asset, _ in mismatches_to_fix]))
-
                 try:
-                    # Fetch reserve data with variable borrow indices
-                    reserve_data = pool.get_reserve_data(unique_assets)
+                    # Fetch scaled debt balances from RPC using getUserReserveData
+                    # which returns scaledVariableDebt at index 4
+                    user_asset_pairs = [
+                        (user, asset) for user, asset, _ in mismatches_to_fix
+                    ]
+                    batch_results = data_provider.get_user_reserve_data(
+                        user_asset_pairs
+                    )
 
                     # Prepare updates
                     updates = []
-                    for user, asset, rpc_debt in mismatches_to_fix:
-                        if asset not in reserve_data:
+                    for user, asset, _ in mismatches_to_fix:
+                        if (user, asset) not in batch_results:
                             logger.warning(
-                                f"Reserve data not found for asset {asset}, skipping fix"
+                                f"RPC data not found for {user}, {asset}, skipping fix"
                             )
                             continue
 
-                        variable_borrow_index = reserve_data[asset].get(
-                            "variableBorrowIndex", 0
-                        )
-                        if variable_borrow_index == 0:
-                            logger.warning(
-                                f"Variable borrow index is 0 for asset {asset}, skipping fix"
-                            )
-                            continue
+                        result_data = batch_results[(user, asset)]
 
-                        # Calculate corrected scaled balance
-                        # scaled_balance = balance / (variable_borrow_index / 10^27)
-                        corrected_scaled_balance = int(
-                            rpc_debt * (10**27) / variable_borrow_index
-                        )
+                        # Get scaledVariableDebt from result (index 4)
+                        if isinstance(result_data, dict):
+                            scaled_debt = int(result_data.get("scaledVariableDebt", 0))
+                        else:
+                            scaled_debt = int(
+                                result_data[4] if len(result_data) > 4 else 0
+                            )
 
                         updates.append(
                             {
                                 "user": user,
                                 "asset": asset,
-                                "corrected_scaled_balance": corrected_scaled_balance,
+                                "corrected_scaled_balance": scaled_debt,
                             }
                         )
 
-                    # Batch update the corrected scaled balances
+                    # Batch update the scaled balances retrieved from RPC
                     self._batch_update_debt_balances(updates)
                     fixed_count += len(updates)
                     logger.info(f"Fixed {len(updates)} debt balances")
