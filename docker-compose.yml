@@ -4,7 +4,7 @@ services:
         ports:
             - 5432:5432
         environment:
-            POSTGRES_PASSWORD: postgres  # Make sure to set this
+            POSTGRES_PASSWORD: postgres # Make sure to set this
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
             retries: 15
@@ -14,7 +14,7 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '1'
+                    cpus: "1"
                     memory: 1000M
 
     redis:
@@ -28,14 +28,14 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '0.5'
+                    cpus: "0.5"
                     memory: 512M
 
     clickhouse:
         image: clickhouse/clickhouse-server:latest
         ports:
-            - 8123:8123   # HTTP interface
-            - 9000:9000   # Native interface
+            - 8123:8123 # HTTP interface
+            - 9000:9000 # Native interface
         environment:
             CLICKHOUSE_USER: clickhouse-user
             CLICKHOUSE_PASSWORD: clickhouse-password
@@ -43,13 +43,21 @@ services:
             - clickhouse_data:/var/lib/clickhouse
             - clickhouse_logs:/var/log/clickhouse-server
         healthcheck:
-            test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
+            test:
+                [
+                    "CMD",
+                    "wget",
+                    "--no-verbose",
+                    "--tries=1",
+                    "--spider",
+                    "http://localhost:8123/ping",
+                ]
             retries: 15
             start_period: 2s
         deploy:
             resources:
                 limits:
-                    cpus: '1'
+                    cpus: "2"
                     memory: 4000M
 
 volumes:

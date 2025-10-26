@@ -10,6 +10,7 @@ from celery import Task
 from web3 import Web3
 
 from liquidations_v2.celery_app import app
+from payments.liquidation_executor import ExecuteLiquidationsTask
 from utils.clickhouse.client import clickhouse_client
 from utils.interfaces.base import BaseContractInterface
 from utils.simplepush import send_simplepush_notification
@@ -79,17 +80,52 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             # Step 3: Append results to ClickHouse LiquidationDetections log table
             self._append_liquidation_detections(liquidation_candidates)
 
+            # Step 4: Convert liquidation_candidates to opportunities format for executor
+            opportunities = []
+            for row in liquidation_candidates:
+                opportunities.append(
+                    {
+                        "user": row[0],
+                        "collateral_asset": row[1],
+                        "debt_asset": row[2],
+                        "current_health_factor": float(row[3]),
+                        "predicted_health_factor": float(row[4]),
+                        "debt_to_cover": float(row[5]),
+                        "profit": float(row[6]),
+                        "effective_collateral": float(row[7]),
+                        "effective_debt": float(row[8]),
+                        "collateral_balance": float(row[9]),
+                        "debt_balance": float(row[10]),
+                        "liquidation_bonus": int(row[11]),
+                        "collateral_price": float(row[12]),
+                        "debt_price": float(row[13]),
+                        "collateral_decimals": int(row[14]),
+                        "debt_decimals": int(row[15]),
+                    }
+                )
+
             # Calculate summary statistics
             num_users = len(set([c[0] for c in liquidation_candidates]))
             total_profit = sum([float(c[6]) for c in liquidation_candidates])
 
-            # Step 4: Send SimplePush notification
+            # Get detection timestamp for execution tracking
+            detection_timestamp = int(datetime.now().timestamp())
+
+            # Step 5: Send SimplePush notification
             self._send_notification(liquidation_candidates, updated_assets)
+
+            # Step 7: Trigger liquidation execution with opportunities data
+            ExecuteLiquidationsTask.delay(
+                opportunities=opportunities,
+                detection_timestamp=detection_timestamp,
+                updated_assets=updated_assets,
+            )
 
             logger.warning(
                 f"[LIQUIDATION_DETECTED] *** LIQUIDATION OPPORTUNITIES FOUND *** "
                 f"Users: {num_users} | Opportunities: {len(liquidation_candidates)} | "
-                f"Potential Profit: ${total_profit:,.2f}"
+                f"Potential Profit: ${total_profit:,.2f} | "
+                f"Execution triggered for timestamp: {detection_timestamp}"
             )
 
         except Exception as e:
@@ -180,40 +216,44 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 accrued_collateral_balance,
                 accrued_debt_balance,
                 -- Effective Collateral: apply liquidation threshold based on eMode, collateral status, and price
-                cast(floor(
-                    toFloat64(accrued_collateral_balance)
-                    * if(
-                        is_in_emode = 1,
-                        toFloat64(emode_liquidation_threshold),
-                        toFloat64(collateral_liquidation_threshold)
+                (
+                    accrued_collateral_balance
+                    * toDecimal256(
+                        if(
+                            is_in_emode = 1,
+                            emode_liquidation_threshold,
+                            collateral_liquidation_threshold
+                        ), 0
                     )
-                    * toFloat64(is_collateral_enabled)
-                    * price
-                    / (10000 * toFloat64(decimals_places))
-                ) as UInt256) AS effective_collateral,
+                    * toDecimal256(is_collateral_enabled, 0)
+                    * toDecimal256(price, 18)
+                    / (toDecimal256(10000, 0) * toDecimal256(decimals_places, 0))
+                ) AS effective_collateral,
                 -- Effective Debt: apply price adjustment
-                cast(floor(
-                    toFloat64(accrued_debt_balance)
-                    * price
-                    / (toFloat64(decimals_places))
-                ) as UInt256) AS effective_debt,
-                cast(floor(
-                    toFloat64(accrued_collateral_balance)
-                    * if(
-                        is_in_emode = 1,
-                        toFloat64(emode_liquidation_threshold),
-                        toFloat64(collateral_liquidation_threshold)
+                (
+                    accrued_debt_balance
+                    * toDecimal256(price, 18)
+                    / toDecimal256(decimals_places, 0)
+                ) AS effective_debt,
+                (
+                    accrued_collateral_balance
+                    * toDecimal256(
+                        if(
+                            is_in_emode = 1,
+                            emode_liquidation_threshold,
+                            collateral_liquidation_threshold
+                        ), 0
                     )
-                    * toFloat64(is_collateral_enabled)
-                    * price
-                    / (10000 * toFloat64(decimals_places) * 1e8)
-                ) as UInt256) AS effective_collateral_usd,
+                    * toDecimal256(is_collateral_enabled, 0)
+                    * toDecimal256(price, 18)
+                    / (toDecimal256(10000, 0) * toDecimal256(decimals_places, 0) * toDecimal256(1e8, 0))
+                ) AS effective_collateral_usd,
                 -- Effective Debt: apply price adjustment
-                cast(floor(
-                    toFloat64(accrued_debt_balance)
-                    * price
-                    / (toFloat64(decimals_places) * 1e8)
-                ) as UInt256) AS effective_debt_usd
+                (
+                    accrued_debt_balance
+                    * toDecimal256(price, 18)
+                    / (toDecimal256(decimals_places, 0) * toDecimal256(1e8, 0))
+                ) AS effective_debt_usd
             FROM asset_effective_balances
         ),
         predicted_health_factors AS (
@@ -226,8 +266,8 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                 sum(effective_debt) AS total_effective_debt,
                 if(
                     sum(effective_debt) = 0,
-                    999.9,
-                    sum(effective_collateral) / sum(effective_debt)
+                    toDecimal256(999.9, 18),
+                    toDecimal256(sum(effective_collateral), 0) / toDecimal256(sum(effective_debt), 0)
                 ) AS predicted_health_factor
             FROM effective_balances
             GROUP BY user, is_in_emode
@@ -248,12 +288,12 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             FROM predicted_health_factors AS phf
             INNER JOIN current_health_factors AS chf ON phf.user = chf.user
             WHERE
-                chf.current_health_factor > 1.0
-                AND phf.predicted_health_factor <= 1.0
-                AND phf.total_effective_collateral_usd > 10000
-                AND phf.total_effective_debt_usd > 10000
-                AND chf.effective_collateral_usd > 10000
-                AND chf.effective_debt_usd > 10000
+                chf.current_health_factor > toDecimal256(1.0, 18)
+                AND phf.predicted_health_factor <= toDecimal256(1.0, 18)
+                AND phf.total_effective_collateral_usd > toDecimal256(10000, 18)
+                AND phf.total_effective_debt_usd > toDecimal256(10000, 18)
+                AND chf.effective_collateral_usd > toDecimal256(10000, 18)
+                AND chf.effective_debt_usd > toDecimal256(10000, 18)
         )
         SELECT
             lc.user AS user,
@@ -278,31 +318,23 @@ class EstimateFutureLiquidationCandidatesTask(Task):
         """
 
         try:
+            # Execute query and get result as list of dictionaries for key-value pairs
             result = self.clickhouse_client.execute_query(query)
-            liquidation_candidates = []
 
-            if result.result_rows:
+            # fallback to rows with column names if available
+            rows = [dict(zip(result.column_names, row)) for row in result.result_rows]
+            if rows:
                 num_users = len(set([row[0] for row in result.result_rows]))
                 logger.info(
                     f"[LIQUIDATION_DETECTION] Found {len(result.result_rows)} liquidation opportunities "
                     f"for {num_users} users with declining health factors"
                 )
 
-                for row in result.result_rows:
-                    user = row[0]
-                    current_hf = float(row[3])
-                    predicted_hf = float(row[4])
-                    profit = float(row[6])
-
-                    # Convert tuple to list and append updated_assets array and timestamp
-                    row_data = list(row)
-                    row_data.append(
-                        updated_assets
-                    )  # Add updated_assets as the 17th field
-                    row_data.append(
-                        datetime.now()
-                    )  # Add detected_at timestamp as the 18th field
-                    liquidation_candidates.append(row_data)
+                for row in rows:
+                    user = row["user"]
+                    current_hf = float(row["current_health_factor"])
+                    predicted_hf = float(row["predicted_health_factor"])
+                    profit = float(row["profit"])
 
                     # Log individual liquidation opportunity
                     logger.info(
@@ -311,7 +343,7 @@ class EstimateFutureLiquidationCandidatesTask(Task):
                         f"Profit: ${profit:,.2f}"
                     )
 
-            return liquidation_candidates
+            return rows
 
         except Exception as e:
             logger.error(

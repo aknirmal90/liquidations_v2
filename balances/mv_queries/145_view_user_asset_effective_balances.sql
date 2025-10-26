@@ -65,12 +65,12 @@ accrual_factors AS (
 SELECT
     user,
     asset,
-    collateral_balance,
-    debt_balance,
-    collateral_interest_accrual_factor,
-    debt_interest_accrual_factor,
+    toDecimal256(collateral_balance, 0) AS collateral_balance,
+    toDecimal256(debt_balance, 0) AS debt_balance,
+    toDecimal256(collateral_interest_accrual_factor, 18) AS collateral_interest_accrual_factor,
+    toDecimal256(debt_interest_accrual_factor, 18) AS debt_interest_accrual_factor,
     -- Store accrued balances as integers: int(balance * accrual_factor)
-    toInt256(floor(toFloat64(collateral_balance) * collateral_interest_accrual_factor)) AS accrued_collateral_balance,
-    toInt256(floor(toFloat64(debt_balance) * debt_interest_accrual_factor)) AS accrued_debt_balance
+    toDecimal256(floor(toDecimal256(collateral_balance, 0) * toDecimal256(collateral_interest_accrual_factor, 18)), 0) AS accrued_collateral_balance,
+    toDecimal256(floor(toDecimal256(debt_balance, 0) * toDecimal256(debt_interest_accrual_factor, 18)), 0) AS accrued_debt_balance
 FROM accrual_factors
 WHERE collateral_balance != 0 OR debt_balance != 0;
