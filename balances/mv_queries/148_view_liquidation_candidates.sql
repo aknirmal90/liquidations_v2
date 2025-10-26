@@ -22,10 +22,10 @@ at_risk_users AS (
         effective_debt_usd,
         is_in_emode
     FROM aave_ethereum.view_user_health_factor
-    WHERE health_factor > 1.0
-        AND health_factor <= 1.25
-        AND effective_collateral_usd > 10000
-        AND effective_debt_usd > 10000
+    WHERE health_factor > toDecimal256(1.0, 18)
+        AND health_factor <= toDecimal256(1.25, 18)
+        AND effective_collateral_usd > toDecimal256(10000, 18)
+        AND effective_debt_usd > toDecimal256(10000, 18)
 ),
 
 -- Get user asset balances for at-risk users

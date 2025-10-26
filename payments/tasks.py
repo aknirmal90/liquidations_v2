@@ -288,12 +288,12 @@ class EstimateFutureLiquidationCandidatesTask(Task):
             FROM predicted_health_factors AS phf
             INNER JOIN current_health_factors AS chf ON phf.user = chf.user
             WHERE
-                chf.current_health_factor > 1.0
-                AND phf.predicted_health_factor <= 1.0
-                AND phf.total_effective_collateral_usd > 10000
-                AND phf.total_effective_debt_usd > 10000
-                AND chf.effective_collateral_usd > 10000
-                AND chf.effective_debt_usd > 10000
+                chf.current_health_factor > toDecimal256(1.0, 18)
+                AND phf.predicted_health_factor <= toDecimal256(1.0, 18)
+                AND phf.total_effective_collateral_usd > toDecimal256(10000, 18)
+                AND phf.total_effective_debt_usd > toDecimal256(10000, 18)
+                AND chf.effective_collateral_usd > toDecimal256(10000, 18)
+                AND chf.effective_debt_usd > toDecimal256(10000, 18)
         )
         SELECT
             lc.user AS user,

@@ -742,10 +742,10 @@ class ImportantBalancesBackfillTask(Task):
             high_risk_users_query = """
             SELECT DISTINCT user
             FROM aave_ethereum.view_user_health_factor
-            WHERE health_factor >= 1.0
-              AND health_factor <= 1.25
-              AND effective_debt_usd > 10000
-              AND effective_collateral_usd > 10000
+            WHERE health_factor >= toDecimal256(1.0, 18)
+              AND health_factor <= toDecimal256(1.25, 18)
+              AND effective_debt_usd > toDecimal256(10000, 18)
+              AND effective_collateral_usd > toDecimal256(10000, 18)
             """
 
             result = self.clickhouse_client.execute_query(high_risk_users_query)
